@@ -1,5 +1,11 @@
 # Build log
 
+## Overnight performance round (Oct 5 → 6) — working notes
+
+**Harness (zero live calls).** `scripts/perf-measure.mjs --mock --headed`: every API answered locally (`scripts/lib/mock-server.mjs`: real Open‑Meteo series from the replay caches reshaped to the request, the recorded Valhalla route, RWIS archive, rivers snapshot; NWS/NWPS/USGS/RainViewer/GIBS bodies synthesized with the exact shapes the app parses), the real basemap style/sprites/glyphs harvested from a local service‑worker cache, **empty vector tiles** (tile hosts were at their daily caps), generated radar/terrain/GIBS PNGs. Profile: 390×844 touch, CPU 4× (calibrated 3.9×), Fast 4G, headed Chrome on the machine's GPU (Adreno X1‑85), page visible at 120 rAF/s.
+
+**Correction to the Oct 5 numbers.** Those came from headless Chromium, which on this machine (a) ignores `Emulation.setCPUThrottlingRate` (measured ×0.9) and (b) runs ~4× slower than native Chrome anyway (x64 build under emulation) with SwiftShader doing raster on the CPU. So "CPU 4×: 3.2 s layer enable, 4.5 s pause, 888 ms journey open" was *unthrottled emulated Chromium + software GPU*, not the stated profile. On the stated profile the same build measures: INP tab 80 / pan 40 / radar play 32 / enable rainfall+flood+nowcast 128 / pause 40 / journey open 56 ms; first radar frame 2.36 s (optimistic: empty basemap tiles); one main‑thread task > 200 ms at first load (WebGL `getContext`, 256 ms, driver, not app code); frame drops: 8 frames > 50 ms while enabling the block layers, 17 (8 > 100 ms) during the journey‑open route fit; 140 requests on first load. The remaining lag on the phone is device‑bound (a mid‑range phone GPU is far weaker than this laptop's); the real‑device walkthrough is the next evidence.
+
 Short notes on what was hardest and why, plus the QA record. Dates are Sept 29–30, 2026.
 
 ## Hardest parts, in order
