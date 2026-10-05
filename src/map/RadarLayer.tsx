@@ -15,6 +15,7 @@ export function RadarLayer() {
   const enabled = useApp((s) => s.layers.radar)
   const radar = useApp((s) => s.radar.data)
   const frame = useApp((s) => s.radarFrame)
+  const playing = useApp((s) => s.playing && s.animLayer === 'radar')
   const added = useRef<string[]>([])
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export function RadarLayer() {
           id,
           type: 'raster',
           source: id,
+          layout: { visibility: 'none' },
           paint: { 'raster-opacity': 0, 'raster-opacity-transition': { duration: 0 }, 'raster-fade-duration': 0 },
         },
         before,
@@ -55,13 +57,21 @@ export function RadarLayer() {
     return remove
   }, [map, enabled, radar])
 
+  // Only the current frame (and, while playing, the next two so their tiles are ready) is a
+  // *visible* layer. A hidden layer at opacity 0 still makes MapLibre fetch and upload its tiles
+  // on every pan/zoom — with 13–16 frames that was 13–16× the tile work for one frame on screen.
   useEffect(() => {
     if (!map || !enabled) return
+    const n = added.current.length
+    const keep = new Set<number>([frame])
+    if (playing) for (let k = 1; k <= 2; k++) keep.add((frame + k) % Math.max(1, n))
     added.current.forEach((id, i) => {
       if (!map.getLayer(id)) return
+      const vis = keep.has(i) ? 'visible' : 'none'
+      if (map.getLayoutProperty(id, 'visibility') !== vis) map.setLayoutProperty(id, 'visibility', vis)
       map.setPaintProperty(id, 'raster-opacity', i === frame ? 0.75 : 0)
     })
-  }, [map, enabled, frame, radar])
+  }, [map, enabled, frame, playing, radar])
 
   return null
 }

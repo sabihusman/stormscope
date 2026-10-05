@@ -41,6 +41,8 @@ export function MapView({ children }: { children: ReactNode }) {
     if (!container.current) return
     const m = new maplibregl.Map({
       container: container.current,
+      // (A pixelRatio cap of 2 was measured Oct 6 on the laptop GPU: no frame-time change at DPR 3
+      // emulation, so it is not applied; re-test on a real phone GPU before adding it.)
       style: BASEMAP_STYLE,
       center: [-98, 39],
       zoom: 3,
