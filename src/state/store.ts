@@ -1,6 +1,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import type { FloodResult, HourlyGrid, LayerId, Place, RadarData, RainHorizon, Resource, RiverGauge, StationObs } from '../types'
 import type { NowcastResult, RainfallCellsResult } from '../workers/client'
+export type { LayerId } from '../types'
 import type { Flowline } from '../api/nhd'
 import { defaultUnits, type Units } from '../lib/units'
 import type { BBox, LngLat } from '../lib/geo'
@@ -98,6 +99,8 @@ export interface AppState {
   /** Bumped by "back to my location". */
   recenterNonce: number
   layers: Record<LayerId, boolean>
+  /** Layers that threw and were switched off by their error boundary, with the reason (cleared on re-enable). */
+  layerErrors: Partial<Record<string, string>>
   rainHorizon: RainHorizon
   is3D: boolean
   units: Units
@@ -206,6 +209,7 @@ export const store = createStore<AppState>({
   legendOpen: true,
   selection: null,
   toast: null,
+  layerErrors: {},
   refreshNonce: 0,
   journey: { to: null, departure: Date.now(), routes: emptyResource(), selected: 0, weather: emptyResource(), hazards: emptyResource(), road: emptyResource() },
   replay: null,
@@ -294,6 +298,12 @@ export function applyImageryCarry(layer: 'radar' | 'satellite', times: number[])
 export function setLayer(id: LayerId, on: boolean) {
   store.set((s) => {
     const layers = { ...s.layers, [id]: on }
+    // Turning a layer on again after it was contained is the retry: forget its error.
+    let layerErrors = s.layerErrors
+    if (on && layerErrors[id]) {
+      layerErrors = { ...layerErrors }
+      delete layerErrors[id]
+    }
     // Radar and satellite are one imagery slot: turning one on turns the other off and
     // carries the time you were looking at across to the other layer.
     let extra: Partial<AppState> = {}
@@ -318,7 +328,7 @@ export function setLayer(id: LayerId, on: boolean) {
     // Keep the timeline pointed at an enabled animated layer.
     let animLayer = (extra.animLayer as AnimLayer | undefined) ?? s.animLayer
     if (!layers[animLayer]) animLayer = (['radar', 'satellite', 'rainfall', 'nowcast'] as AnimLayer[]).find((l) => layers[l]) ?? animLayer
-    return { ...extra, layers, animLayer }
+    return { ...extra, layers, animLayer, layerErrors }
   })
 }
 

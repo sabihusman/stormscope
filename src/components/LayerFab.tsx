@@ -25,6 +25,7 @@ export function LayerFab() {
   const legendOpen = useApp((s) => s.legendOpen)
   const units = useApp((s) => s.units)
   const corner = useApp((s) => s.fabCorner)
+  const layerErrors = useApp((s) => s.layerErrors)
   const satProduct = useApp((s) => s.satProduct)
   const [open, setOpen] = useState(false)
   const timers = useRef<Partial<Record<LayerId, number>>>({})
@@ -106,10 +107,14 @@ export function LayerFab() {
           </div>
           {LAYERS.map((l) => {
             const on = pendingState[l.id] ?? layers[l.id]
+            const err = layerErrors[l.id]
             return (
-              <button key={l.id} className={`fab-item ${on ? 'on' : ''}`} onClick={() => toggle(l.id)} aria-pressed={on}>
+              <button key={l.id} className={`fab-item ${on ? 'on' : ''} ${err ? 'err' : ''}`} onClick={() => toggle(l.id)} aria-pressed={on} title={err ? `Unavailable: ${err}. Tap to retry.` : undefined}>
                 <span aria-hidden="true">{l.icon}</span>
-                <span className="fab-label">{l.label}</span>
+                <span className="fab-label">
+                  {l.label}
+                  {err && <small className="fab-err"> · unavailable — {err}</small>}
+                </span>
               </button>
             )
           })}

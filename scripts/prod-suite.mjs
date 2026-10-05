@@ -54,6 +54,7 @@ const SUITES = [
   { name: 'zoom', script: 'zoom-check.mjs' },
   { name: 'fab', script: 'fab-check.mjs' },
   { name: 'sheet', script: 'sheet-check.mjs' },
+  { name: 'boundary', script: 'boundary-check.mjs' },
   { name: 'follow', script: 'follow-check.mjs' },
   { name: 'rivers', script: 'rivers-check.mjs' },
   { name: 'journey-phl-bal', script: 'journey-check.mjs', env: { JOURNEY_SCENARIO: '0' } },

@@ -5,6 +5,7 @@ import { haversine } from '../lib/geo'
 import { aggregate, store, useApp, useVisibleBlocks, type PanelTab, type SheetMode } from '../state/store'
 import { Timeline } from './Timeline'
 import { FloodPanel, RiversPanel, SourcesPanel, StationPanel } from './Panels'
+import { ErrorBoundary } from './ErrorBoundary'
 
 // The journey panel (and the routing/hazard/road code behind it) loads when the tab is first opened.
 const JourneyPanel = lazy(() => import('./JourneyPanel').then((m) => ({ default: m.JourneyPanel })))
@@ -169,16 +170,19 @@ export function BottomSheet() {
         </button>
       </nav>
       <div className="sheet-body" hidden={mode === 'peek'} onTouchStart={onBodyTouchStart} onTouchMove={onBodyTouchMove} onTouchEnd={onBodyTouchEnd} onTouchCancel={onBodyTouchEnd}>
-        {tab === 'timeline' && <Timeline />}
-        {tab === 'journey' && (
-          <Suspense fallback={<p className="muted">Loading journey tools…</p>}>
-            <JourneyPanel />
-          </Suspense>
-        )}
-        {tab === 'station' && <StationPanel />}
-        {tab === 'rivers' && <RiversPanel />}
-        {tab === 'flood' && <FloodPanel />}
-        {tab === 'sources' && <SourcesPanel />}
+        {/* Each panel is contained: a throw shows "unavailable — reason" + Retry here; tabs, handle and the map keep working. */}
+        <ErrorBoundary key={tab} kind="panel" name={TABS.find((t) => t.id === tab)?.label ?? 'Panel'}>
+          {tab === 'timeline' && <Timeline />}
+          {tab === 'journey' && (
+            <Suspense fallback={<p className="muted">Loading journey tools…</p>}>
+              <JourneyPanel />
+            </Suspense>
+          )}
+          {tab === 'station' && <StationPanel />}
+          {tab === 'rivers' && <RiversPanel />}
+          {tab === 'flood' && <FloodPanel />}
+          {tab === 'sources' && <SourcesPanel />}
+        </ErrorBoundary>
       </div>
     </section>
   )

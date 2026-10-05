@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { MapView } from './map/MapView'
 import { RadarLayer } from './map/RadarLayer'
@@ -13,7 +13,7 @@ import { MapPopup } from './map/MapPopup'
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
 import { DataController } from './state/DataController'
-import { loadPlace, savePlace, store, toast, useApp } from './state/store'
+import { loadPlace, savePlace, store, toast, useApp, type LayerId } from './state/store'
 import { useGeolocation } from './hooks/useGeolocation'
 import { haversine } from './lib/geo'
 import { WARM_CACHE_NO_REFETCH } from './lib/perfFlags'
@@ -22,6 +22,17 @@ import { SearchBar } from './components/SearchBar'
 import { LayerFab } from './components/LayerFab'
 import { Legend } from './components/Legend'
 import { BottomSheet } from './components/BottomSheet'
+import { ErrorBoundary } from './components/ErrorBoundary'
+
+/** A map layer boundary keyed on its toggle, so turning the layer on again retries it. */
+function LayerGuard({ name, layer, children }: { name: string; layer: LayerId; children: ReactNode }) {
+  const on = useApp((s) => s.layers[layer])
+  return (
+    <ErrorBoundary key={String(on)} kind="layer" name={name} layer={layer}>
+      {children}
+    </ErrorBoundary>
+  )
+}
 
 export default function App() {
   const geo = useGeolocation()
@@ -74,28 +85,31 @@ export default function App() {
   return (
     <div className={`app sheet-${sheet} fab-${fabCorner}`}>
       <MapView>
-        <SatelliteLayer />
-        <RadarLayer />
-        <RainfallLayer />
-        <FloodLayer />
-        <RiversLayer />
-        <StationLayer />
-        <NowcastLayer />
-        <WindParticles />
+        {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
+        <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
+        <LayerGuard name="Radar" layer="radar"><RadarLayer /></LayerGuard>
+        <LayerGuard name="Rainfall" layer="rainfall"><RainfallLayer /></LayerGuard>
+        <LayerGuard name="Flood risk" layer="flood"><FloodLayer /></LayerGuard>
+        <LayerGuard name="Rivers" layer="rivers"><RiversLayer /></LayerGuard>
+        <LayerGuard name="Station" layer="station"><StationLayer /></LayerGuard>
+        <LayerGuard name="Nowcast" layer="nowcast"><NowcastLayer /></LayerGuard>
+        <LayerGuard name="Wind particles" layer="nowcast"><WindParticles /></LayerGuard>
         {journeyTo && (
           <Suspense fallback={null}>
-            <HazardLayer />
-            <RouteLayer />
+            <ErrorBoundary kind="layer" name="Hazard overlay"><HazardLayer /></ErrorBoundary>
+            <ErrorBoundary kind="layer" name="Route overlay"><RouteLayer /></ErrorBoundary>
           </Suspense>
         )}
-        <MapPopup />
+        <ErrorBoundary kind="layer" name="Map popup"><MapPopup /></ErrorBoundary>
       </MapView>
       <DataController />
 
-      <SearchBar open={searchOpen} onOpen={() => setSearchOpen(true)} onClose={() => setSearchOpen(false)} onLocate={geo.request} locating={geo.status === 'locating'} />
-      <Legend />
-      <LayerFab />
-      <BottomSheet />
+      <ErrorBoundary kind="panel" name="Search">
+        <SearchBar open={searchOpen} onOpen={() => setSearchOpen(true)} onClose={() => setSearchOpen(false)} onLocate={geo.request} locating={geo.status === 'locating'} />
+      </ErrorBoundary>
+      <ErrorBoundary kind="panel" name="Legend"><Legend /></ErrorBoundary>
+      <ErrorBoundary kind="panel" name="Layer menu"><LayerFab /></ErrorBoundary>
+      <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>
 
       {showPrompt && (
         <LocationPrompt

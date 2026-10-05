@@ -1280,6 +1280,9 @@ small {
 }
 .station-chips .chip-ice { border-left-color: #ef4444; }
 .station-chips .chip-watch { border-left-color: #f97316; }
+/* A layer its error boundary switched off: shown in the menu with the reason; tapping retries. */
+.fab-item.err { border-color: rgba(239, 68, 68, 0.6); }
+.fab-err { display: block; color: #fca5a5; font-weight: 400; white-space: normal; }
 .station-chips .chip-wet { border-left-color: #38bdf8; }
 .station-chips .chip-dry { border-left-color: #22c55e; }
 .station-chips .chip-unknown,
