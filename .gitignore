@@ -1,0 +1,11 @@
+node_modules
+dist
+dev-dist
+.vercel
+.env
+.env.*
+*.log
+.DS_Store
+e2e-shots
+
+.vercel

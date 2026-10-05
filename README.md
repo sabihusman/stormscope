@@ -1,0 +1,186 @@
+# StormScope
+
+Mobile-first, installable (PWA) weather map: live radar or satellite, expected rainfall, flood-risk screening, river gauges, nearest-station observations, a short-range nowcast, and **journey weather** — the forecast, official hazards and pavement-sensor ice reports along a route at the time you will actually be there. Everything is drawn on a MapLibre map with optional 3D terrain.
+
+Every data point in the app is real, shows its source, and carries an "updated X ago" timestamp. There is no mock or demo data; replays use archived products from the dates they describe.
+
+**Live:** https://stormscope-two.vercel.app
+
+## Quick start
+
+```bash
+npm install
+npm run dev          # http://localhost:5173
+```
+
+```bash
+npm run build        # type-check + production build (dist/) incl. service worker + manifest
+npm run preview      # serve dist/ at http://localhost:4173 (needed to test the PWA/offline shell)
+```
+
+Other scripts: `npm run typecheck`, `npm run lint`, `npm run icons` (regenerates `public/icons/*.png`), and the test suites described in [Testing](#testing-headless-suites).
+
+No API keys or environment variables are required: every service used is public and keyless.
+
+## Deploying
+
+Vercel project `stormscope`; the production alias is public, the per-deployment `*-sabihusman-4178s-projects.vercel.app` URLs sit behind Vercel's deployment protection. The project is a static Vite site; `vercel.json` sets the SPA rewrite and cache headers (`sw.js` is never cached, hashed assets are immutable).
+
+```bash
+vercel deploy --prod
+```
+
+(On a machine with TLS interception: `NODE_OPTIONS=--use-system-ca vercel deploy --prod`.) Any static host works: serve `dist/` and rewrite unknown paths to `index.html`.
+
+## Map layers
+
+| Layer | What it shows | Source | Refresh |
+|---|---|---|---|
+| **Satellite** | GOES-East/West GeoColor (true colour by day, IR-tinted at night) or Band-13 clean IR; last ~3 h of 10-minute frames, scrubbable. **Radar and satellite are one imagery slot** (radio-style in the layer menu): switching lands on the frame nearest the time you were viewing; if the other layer has nothing within 10 min (GIBS publishes GOES ~1 h behind), it shows its newest frame with a "X min earlier than the radar time you were on" note. The timeline and legend follow whichever is active. | NASA GIBS WMTS | 5 min |
+| **Radar** | Animated reflectivity, ~2 h of past frames + RainViewer nowcast frames when published; play / pause / step / scrub | RainViewer | 5 min |
+| **Rainfall** | Hourly precipitation per forecast block (7×7 points per 0.5°/1°/2° block, see below), rendered as accumulation cells; horizons 6 / 12 / 24 / 48 h; scrubbable | Open-Meteo forecast | 30 min, visible tab only |
+| **Flood risk** | ~2 km cells scored from forecast rain, elevation relative to surroundings and geodesic distance to mapped drainage | Open-Meteo + AWS Terrain Tiles + USGS NHD flowlines (US only) | with the block |
+| **Rivers** | Nearby stream gauges, colour-coded by flood category / elevated flow; tap for stage, flow, thresholds and forecast | NOAA NWPS + USGS Water Data | 15 min |
+| **Station** | Nearest weather station: pressure (+3 h trend), humidity, wind, gusts, temperature, precipitation | api.weather.gov (US); Open-Meteo elsewhere or when NWS is down | 10 min |
+| **Nowcast** | Next 6 h in 10-min steps: clouds and rain cells advected by the model wind, wind as animated particles whose streak length grows with zoom (static arrows under reduced motion) | Open-Meteo, advected in a web worker | with the block |
+
+**Forecast blocks that tile the map.** Rainfall, flood risk and nowcast are fetched per fixed geographic block (0.5° / 1° / 2° depending on zoom, `src/lib/blocks.ts`), like map tiles. Panning loads only the blocks that are missing; everything already loaded stays where it is and is cached (30 blocks), so panning back costs nothing. Up to 16 blocks cover the viewport; below zoom 5.5 nothing is loaded and the timeline says so. River gauges and the nearest station follow the map centre once you pan more than ~25 km; a "Showing map area · back to my spot" pill returns to your location.
+
+**Flood-risk model.** For each cell: `rain` = bilinearly interpolated precipitation summed over the selected horizon; `low` = how far the cell sits below the mean of its 5×5 neighbourhood (terrain tiles, fallback model elevation); `drain` = 1 − d/600 m where d is the **geodesic** distance to the nearest NHD flowline (3D point-to-great-circle-segment formula, exact at any latitude). Score = 0.45·rain + 0.30·low + 0.25·drain (terrain weight rises to 0.45 without drainage data), gated by rain so dry forecasts never show risk. Classes: elevated ≥ 0.30, high ≥ 0.55, severe ≥ 0.80. It is an indicative screening layer, not an official warning, and the panel says so.
+
+## Journey weather
+
+Open the **Journey** tab, pick a destination (search, or tap the map → "Set as destination") and a departure (chips for now / +30 min / +1 h / +2 h, or a date-time picker; one journey per driving day, no overnight-stop modelling). The app then:
+
+1. **Routes** with Valhalla (FOSSGIS demo server, alternates when it offers them; OSRM demo as fallback) and computes an ETA at every vertex by spreading each maneuver's time along its length. Routing is at most one request per second; ETAs carry ±2–3 min (rural) to ±5–8 min (mixed) uncertainty because no live traffic is used, and the panel says so.
+2. **Samples the route** every ~5 min of driving for the first 6 h and every ~15 min after (≤ 120 points), and fetches the forecast valid **at each sample's ETA** in one window-bounded Open-Meteo request: native 15-minutely data (HRRR / ICON-D2 / AROME) when departure is within two days, hourly beyond. Each sample is classified (WMO code + precipitation, temperature, snow, gusts, visibility) into clear / caution / hazardous / severe, which colours the route, the arrival card, the "worst along the way" line and the tappable strip.
+3. **Checks official hazards in space and time** (`src/lib/hazardEngine.ts`): a route sample counts only when it is inside a polygon — or within 5 km of its edge — **and** its ETA falls inside that polygon's own validity window. Three tiers: NWS warnings/advisories (`api.weather.gov/alerts/active`, zone-based products resolved through `/zones/{type}/{id}`), SPC watches as polygons (IEM `spcwatch.py`), and SPC Day 1–3 outlooks (categorical plus tornado/severe probabilities, NOAA MapServer). Products that overlap the corridor but not at your ETA are listed as "nearby, not at your ETA" with the reason. Every source reports *checked / unavailable / not applicable*; the summary never says "clear", and a rate-limited source is reported as such rather than as "no warnings". Live journeys re-check every 2 min while the tab is visible.
+4. **Reads pavement sensors (RWIS)** within 5 km of the route (state DOT networks aggregated by the Iowa Environmental Mesonet from NOAA MADIS). Each station is a chip with pavement temperature, the DOT's condition text and the observation age.
+
+### Ice rules
+
+The condition strings follow the SCAN/ScanWeb surface-status table the DOT networks publish (Montana DOT's copy of the glossary: https://mdt.mt.gov/travinfo/atms-glossary.aspx; Iowa reports the same vocabulary):
+
+| DOT status | Glossary definition (abridged) | App state |
+|---|---|---|
+| Ice Warning, Snow Warning, Snow/Ice Warning, Black Ice Warning | continuous film of ice and water mixture at or below 32 °F with insufficient chemical to keep it from freezing | **ice** — can confirm |
+| Frost; plain Ice / Snow / Slush / Icy / Snowy | moisture at or below freezing with pavement at or below the dew point; frozen film reported | **ice** — can confirm |
+| Ice Watch, Snow Watch | thin or spotty film of moisture at or below freezing | **watch** — possible ice only, never confirms |
+| Chemical Wet | water/ice mixture at or below freezing with enough chemical to keep it liquid | wet (treated) |
+| Wet, Damp, Trace Moisture, Moist, Dew | moisture above freezing | wet |
+| Dry | no moisture | dry |
+| Other, No Report, NA, blank | — | unknown (never "dry") |
+
+A sensor **confirms "icy"** only for samples within 5 km of it *and* with an ETA within 90 min of its observation. Live readings older than 60 min are stale and never confirm. A station with no readings is "unknown", never "no ice". An Ice/Snow Watch in the window yields "Possible ice — *station* reports Ice Watch (pavement N °F)" whatever the forecast says. Outside those rules the forecast alone can only say "possible ice".
+
+### Replays
+
+`?replay=<id>` loads a fixture from `public/fixtures/` (`index.json` lists them): a fixed start, destination and departure, archived hazard products, and the RWIS archive for the day. The weather comes from Open-Meteo's ERA5 reanalysis ("hindsight") or, for `*-forecast` variants, from the Historical Forecast API — the GFS run *as issued that day*. The banner says which, and the map fits the route.
+
+| id | Date / depart (UTC) | What it exercises |
+|---|---|---|
+| `greenfield-2020z` | 2024-05-21 20:20Z, Des Moines → Omaha | PDS Tornado Watch 277, TO.W #41/#42 at ETA, SPC Day 1 Moderate risk + significant tornado; watches 276/278/279 must *not* be flagged |
+| `greenfield-2200z` | 2024-05-21 22:00Z | negative timing: same corridor after the warnings expired → "nearby, not at your ETA" |
+| `ice-storm-2024-12-14` | 2024-12-14 08:00Z, Johnston → Iowa City (I-80) | ERA5 weather; Colfax (Ice Warning 24 °F) and Tiffin (Snow Warning 29 °F) confirm; Altoona and Iowa City report Ice Watch → possible only; Grinnell has no readings → unknown |
+| `ice-storm-2024-12-14-forecast` | 2024-12-14 10:00Z | same day on the GFS run as issued: the forecast alone classes 22/23 samples as ice (freezing drizzle/rain codes 56/66 from 10Z); at 08:00Z that run still showed no precipitation while the sensors had reported ice since 02:50Z |
+| `ice-storm-2024-12-15-late` | 2024-12-15 00:30Z | 4 h after the last icy observation: nothing confirms, out-of-window stations are stale/unknown |
+
+Fixture notes: the IEM RWIS archive CSV is in UTC; blank sensor values are kept as null (no 0 °F sentinels); `meta.json` in each fixture folder records the product IDs, the expected assertions and data-quality caveats.
+
+**Zero live calls.** Each scenario also ships its recorded route (`route.<from>__<to>.json`) and the raw Open-Meteo response for that route and departure (`weather.<id>.json`), produced once by `scripts/record-replays.mjs`. A replay therefore makes no routing or Open-Meteo request; the provider line says "response cached in the fixture, no live call", and `?live=1` forces the live path (what the recorder uses). If a cache file is missing the app falls back to a live call and says so in a toast.
+
+## Data sources and their limits
+
+All services are public and keyless and are called **directly from the browser** (no proxy), so every limit below is per client IP — your phone, your laptop and any test run on the same connection share it. When one of a panel's sources is down the panel shows what it has and names the missing source (for example "NOAA NWPS only (USGS Water Data unavailable: rate-limited …)").
+
+| Service | Used for | Endpoint | Limits / notes |
+|---|---|---|---|
+| RainViewer | radar frames + tiles | `api.rainviewer.com/public/weather-maps.json`, `tilecache.rainviewer.com/…/512/{z}/{x}/{y}/2/1_1.png` | Public tiles stop at zoom 7 (capped `maxzoom: 7`, overzoomed). Colour scheme 2. |
+| NASA GIBS | satellite | `gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/{tms}/{z}/{y}/{x}.png` | `GOES-East_ABI_GeoColor`, `…_Band13_Clean_Infrared` and the GOES-West pair (west of −105°); frame times from the WMTS capabilities `<Dimension>`; newest frame is ~60–80 min old. |
+| Open-Meteo forecast | blocks, journey forecast, station fallback | `api.open-meteo.com/v1/forecast` (multi-location) | **Every location counts as one call: 600/min, 5 000/h, 10 000/day per IP.** Blocks use 49 points; a full 16-block view is 784 calls per refresh (30 min, visible tab only). The client keeps a rolling one-minute budget (~550), parses the 429 tier (minute/hour/day) and backs off; the Sources panel shows calls made today from this browser. |
+| Open-Meteo archive / historical forecast | replay weather | `archive-api.open-meteo.com/v1/archive` (ERA5), `historical-forecast-api.open-meteo.com/v1/forecast?models=gfs_seamless` | Same quota. Historical Forecast coverage verified for 2024-12-14 (GFS seamless, HRRR). |
+| Open-Meteo geocoding / Nominatim | search, reverse geocode | `geocoding-api.open-meteo.com/v1/search`, `nominatim.openstreetmap.org` | Nominatim: ≤ 1 req/s, identify the app; searches debounced 300 ms. |
+| Valhalla (FOSSGIS) / OSRM demo | routing | `valhalla1.openstreetmap.de/route`, `router.project-osrm.org/route/v1` | Demo servers, fair use, ≤ 1 req/s in the app; no traffic data. |
+| api.weather.gov | nearest station, alerts, zones | `/points`, `/stations/{id}/observations/latest`, `/alerts/active?area=…`, `/zones/{type}/{id}` | US only (404 elsewhere → Open-Meteo fallback). Browsers cannot set `User-Agent`; the API accepts the request. Zone geometry is fetched lazily and capped at 60 per check. |
+| IEM (Iowa Environmental Mesonet) | SPC watch polygons, RWIS live + archive | `mesonet.agron.iastate.edu/json/spcwatch.py`, `/api/1/currents.json?network=XX_RWIS`, `/cgi-bin/request/rwis.py` | Keyless, CORS. RWIS fields `scond0–3` (condition), `tsf0–3` (surface °F), `utc_valid`; the archive is UTC. US state networks only. |
+| NOAA SPC via NWS MapServer | Day 1–3 outlooks | `mapservices.weather.noaa.gov/vector/rest/services/outlooks/SPC_wx_outlks/MapServer` layers 1/3/9/11/17/19 | Keyless, CORS. |
+| NOAA NWPS | gauges, flood categories, forecasts | `api.water.noaa.gov/nwps/v1/gauges?bbox.xmin=…&srid=EPSG_4326`, `/gauges/{lid}` | Thresholds and the USGS id are only on the per-gauge detail (fetched for the nearest 20). Rate-limits per IP after sustained test traffic. |
+| USGS Water Data (OGC API) | latest stage/flow, 10-day median | `api.waterdata.usgs.gov/ogcapi/v0/collections/{latest-continuous,monitoring-locations,daily}/items` | Replaces the decommissioned `waterservices.usgs.gov/nwis/iv`. Three requests per gauge load (latest values, site names, one bbox query for the 10-day daily medians). Rate-limits per IP (HTTP 429 with a sign-up hint); the app then shows NWPS-only gauges and says so. No API key is used. |
+| USGS NHD (The National Map) | drainage for flood scoring | `hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/6/query` | US only; elsewhere the flood score uses terrain + rain and says so. |
+| AWS Terrain Tiles | 3D terrain, flood scoring | `s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png` | Terrarium encoding, decoded in the worker. |
+| OpenFreeMap | basemap | `tiles.openfreemap.org/styles/positron` | Free vector basemap. |
+
+Known limitations: radar is coarse above zoom 7 (upstream); NHD, NWS, NWPS/USGS, RWIS and SPC products are US-only (each panel says so); the flood layer is a screening heuristic; the nowcast is model-advected beyond RainViewer's published nowcast frames; ETAs ignore traffic; the hazard engine checks products that exist as polygons, not local road closures.
+
+## Testing (headless suites)
+
+The suites are plain Playwright scripts in `scripts/` (Chromium + SwiftShader, no test framework). Install the browser once with `npx playwright install chromium`, and run the app on the port the scripts expect:
+
+```bash
+npx vite --port 5174 --strictPort
+```
+
+| Script | Covers |
+|---|---|
+| `qa.mjs` | first-run location prompt and recovery cards, search, layers, units, popups clamped on-screen, legend, bottom sheet, reload persistence, non-US fallbacks, reduced motion, main-thread responsiveness, desktop layout |
+| `e2e.mjs` | screenshot walkthrough of every panel (visual review, few assertions) |
+| `pwa-check.mjs` | manifest, service worker, offline shell, cached API data (needs `npm run preview` or production) |
+| `satellite-check.mjs` | radar ⇄ satellite exclusivity, time carry-over, lag note, timeline/legend follow (`VIEWPORT=mobile` for the phone layout) |
+| `blocks-check.mjs` | block tiling: persistence across pans, neighbours only, cache, hidden-tab pause, 49-point tiles, daily counter |
+| `zoom-check.mjs` | block level per zoom, continental zoom loads nothing |
+| `fab-check.mjs` | draggable layer button, corners persist, legend/controls move aside |
+| `follow-check.mjs` | rivers/station follow the map centre, recenter pill |
+| `journey-check.mjs` | routing, ETAs, 15-minutely sampling, budget, panel wording, departure change, alternates (`JOURNEY_SCENARIO=0` Philadelphia → Baltimore, `1` Johnston → Iowa City) |
+| `hazards-check.mjs` | Greenfield replays: polygon IDs at ETA, watches excluded, outlooks, negative timing, per-source status, camera fit |
+| `road-check.mjs` | ice-storm replays: Warning vs Watch statuses, 5 km / 90 min rules, stale/unknown, forecast-as-issued variant, live I-80 stations |
+| `rivers-check.mjs` | rivers layer **on** at a fixed Iowa viewport: the one-request bbox query for 10-day discharge medians equals the old per-site queries (live) and, exactly, a snapshot recorded from a fully **approved** USGS window (`scripts/fixtures/rivers-iowa.json`, refresh with `--record`, `SNAP_START`/`SNAP_END`); the app's elevated-flow ratios use those medians |
+| `sheet-check.mjs` | phone bottom sheet with real touch input (CDP touch events, `scripts/lib/touch.mjs`): from every tab, with content scrolled, collapse by handle drag, handle tap, the ▼ button (must be on screen), content swipe-down at scroll top, and the browser back gesture; the sheet must return to its starting height |
+| `record-replays.mjs` | not a test: records each replay's route and raw Open-Meteo response into its fixture folder so replays make no live routing/forecast calls (run against the dev server; `--only=<id>`) |
+
+Run one suite as `node scripts/<name>.mjs <base-url> <screenshot-dir>`, e.g. `node scripts/road-check.mjs http://localhost:5174/ e2e-shots/road`. Screenshots land in the directory you give.
+
+### Traffic guard (shared IP)
+
+Every request a suite makes leaves the machine's public IP, which the owner's own devices share, and most of the APIs above limit per IP. `scripts/lib/qa-budget.mjs` therefore wraps every suite:
+
+* counts every external request **per host** and Open-Meteo **per location**, for the browser context including service-worker fetches (`PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1` is set for you);
+* keeps a per-UTC-day ledger in `e2e-shots/.qa-budget.json` and prints it before and after each run (`budget:` / `traffic:` lines);
+* refuses to start when the Open-Meteo day cap (`QA_OM_CAP`, default 3 000 locations — leaving 7 000 for real use) is spent;
+* **aborts requests to any host that has reached its daily cap** (`HOST_CAPS` in the module, sized for one full pass plus one retry: USGS 100, NWPS 300, IEM 100, routing 40 each, GIBS 3 000, radar tiles 4 000) and prints `BLOCK <host>` so the suite fails loudly instead of hammering the service. Override deliberately with `QA_CAPS='{"api.waterdata.usgs.gov":0}'`.
+
+Suites that don't test river gauges start with the rivers (and usually station) layers off, so they generate no NWPS/USGS/NWS traffic.
+
+Node-side requests a suite makes itself (the rivers suite's USGS/NWPS queries) go through `guardedFetch`, which charges the host cap **before** each request and refuses past it, so a long loop cannot overrun. A suite that declares `assertBudget(name, { openMeteo: false })` is held to it: any Open-Meteo request it makes is aborted and the run is flagged.
+
+### Release flow: preview → full run → promote
+
+```bash
+vercel deploy                                   # preview deployment (protected URL)
+VERCEL_AUTOMATION_BYPASS_SECRET=… node scripts/prod-suite.mjs https://<preview>.vercel.app/
+vercel promote https://<preview>.vercel.app     # only when every suite is green
+```
+
+Preview URLs sit behind Vercel Authentication; the suites pass Vercel's *Protection Bypass for Automation* headers on every request to a `*.vercel.app` host when `VERCEL_AUTOMATION_BYPASS_SECRET` is set (generate one under Project Settings → Deployment Protection, or `vercel api /v1/projects/stormscope/protection-bypass -X PATCH --input body.json`; revoke it afterwards). `npm run qa:prod` runs the same thing against the production alias.
+
+`scripts/prod-suite.mjs` runs the suites **sequentially** (one browser at a time) against the deployed bundle, identifies the bundle by its hashed entry script, records the result in `e2e-shots/.prod-runs.json`, and **refuses to run the same bundle twice** unless you pass `--force`. It also refuses to start a full run the Open-Meteo day budget cannot finish (~1 500 locations). `--only=road,hazards` runs a subset without marking the bundle as fully tested; `npm run qa:local` does the same against the dev server with `--force`.
+
+## Project layout
+
+```
+src/
+  api/          one client per service: rainviewer, gibs, openMeteo (budgeted limiter), geocode, nws, nwps,
+                usgsWater, nhd, routing (Valhalla/OSRM), hazards (NWS alerts, IEM watches, SPC outlooks,
+                replay loader), rwis (IEM pavement sensors)
+  lib/          geo (geodesic maths), blocks (tiling), journey (sampling, ETA forecast, classification),
+                hazardEngine, roadIce (RWIS rules), polyline, units, time, fetch, colors
+  workers/      geo.worker.ts (flood scoring, terrain decode, drainage distance, nowcast advection) + client
+  state/        store.ts (tiny external store) · DataController.tsx (all polling, worker jobs, journey pipeline)
+  map/          MapView (MapLibre + terrain + 2D/3D), one component per overlay, RouteLayer, HazardLayer, MapPopup
+  components/   SearchBar, LocationPrompt, LayerFab, Legend, BottomSheet, Timeline, Panels, JourneyPanel
+public/fixtures/  replay scenarios (index.json + one folder per event)
+scripts/        test suites, prod-suite.mjs, lib/qa-budget.mjs, make-icons.mjs, shp2geojson.mjs
+```
+
+## Browser support
+
+Modern evergreen browsers (Chrome/Edge 100+, Safari 16.4+, Firefox 105+). The worker uses `OffscreenCanvas` + `createImageBitmap` for terrain decoding and falls back to the model elevation if a tile fails.

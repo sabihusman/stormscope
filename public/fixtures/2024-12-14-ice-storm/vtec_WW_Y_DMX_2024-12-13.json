@@ -1,0 +1,25 @@
+{
+ "wfo": "DMX",
+ "year": 2024,
+ "events": [
+  {
+   "phenomena": "WW",
+   "significance": "Y",
+   "ph_name": "Winter Weather",
+   "sig_name": "Advisory",
+   "eventid": 10,
+   "hvtec_nwsli": null,
+   "area": 72887,
+   "locations": "Audubon [IA], Guthrie [IA], Marshall [IA], Tama [IA], Jasper [IA], Poweshiek [IA], Grundy [IA], Black Hawk [IA], Sac [IA], Story [IA], Pocahontas [IA], Humboldt [IA], Butler [IA], Bremer [IA], Cass [IA], Marion [IA], Mahaska [IA], Wapello [IA], Kossuth [IA], Monroe [IA], Appanoose [IA], Davis [IA], Webster [IA], Polk [IA], Madison [IA], Warren [IA], Union [IA], Emmet [IA], Adair [IA], Clarke [IA], Lucas [IA], Adams [IA], Taylor [IA], Ringgold [IA], Decatur [IA], Wayne [IA], Dallas [IA], Crawford [IA], Boone [IA], Winnebago [IA], Hancock [IA], Carroll [IA], Wright [IA], Hardin [IA], Franklin [IA], Worth [IA], Cerro Gordo [IA], Calhoun [IA], Palo Alto [IA], Hamilton [IA], Greene [IA]",
+   "issue": "2024-12-13T22:00:00Z",
+   "product_issue": "2024-12-12T20:32:00Z",
+   "expire": "2024-12-15T00:00:00Z",
+   "init_expire": "2024-12-14T15:00:00Z",
+   "uri": "/vtec/?year=2024&wfo=KDMX&phenomena=WW&significance=Y&eventid=0010",
+   "url": "https://mesonet.agron.iastate.edu/vtec/?year=2024&wfo=KDMX&phenomena=WW&significance=Y&eventid=0010",
+   "wfo": "DMX",
+   "fcster": "Hagenhoff"
+  }
+ ],
+ "generated_at": "2026-09-30T21:11:11Z"
+}

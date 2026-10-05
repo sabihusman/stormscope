@@ -1,0 +1,103 @@
+import { useEffect } from 'react'
+import type { MapLayerMouseEvent } from 'maplibre-gl'
+import { FLOOD_CATEGORY_LABELS } from '../lib/colors'
+import { timeAgo } from '../lib/time'
+import { U, type Units } from '../lib/units'
+import { store, useApp } from '../state/store'
+import { useMap } from './MapView'
+import type { RiverGauge } from '../types'
+
+const SRC = 'river-gauges'
+
+export const RISK_COLORS: Record<RiverGauge['riskLevel'], string> = {
+  normal: '#22c55e',
+  elevated: '#facc15',
+  high: '#f97316',
+  flooding: '#ef4444',
+  unknown: '#94a3b8',
+}
+
+export function describeGauge(g: RiverGauge, units: Units): string[] {
+  const lines: string[] = []
+  if (g.stage) lines.push(`Stage ${U.stage(g.stage.value, g.stage.unit, units)} · ${timeAgo(g.stage.time)}`)
+  if (g.flow) lines.push(`Flow ${U.flow(g.flow.value, g.flow.unit, units)} · ${timeAgo(g.flow.time)}`)
+  if (g.categories?.minor) {
+    const c = g.categories
+    const t = (v?: number) => (v == null ? '—' : U.stageThreshold(v, c.unit, units))
+    lines.push(`Flood stages (${U.stageUnit(units)}): action ${t(c.action)} · minor ${t(c.minor)} · moderate ${t(c.moderate)} · major ${t(c.major)}`)
+  }
+  if (g.forecast)
+    lines.push(`Forecast ${U.stage(g.forecast.value, g.forecast.unit, units)} (${FLOOD_CATEGORY_LABELS[g.forecast.floodCategory] ?? g.forecast.floodCategory})`)
+  if (g.flowRatio != null) lines.push(`Flow is ${g.flowRatio.toFixed(1)}× the 10-day median`)
+  if (!lines.length) lines.push('No recent readings')
+  return lines
+}
+
+export function RiversLayer() {
+  const map = useMap()
+  const enabled = useApp((s) => s.layers.rivers)
+  const gauges = useApp((s) => s.rivers.data)
+
+  useEffect(() => {
+    if (!map || !enabled || !gauges) return
+    const fc: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: gauges.map((g) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [g.lngLat.lng, g.lngLat.lat] },
+        properties: { id: g.id, color: RISK_COLORS[g.riskLevel], alert: g.riskLevel === 'flooding' || g.riskLevel === 'high' ? 1 : 0 },
+      })),
+    }
+    map.addSource(SRC, { type: 'geojson', data: fc })
+    map.addLayer({
+      id: `${SRC}-halo`,
+      type: 'circle',
+      source: SRC,
+      filter: ['==', ['get', 'alert'], 1],
+      paint: { 'circle-radius': 14, 'circle-color': ['get', 'color'], 'circle-opacity': 0.25 },
+    })
+    map.addLayer({
+      id: SRC,
+      type: 'circle',
+      source: SRC,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 5, 12, 9],
+        'circle-color': ['get', 'color'],
+        'circle-stroke-color': '#0b1220',
+        'circle-stroke-width': 1.5,
+      },
+    })
+    const onClick = (e: MapLayerMouseEvent) => {
+      const f = e.features?.[0]
+      if (!f) return
+      e.preventDefault()
+      const g = gauges.find((x) => x.id === f.properties?.id)
+      if (!g) return
+      const s = store.get()
+      store.set({
+        selection: {
+          kind: 'gauge',
+          lngLat: g.lngLat,
+          title: g.name,
+          lines: [`${FLOOD_CATEGORY_LABELS[g.floodCategory] ?? g.floodCategory} · risk: ${g.riskLevel}`, ...describeGauge(g, s.units)],
+          source: g.sources.join(' + '),
+          updated: s.rivers.freshness?.fetchedAt,
+        },
+      })
+    }
+    const enter = () => (map.getCanvas().style.cursor = 'pointer')
+    const leave = () => (map.getCanvas().style.cursor = '')
+    map.on('click', SRC, onClick)
+    map.on('mouseenter', SRC, enter)
+    map.on('mouseleave', SRC, leave)
+    return () => {
+      map.off('click', SRC, onClick)
+      map.off('mouseenter', SRC, enter)
+      map.off('mouseleave', SRC, leave)
+      for (const id of [SRC, `${SRC}-halo`]) if (map.getLayer(id)) map.removeLayer(id)
+      if (map.getSource(SRC)) map.removeSource(SRC)
+    }
+  }, [map, enabled, gauges])
+
+  return null
+}

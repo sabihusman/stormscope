@@ -1,0 +1,163 @@
+{
+  "capturedAt": "2026-10-05T05:09:07.664Z",
+  "focus": {
+    "lat": 41.5868,
+    "lng": -93.625
+  },
+  "radiusM": 40000,
+  "bbox": {
+    "west": -94.1059514686028,
+    "east": -93.1440485313972,
+    "south": 41.22707185451018,
+    "north": 41.946528145489815
+  },
+  "window": {
+    "start": "2025-06-01",
+    "end": "2025-06-10",
+    "approvalStatus": "Approved",
+    "dailyValues": 170
+  },
+  "sites": [
+    "USGS-0547101350",
+    "USGS-05471014",
+    "USGS-05471040",
+    "USGS-05471050",
+    "USGS-05471200",
+    "USGS-05481650",
+    "USGS-05481950",
+    "USGS-05482000",
+    "USGS-05484500",
+    "USGS-05484600",
+    "USGS-05484650",
+    "USGS-05484800",
+    "USGS-05484900",
+    "USGS-05485500",
+    "USGS-05485605",
+    "USGS-05485640",
+    "USGS-05486000",
+    "USGS-05486490",
+    "USGS-05487470",
+    "USGS-05487500",
+    "USGS-05487520",
+    "USGS-05487540",
+    "USGS-05487550",
+    "USGS-05487980"
+  ],
+  "medians": {
+    "USGS-05471050": {
+      "median": 655,
+      "n": 10
+    },
+    "USGS-05471200": {
+      "median": 208,
+      "n": 10
+    },
+    "USGS-05481650": {
+      "median": 7510,
+      "n": 10
+    },
+    "USGS-05481950": {
+      "median": 176,
+      "n": 10
+    },
+    "USGS-05482000": {
+      "median": 7440,
+      "n": 10
+    },
+    "USGS-05484500": {
+      "median": 3290,
+      "n": 10
+    },
+    "USGS-05484650": {
+      "median": 3210,
+      "n": 10
+    },
+    "USGS-05484800": {
+      "median": 66.6,
+      "n": 10
+    },
+    "USGS-05484900": {
+      "median": 3110,
+      "n": 10
+    },
+    "USGS-05485500": {
+      "median": 9860,
+      "n": 10
+    },
+    "USGS-05485605": {
+      "median": 38.7,
+      "n": 10
+    },
+    "USGS-05485640": {
+      "median": 63.7,
+      "n": 10
+    },
+    "USGS-05486000": {
+      "median": 153,
+      "n": 10
+    },
+    "USGS-05486490": {
+      "median": 123,
+      "n": 10
+    },
+    "USGS-05487470": {
+      "median": 39.9,
+      "n": 10
+    },
+    "USGS-05487520": {
+      "median": 9000,
+      "n": 10
+    },
+    "USGS-05487980": {
+      "median": 16.4,
+      "n": 10
+    }
+  },
+  "nwpsLids": [
+    "ADEI4",
+    "AKNI4",
+    "AKWI4",
+    "ALFI4",
+    "ANFI4",
+    "ANKI4",
+    "ATNI4",
+    "BIGI4",
+    "CFXI4",
+    "CLOI4",
+    "CLVI4",
+    "CSLI4",
+    "CWAI4",
+    "DEMI4",
+    "DESI4",
+    "DFMI4",
+    "DLLI4",
+    "DMOI4",
+    "DMWI4",
+    "DOSI4",
+    "GRMI4",
+    "IDNI4",
+    "JDAI4",
+    "MBNI4",
+    "MGOI4",
+    "MTCI4",
+    "NRWI4",
+    "PLEI4",
+    "PLHI4",
+    "PLKI4",
+    "PLMI4",
+    "SAYI4",
+    "SDTI4",
+    "SWNI4",
+    "UBNI4",
+    "UBWI4",
+    "URBI4",
+    "VANI4",
+    "VNMI4",
+    "WCBI4",
+    "WCWI4",
+    "WDMI4",
+    "WLRI4",
+    "WNDI4",
+    "WWDI4"
+  ]
+}

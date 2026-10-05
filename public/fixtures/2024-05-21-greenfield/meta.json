@@ -1,0 +1,31 @@
+{
+  "event": "Greenfield, IA tornado outbreak — SPC Day 1 Moderate risk, PDS Tornado Watch 277",
+  "date": "2024-05-21",
+  "route": { "from": "Des Moines, IA (41.5868, -93.625)", "to": "Omaha, NE (41.2565, -95.9345)", "via": "I-80", "engine": "valhalla auto" },
+  "departure": "2024-05-21T20:20:00Z",
+  "negative_timing_case": {
+    "departure": "2024-05-21T22:00:00Z",
+    "arrival": "2024-05-22T00:05Z",
+    "expected": "No warning polygons at any ETA (TO.W #41 polygon valid 20:35–20:56Z and #42 20:40–20:59Z expired before the route reaches them); 14 polygons overlap the corridor spatially (DMX TO.W #35/#38/#41/#42/#46/#47, SV.W #105/#110; OAX SV.W #150–#153/#156/#157) and must be reported as 'nearby, not at your ETA'; Tornado Watch 277 (valid to 02:03Z) IS shown; SPC Day 1 outlook (valid to 12:00Z next day) IS shown.",
+    "rule": "Spatial test = inside polygon or within 5 km of its edge; temporal test = sample ETA within the polygon's own validity window (polygon_begin → polygon_end), not the event's issue → expire."
+  },
+  "expected": {
+    "watch": { "number": 277, "type": "TOR", "pds": true, "issue": "2024-05-21T18:10:00Z", "expire": "2024-05-22T02:03:00Z", "covers": ["Adair", "Madison", "Polk"] },
+    "warnings_intersecting_corridor_at_eta": [
+      { "id": "DMX TO.W #41", "polygon": "2024-05-21T20:35Z→20:56Z", "tornado_tag": "OBSERVED", "damage_tag": "CONSIDERABLE", "pds": true, "vertices_hit": 38 },
+      { "id": "DMX TO.W #42", "polygon": "2024-05-21T20:40Z→20:59Z", "tornado_tag": "OBSERVED", "vertices_hit": 18 }
+    ],
+    "watches_not_covering_route_counties": [276, 278, 279],
+    "spc_day1_1630Z": {
+      "categorical": { "route_counties": "MDT (Polk, Madison, Adair, Cass, Pottawattamie)", "destination": "ENH (Omaha)" },
+      "tornado": { "route_counties": "15% hatched (significant)", "destination": "5%" },
+      "files": "spc/day1otlk_20240521_1630_{cat,torn,sigtorn,hail,wind}.geojson (converted with scripts/shp2geojson.mjs; VALID 202405211630 → EXPIRE 202405221200)"
+    }
+  },
+  "sources": {
+    "warnings": "https://mesonet.agron.iastate.edu/geojson/sbw.py?sts=2024-05-21T18:00Z&ets=2024-05-22T00:00Z (DMX+OAX TO/SV filtered)",
+    "watches": "https://mesonet.agron.iastate.edu/json/spcwatch.py?ts=202405212030",
+    "outlook": "https://www.spc.noaa.gov/products/outlook/archive/2024/day1otlk_20240521_1630-shp.zip (convert to GeoJSON in P3)"
+  },
+  "analysis_script": "scratch: fixture-a.mjs — scans departures 17:00–23:00Z, point-in-polygon at maneuver-interpolated ETA"
+}

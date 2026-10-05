@@ -1,0 +1,32 @@
+{
+ "RTOI4": {
+  "name": "Altoona (I-80/US 65)",
+  "lng": -93.5222,
+  "lat": 41.6596666667
+ },
+ "RCFI4": {
+  "name": "Colfax - I-80",
+  "lng": -93.25977,
+  "lat": 41.68904
+ },
+ "RGRI4": {
+  "name": "Grinnell (I-80)",
+  "lng": -92.7257,
+  "lat": 41.6975
+ },
+ "RWBI4": {
+  "name": "Williamsburg (I-80)",
+  "lng": -92.0087,
+  "lat": 41.6876666667
+ },
+ "RTFI4": {
+  "name": "Tiffin - I80/I380 Flyover",
+  "lng": -91.6446990967,
+  "lat": 41.6938018799
+ },
+ "RIOI4": {
+  "name": "Iowa City (I-80)",
+  "lng": -91.5812,
+  "lat": 41.6886666667
+ }
+}

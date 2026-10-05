@@ -1,0 +1,27 @@
+{
+  "event": "Central/eastern Iowa ice storm — DMX Ice Storm Warning + Winter Weather Advisory, freezing rain on I-80",
+  "date": "2024-12-14",
+  "route": { "from": "Des Moines, IA (41.5868, -93.625)", "to": "Iowa City, IA (41.6611, -91.5302)", "via": "I-80", "engine": "valhalla auto" },
+  "departure": "2024-12-14T06:00:00Z",
+  "expected": {
+    "alerts": [
+      { "id": "DMX IS.W #1", "issue": "2024-12-14T02:00:00Z", "expire": "2024-12-15T00:00:00Z", "counties_on_route": ["Jasper", "Poweshiek"] },
+      { "id": "DMX WW.Y (2024-12-13 22:00Z → 12-15 00:00Z)", "counties_on_route": ["Marshall", "Tama", "Jasper", "Poweshiek"] }
+    ],
+    "rwis_times_are_utc": "IEM rwis.py emits obtime in UTC by default (verified: tz=UTC returns identical rows; tz=America/Chicago shifts them). All windows below are UTC.",
+    "rwis_pavement_ice": [
+      { "station": "RTOI4 Altoona (I-80/US 65)", "ice_or_frost_obs": 42, "window": "2024-12-13 22:20Z → 12-14 16:00Z", "pavement_F_valid_range": "14.4–37.2", "pavement_F_while_icy": "25.7–31.8", "missing_obs": 9 },
+      { "station": "RCFI4 Colfax (I-80)", "ice_or_frost_obs": 67, "window": "2024-12-14 02:50Z → 15:20Z", "pavement_F_valid_range": "10.2–32.7", "pavement_F_while_icy": "23.5–30.6", "missing_obs": 17 },
+      { "station": "RTFI4 Tiffin (I-80/I-380)", "ice_or_frost_obs": 36, "window": "2024-12-14 08:25Z → 20:30Z", "pavement_F_valid_range": "10.8–34.5", "pavement_F_while_icy": "28.9–33.8", "missing_obs": 9 },
+      { "station": "RIOI4 Iowa City (I-80)", "ice_or_frost_obs": 92, "window": "2024-12-13 09:20Z → 12-14 17:45Z", "pavement_F_valid_range": "12.0–33.3", "pavement_F_while_icy": "12.0–31.8", "missing_obs": 9 },
+      { "station": "RGRI4 Grinnell (I-80)", "ice_or_frost_obs": 0, "note": "pavement sensor reported NO values for the whole period (306 blank obs) — status is UNKNOWN, not 'no ice'; the model must not claim 'icy' or 'clear' here" }
+    ],
+    "data_quality": "Blank tfs0/tfs1 values are missing data (IEM emits empty fields, not 0). An earlier summary that said 'down to 0 °F' was an artefact of coercing blanks to 0; no sentinel values (<-50 or >150 °F) occur in this file.",
+    "county_polygons": "alerts_county_polygons.geojson — IS.W #1 (14 counties) and WW.Y #10 (51 counties) built from IEM VTEC county lists + NWS zone geometry",
+    "model_thresholds_exercised": ["freezing rain: precip > 0 & T2m ≤ 1 °C", "possible ice → 'icy' only when RWIS condition or IS.W/WW.Y confirms"]
+  },
+  "sources": {
+    "vtec": "https://mesonet.agron.iastate.edu/json/vtec_events.py?wfo=DMX&year=2024&phenomena=IS&significance=W",
+    "rwis": "https://mesonet.agron.iastate.edu/cgi-bin/request/rwis.py?network=IA_RWIS&stations=RTOI4,RCFI4,RGRI4,RIOI4,RTFI4,RWBI4&year1=2024&month1=12&day1=13&year2=2024&month2=12&day2=15&vars=tmpf,pcpn,tfs0,tfs0_text,tfs1,tfs1_text&format=comma"
+  }
+}

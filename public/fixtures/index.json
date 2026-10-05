@@ -1,0 +1,131 @@
+[
+  {
+    "id": "greenfield-2020z",
+    "label": "Greenfield outbreak · 21 May 2024 · Des Moines → Omaha · depart 20:20Z (positive: TO.W #41/#42 at ETA)",
+    "fixture": "2024-05-21-greenfield",
+    "from": {
+      "name": "Des Moines, IA",
+      "lat": 41.5868,
+      "lng": -93.625
+    },
+    "to": {
+      "name": "Omaha, NE",
+      "lat": 41.2565,
+      "lng": -95.9345
+    },
+    "departure": "2024-05-21T20:20:00Z",
+    "files": {
+      "warnings": "warnings.geojson",
+      "watches": "watches.geojson",
+      "outlooks": [
+        "spc/day1otlk_20240521_1630_cat.geojson",
+        "spc/day1otlk_20240521_1630_torn.geojson"
+      ],
+      "route": "route.41.587_-93.625__41.257_-95.934.json",
+      "weatherCache": "weather.greenfield-2020z.json"
+    },
+    "notes": "Expect hits: DMX TO.W #41 (OBSERVED, CONSIDERABLE, PDS) and #42; Tornado Watch 277 (PDS); SPC Day 1 Moderate + 15 % tornado."
+  },
+  {
+    "id": "greenfield-2200z",
+    "label": "Greenfield outbreak · 21 May 2024 · Des Moines → Omaha · depart 22:00Z (negative timing: polygons expired, watch 277 still valid)",
+    "fixture": "2024-05-21-greenfield",
+    "from": {
+      "name": "Des Moines, IA",
+      "lat": 41.5868,
+      "lng": -93.625
+    },
+    "to": {
+      "name": "Omaha, NE",
+      "lat": 41.2565,
+      "lng": -95.9345
+    },
+    "departure": "2024-05-21T22:00:00Z",
+    "files": {
+      "warnings": "warnings.geojson",
+      "watches": "watches.geojson",
+      "outlooks": [
+        "spc/day1otlk_20240521_1630_cat.geojson",
+        "spc/day1otlk_20240521_1630_torn.geojson"
+      ],
+      "route": "route.41.587_-93.625__41.257_-95.934.json",
+      "weatherCache": "weather.greenfield-2200z.json"
+    },
+    "notes": "Expect NO warning hits (14 polygons overlap the corridor spatially but all expired before the ETAs); Tornado Watch 277 (valid to 02:03Z) shown; outlook still valid."
+  },
+  {
+    "id": "ice-storm-2024-12-14",
+    "label": "Ice storm · 14 Dec 2024 · Des Moines → Iowa City · depart 08:00Z (ERA5 hindsight + RWIS archive)",
+    "fixture": "2024-12-14-ice-storm",
+    "from": {
+      "name": "Des Moines, IA",
+      "lat": 41.5868,
+      "lng": -93.625
+    },
+    "to": {
+      "name": "Iowa City, IA",
+      "lat": 41.6611,
+      "lng": -91.5302
+    },
+    "departure": "2024-12-14T08:00:00Z",
+    "files": {
+      "countyAlerts": "alerts_county_polygons.geojson",
+      "rwis": "rwis_i80_2024-12-13_15.csv",
+      "rwisStations": "rwis_stations.json",
+      "route": "route.41.587_-93.625__41.661_-91.530.json",
+      "weatherCache": "weather.ice-storm-2024-12-14.json"
+    },
+    "notes": "Expect IS.W #1 + WW.Y #10 at ETA; RWIS confirms icy at Altoona, Colfax, Tiffin, Iowa City (obs within 90 min of ETA); Grinnell has no pavement readings → unknown.",
+    "weather": "era5"
+  },
+  {
+    "id": "ice-storm-2024-12-14-forecast",
+    "label": "Ice storm · 14 Dec 2024 · depart 10:00Z · weather = GFS forecast as issued that morning (not hindsight)",
+    "fixture": "2024-12-14-ice-storm",
+    "from": {
+      "name": "Des Moines, IA",
+      "lat": 41.5868,
+      "lng": -93.625
+    },
+    "to": {
+      "name": "Iowa City, IA",
+      "lat": 41.6611,
+      "lng": -91.5302
+    },
+    "departure": "2024-12-14T10:00:00Z",
+    "files": {
+      "countyAlerts": "alerts_county_polygons.geojson",
+      "rwis": "rwis_i80_2024-12-13_15.csv",
+      "rwisStations": "rwis_stations.json",
+      "route": "route.41.587_-93.625__41.661_-91.530.json",
+      "weatherCache": "weather.ice-storm-2024-12-14-forecast.json"
+    },
+    "notes": "Same hazards/RWIS; the weather strip uses the archived GFS run via the Historical Forecast API. Reports whether the forecast alone flags ice (GFS had freezing drizzle/rain codes 56/66 from 10Z).",
+    "weather": "historical-forecast"
+  },
+  {
+    "id": "ice-storm-2024-12-15-late",
+    "label": "Ice storm aftermath · depart 00:30Z 15 Dec (4 h after the last icy pavement obs at Tiffin 20:30Z)",
+    "fixture": "2024-12-14-ice-storm",
+    "from": {
+      "name": "Des Moines, IA",
+      "lat": 41.5868,
+      "lng": -93.625
+    },
+    "to": {
+      "name": "Iowa City, IA",
+      "lat": 41.6611,
+      "lng": -91.5302
+    },
+    "departure": "2024-12-15T00:30:00Z",
+    "files": {
+      "countyAlerts": "alerts_county_polygons.geojson",
+      "rwis": "rwis_i80_2024-12-13_15.csv",
+      "rwisStations": "rwis_stations.json",
+      "route": "route.41.587_-93.625__41.661_-91.530.json",
+      "weatherCache": "weather.ice-storm-2024-12-15-late.json"
+    },
+    "notes": "No station may confirm icy (obs out of the 90-min window or non-icy); at most \"possible ice\" from the forecast.",
+    "weather": "era5"
+  }
+]
