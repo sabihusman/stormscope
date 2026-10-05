@@ -859,6 +859,11 @@ small {
   .app.sheet-full .legend {
     display: block;
   }
+  /* The group rule above restores the popup with display:flex, which laid its title, list and
+     button out in a row (one-letter-per-line title next to the docked sheet on tablets). */
+  .app.sheet-full .map-popup {
+    display: block;
+  }
   .maplibregl-ctrl-bottom-left {
     bottom: 6px !important;
   }

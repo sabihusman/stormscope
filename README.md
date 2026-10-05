@@ -152,6 +152,16 @@ Suites that don't test river gauges start with the rivers (and usually station) 
 
 Node-side requests a suite makes itself (the rivers suite's USGS/NWPS queries) go through `guardedFetch`, which charges the host cap **before** each request and refuses past it, so a long loop cannot overrun. A suite that declares `assertBudget(name, { openMeteo: false })` is held to it: any Open-Meteo request it makes is aborted and the run is flagged.
 
+### Performance measurement and the feature walkthrough (zero live calls)
+
+```bash
+PERF_SOURCEMAP=1 npm run build && npx vite preview --port 4173 --strictPort   # or the preview-4173 launch config
+node scripts/perf-measure.mjs http://localhost:4173/ e2e-shots/perf --mock --headed [--low-device] [--viewport=tablet]
+node scripts/walkthrough.mjs  http://localhost:4173/ e2e-shots/walkthrough --mock [--viewport=phone|tablet|desktop]
+```
+
+`--mock` answers every API from saved or synthesized bodies (`scripts/lib/mock-server.mjs`): real Open-Meteo series from the replay caches reshaped to the request, the recorded Valhalla route, the RWIS archive, the rivers snapshot; NWS, NWPS, USGS, RainViewer and GIBS bodies synthesized in the shapes the app parses (timing only, never shipped); the real basemap style/sprites/glyphs from `e2e-shots/perf/basemap/` with empty vector tiles. `--headed` uses installed Chrome with the machine's GPU; the report records page visibility, rAF rate and a CPU-throttle calibration and marks the run invalid otherwise. The bundled headless Chromium on an ARM Windows machine runs under emulation, ignores CPU throttling and rasterises in software, so its numbers are not the stated profile. `perf-measure` reports time to first radar frame (the headline), LCP, INP per interaction, every main-thread task over 50 ms with its source (trace + CPU profile through the sourcemaps), frames over 50/100 ms per phase, bundle sizes and first-load requests. The walkthrough records per feature: time to usable, interactions over 200 ms, frame drops, console errors and a screenshot.
+
 ### Release flow: preview → full run → promote
 
 ```bash
