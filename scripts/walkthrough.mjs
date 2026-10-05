@@ -5,7 +5,7 @@
 //
 // --mock answers every API locally (zero live calls, see scripts/lib/mock-server.mjs). Phone and tablet
 // run with CPU 4× (calibrated); desktop unthrottled. A hidden/throttled window marks the run INVALID.
-import { chromium } from 'playwright'
+import { chromium, webkit } from 'playwright'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
@@ -15,10 +15,11 @@ const args = process.argv.slice(2)
 const MOCK = args.includes('--mock')
 const NO_THROTTLE = args.includes('--no-throttle')
 const only = args.find((a) => a.startsWith('--viewport='))?.slice(11)
+const WEBKIT = args.includes('--browser=webkit') // Playwright WebKit (Safari engine), no CDP: no CPU throttle, synthetic drags
 const positional = args.filter((a) => !a.startsWith('--'))
 assertBudget('walkthrough.mjs', { openMeteo: !MOCK })
 const BASE = (positional[0] || 'http://localhost:4173/').replace(/\/?$/, '/')
-const OUT = positional[1] || 'e2e-shots/walkthrough'
+const OUT = positional[1] || (WEBKIT ? 'e2e-shots/walkthrough-webkit' : 'e2e-shots/walkthrough')
 mkdirSync(OUT, { recursive: true })
 
 const VIEWPORTS = {
@@ -33,12 +34,14 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   if (only && only !== vpName) continue
   const dir = `${OUT}/${vpName}`
   mkdirSync(dir, { recursive: true })
-  const browser = await chromium.launch({ headless: false, channel: 'chrome', args: [`--window-size=${vp.window}`, '--window-position=20,20'] }).catch(() => chromium.launch({ headless: false, args: [`--window-size=${vp.window}`] }))
+  const browser = WEBKIT
+    ? await webkit.launch({ headless: false })
+    : await chromium.launch({ headless: false, channel: 'chrome', args: [`--window-size=${vp.window}`, '--window-position=20,20'] }).catch(() => chromium.launch({ headless: false, args: [`--window-size=${vp.window}`] }))
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch, deviceScaleFactor: vp.deviceScaleFactor, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'], serviceWorkers: 'allow' })
   const page = await ctx.newPage()
   const done = MOCK ? () => {} : trackTraffic(page, `walkthrough.mjs ${vpName}`)
   if (MOCK) await installMocks(ctx, { focus: FOCUS })
-  const cdp = await ctx.newCDPSession(page)
+  const cdp = WEBKIT ? null : await ctx.newCDPSession(page)
   const consoleErrors = []
   page.on('console', (m) => m.type() === 'error' && consoleErrors.push(m.text().slice(0, 200)))
   page.on('pageerror', (e) => consoleErrors.push('[pageerror] ' + e.message.slice(0, 200)))
@@ -48,12 +51,13 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   const env = await page.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const loop = () => (performance.now() - t0 < 1000 ? (n++, requestAnimationFrame(loop)) : res({ visibility: document.visibilityState, rafPerSecond: n })); requestAnimationFrame(loop) }))
   const bench = () => page.evaluate(() => { const t0 = performance.now(); let x = 0; for (let i = 0; i < 2e7; i++) x += Math.sqrt(i); return Math.round(performance.now() - t0) })
   const base = await bench()
-  const rate = NO_THROTTLE ? 1 : vp.throttle
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate })
+  const rate = NO_THROTTLE || WEBKIT ? 1 : vp.throttle
+  if (cdp) await cdp.send('Emulation.setCPUThrottlingRate', { rate })
   const thr = await bench()
-  env.cpu = { rate, ratio: +(thr / base).toFixed(1) }
+  env.cpu = { rate, ratio: +(thr / base).toFixed(1), busyLoopMs: base }
+  env.engine = `${browser.browserType().name()} ${browser.version()}`
   env.valid = env.visibility === 'visible' && env.rafPerSecond >= 30 && (rate === 1 || env.cpu.ratio >= 3)
-  console.log(`\n=== ${vpName} ${vp.width}×${vp.height} dpr${vp.deviceScaleFactor} cpu×${rate} — ${JSON.stringify(env)}${env.valid ? '' : '  *** INVALID (hidden/throttled) ***'}`)
+  console.log(`\n=== ${vpName} ${vp.width}×${vp.height} dpr${vp.deviceScaleFactor} cpu×${rate} ${env.engine} — ${JSON.stringify(env)}${env.valid ? '' : '  *** INVALID (hidden/throttled) ***'}`)
   const features = []
   const vpReport = { env, features }
   report.viewports[vpName] = vpReport

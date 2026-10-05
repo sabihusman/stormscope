@@ -162,6 +162,15 @@ node scripts/walkthrough.mjs  http://localhost:4173/ e2e-shots/walkthrough --moc
 
 `--mock` answers every API from saved or synthesized bodies (`scripts/lib/mock-server.mjs`): real Open-Meteo series from the replay caches reshaped to the request, the recorded Valhalla route, the RWIS archive, the rivers snapshot; NWS, NWPS, USGS, RainViewer and GIBS bodies synthesized in the shapes the app parses (timing only, never shipped); the real basemap style/sprites/glyphs from `e2e-shots/perf/basemap/` with empty vector tiles. `--headed` uses installed Chrome with the machine's GPU; the report records page visibility, rAF rate and a CPU-throttle calibration and marks the run invalid otherwise. The bundled headless Chromium on an ARM Windows machine runs under emulation, ignores CPU throttling and rasterises in software, so its numbers are not the stated profile. `perf-measure` reports time to first radar frame (the headline), LCP, INP per interaction, every main-thread task over 50 ms with its source (trace + CPU profile through the sourcemaps), frames over 50/100 ms per phase, bundle sizes and first-load requests. The walkthrough records per feature: time to usable, interactions over 200 ms, frame drops, console errors and a screenshot.
 
+**Other engines and real devices.** `--browser=webkit` on `sheet-check.mjs` and `walkthrough.mjs` runs Playwright's WebKit (the Safari engine on Windows: taps are real touch input, drags are synthesized pointer + touch events, no CPU throttle; it does not cover iOS Safari's viewport/toolbar behaviour, safe-area insets, the back-swipe gesture, scroll bounce or the device GPU). For an Android device over USB with Chrome: enable USB debugging, then
+
+```bash
+adb devices && adb forward tcp:9222 localabstract:chrome_devtools_remote
+node scripts/perf-measure.mjs https://<deployment>/ e2e-shots/perf --cdp=http://localhost:9222 --label=device
+```
+
+(`adb` from Google's platform-tools; the device's Chrome must be signed in to Vercel for a protected preview.) Device runs are unthrottled and use the device's own viewport and network; their numbers outrank the laptop's.
+
 ### Release flow: preview → full run → promote
 
 ```bash

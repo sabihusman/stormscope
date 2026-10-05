@@ -2,25 +2,33 @@
 // tapping the handle, by the ▼ button (which must be on screen), by dragging scrolled-to-top
 // content down, and by the browser back gesture — from every tab, with the content scrolled.
 // Real touch input (CDP touch events), phone viewport with touch + mobile emulation.
-import { chromium } from 'playwright'
+import { chromium, webkit } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
+import { installMocks } from './lib/mock-server.mjs'
 assertBudget('sheet-check.mjs', { openMeteo: false }) // radar + station only
 
-const BASE = process.argv[2] || 'http://localhost:5174/'
-const OUT = process.argv[3] || 'e2e-shots/sheet'
+// --browser=webkit runs Playwright's WebKit (Safari engine, not iOS Safari); --mock answers every API locally.
+const argv = process.argv.slice(2)
+const WEBKIT = argv.includes('--browser=webkit')
+const MOCK = argv.includes('--mock')
+const positional = argv.filter((a) => !a.startsWith('--'))
+const BASE = positional[0] || 'http://localhost:5174/'
+const OUT = positional[1] || (WEBKIT ? 'e2e-shots/sheet-webkit' : 'e2e-shots/sheet')
 mkdirSync(OUT, { recursive: true })
 const results = []
 const check = (name, ok, ev = '') => {
   results.push(ok)
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ev ? '  — ' + ev : ''}`)
 }
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+const browser = WEBKIT ? await webkit.launch({ headless: false }) : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+console.log(`engine: ${browser.browserType().name()} ${browser.version()}${MOCK ? ' (mocked APIs)' : ''}`)
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: true, nowcast: false })) } catch {} })
+if (MOCK) await installMocks(ctx, {})
 const page = await ctx.newPage()
-const __recordBudget = trackOpenMeteo(page, 'sheet-check.mjs')
+const __recordBudget = MOCK ? () => {} : trackOpenMeteo(page, 'sheet-check.mjs')
 const errs = []
 page.on('pageerror', (e) => errs.push(e.message))
 await page.goto(BASE, { waitUntil: 'load' })

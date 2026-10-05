@@ -38,16 +38,27 @@ try {
 // --headed: real Chrome with the machine's GPU (headless SwiftShader inflates raster/upload cost and
 // therefore INP presentation delay; script time is comparable either way).
 const HEADED = args.includes('--headed')
+// --cdp=http://localhost:9222: drive a real device's Chrome over remote debugging (adb forward
+// tcp:9222 localabstract:chrome_devtools_remote). No CPU throttle, no viewport emulation — the
+// device's own numbers, which outrank the laptop's.
+const CDP = args.find((a) => a.startsWith('--cdp='))?.slice(6) ?? null
 // --low-device: present the app with a low-end device class (4 cores, 4 GB) so class-scaled work
 // (wind particle count) can be measured on this machine.
 const LOW_DEVICE = args.includes('--low-device')
-const browser = HEADED
-  ? await chromium.launch({ headless: false, channel: 'chrome', args: ['--window-size=430,900', '--window-position=40,40'] }).catch(() => chromium.launch({ headless: false, args: ['--window-size=430,900'] }))
-  : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
-out.profile.renderer = HEADED ? 'headed Chrome, real GPU' : 'headless Chromium, SwiftShader (software GL)'
+const browser = CDP
+  ? await chromium.connectOverCDP(CDP)
+  : HEADED
+    ? await chromium.launch({ headless: false, channel: 'chrome', args: ['--window-size=430,900', '--window-position=40,40'] }).catch(() => chromium.launch({ headless: false, args: ['--window-size=430,900'] }))
+    : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+out.profile.renderer = CDP ? `real device over CDP (${browser.version()})` : HEADED ? 'headed Chrome, real GPU' : 'headless Chromium, SwiftShader (software GL)'
 const VP = args.includes('--viewport=tablet') ? { width: 800, height: 1280, deviceScaleFactor: 2 } : { width: 390, height: 844, deviceScaleFactor: 3 }
-out.profile.viewport = VP
-const ctx = await browser.newContext({ viewport: { width: VP.width, height: VP.height }, isMobile: true, hasTouch: true, deviceScaleFactor: VP.deviceScaleFactor, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
+out.profile.viewport = CDP ? 'device native' : VP
+// A real device's Chrome cannot create browser contexts: use its default context as is.
+const ctx = CDP ? browser.contexts()[0] : await browser.newContext({ viewport: { width: VP.width, height: VP.height }, isMobile: true, hasTouch: true, deviceScaleFactor: VP.deviceScaleFactor, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
+if (CDP) {
+  await ctx.grantPermissions(['geolocation']).catch(() => {})
+  await ctx.setGeolocation({ latitude: 41.673, longitude: -93.698 }).catch(() => {})
+}
 const LAYERS = JSON.parse(args.find((a) => a.startsWith('--layers='))?.slice(9) ?? '{"radar":true,"satellite":false,"rainfall":false,"flood":false,"rivers":true,"station":true,"nowcast":false}')
 out.profile.layers = LAYERS
 await ctx.addInitScript((layers) => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify(layers)) } catch {} }, LAYERS)
@@ -60,7 +71,8 @@ const mocks = MOCK ? await installMocks(ctx, { har: HAR, record: RECORD }) : nul
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Network.enable')
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
-await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 20, downloadThroughput: (4 * 1024 * 1024) / 8, uploadThroughput: (3 * 1024 * 1024) / 8 })
+if (!CDP) await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 20, downloadThroughput: (4 * 1024 * 1024) / 8, uploadThroughput: (3 * 1024 * 1024) / 8 })
+else out.profile.network = 'device network, unthrottled'
 
 // Network accounting for the first load.
 const reqs = new Map()
@@ -104,12 +116,14 @@ out.environment = await page.evaluate(
 // Chromium on this machine ignores the rate and runs ~4× slower than native Chrome anyway, so only a
 // measured ratio near 4 means the profile is what it claims to be).
 const bench = () => page.evaluate(() => { const t0 = performance.now(); let x = 0; for (let i = 0; i < 2e7; i++) x += Math.sqrt(i); return Math.round(performance.now() - t0) })
+const RATE = CDP ? 1 : 4 // a real device is measured as it is
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
 const unthrottledMs = await bench()
-await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
+await cdp.send('Emulation.setCPUThrottlingRate', { rate: RATE })
 const throttledMs = await bench()
-out.environment.cpu = { unthrottledMs, throttledMs, ratio: +(throttledMs / unthrottledMs).toFixed(1) }
-out.environment.valid = out.environment.visibility === 'visible' && out.environment.rafPerSecond >= 30 && out.environment.cpu.ratio >= 3
+out.environment.cpu = { unthrottledMs, throttledMs, ratio: +(throttledMs / unthrottledMs).toFixed(1), rate: RATE }
+out.profile.cpuThrottle = RATE
+out.environment.valid = out.environment.visibility === 'visible' && out.environment.rafPerSecond >= 30 && (RATE === 1 || out.environment.cpu.ratio >= 3)
 if (!out.environment.valid) console.log(`WARNING: page ${out.environment.visibility}, ${out.environment.rafPerSecond} rAF/s — timings below are INVALID (hidden/throttled window)`)
 console.log('environment:', JSON.stringify(out.environment))
 
