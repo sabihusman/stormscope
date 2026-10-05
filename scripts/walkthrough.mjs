@@ -37,7 +37,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   const browser = WEBKIT
     ? await webkit.launch({ headless: false })
     : await chromium.launch({ headless: false, channel: 'chrome', args: [`--window-size=${vp.window}`, '--window-position=20,20'] }).catch(() => chromium.launch({ headless: false, args: [`--window-size=${vp.window}`] }))
-  const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch, deviceScaleFactor: vp.deviceScaleFactor, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'], serviceWorkers: 'allow' })
+  // WebKit: Playwright cannot route a service worker's fetches, so with mocks the worker is blocked (offline-reload step is then not meaningful).
+  const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch, deviceScaleFactor: vp.deviceScaleFactor, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'], serviceWorkers: WEBKIT && MOCK ? 'block' : 'allow' })
   const page = await ctx.newPage()
   const done = MOCK ? () => {} : trackTraffic(page, `walkthrough.mjs ${vpName}`)
   if (MOCK) await installMocks(ctx, { focus: FOCUS })

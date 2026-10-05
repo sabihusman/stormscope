@@ -24,7 +24,8 @@ const check = (name, ok, ev = '') => {
 }
 const browser = WEBKIT ? await webkit.launch({ headless: false }) : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 console.log(`engine: ${browser.browserType().name()} ${browser.version()}${MOCK ? ' (mocked APIs)' : ''}`)
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
+// WebKit: Playwright cannot route a service worker's fetches, so with mocks the worker is blocked (otherwise its fetches go live).
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'], serviceWorkers: WEBKIT && MOCK ? 'block' : 'allow' })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: true, nowcast: false })) } catch {} })
 if (MOCK) await installMocks(ctx, {})
 const page = await ctx.newPage()

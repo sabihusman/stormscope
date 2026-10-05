@@ -129,17 +129,24 @@ function redraw(map: MlMap, ready: { key: string; nowcast: { data: NowcastResult
 
 // One scratch canvas per grid size: the worker already rasterized every frame, so a frame change
 // is a putImageData + one scaled drawImage, no per-pixel JavaScript on the main thread.
-const scratch = new Map<number, OffscreenCanvas>()
+const scratch = new Map<number, OffscreenCanvas | HTMLCanvasElement>()
 function drawFrame(canvas: HTMLCanvasElement, nc: NowcastResult, frame: number) {
   const n = nc.n
   const f = nc.frames[Math.max(0, Math.min(nc.frames.length - 1, frame))]
   if (!f) return
   let small = scratch.get(n)
   if (!small) {
-    small = new OffscreenCanvas(n, n)
+    // WebKit builds without OffscreenCanvas on the main thread threw here and took the whole
+    // app down (found by the WebKit walkthrough); a plain canvas element does the same job.
+    if (typeof OffscreenCanvas === 'function') small = new OffscreenCanvas(n, n)
+    else {
+      small = document.createElement('canvas')
+      small.width = n
+      small.height = n
+    }
     scratch.set(n, small)
   }
-  const sctx = small.getContext('2d')!
+  const sctx = (small as HTMLCanvasElement).getContext('2d')!
   if (WORKER_RASTER && f.rgba) sctx.putImageData(new ImageData(f.rgba as Uint8ClampedArray<ArrayBuffer>, n, n), 0, 0)
   else {
     // Older worker result without pixels (hot reload): rasterize here once.
