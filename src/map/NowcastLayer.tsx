@@ -312,7 +312,9 @@ export function WindParticles() {
 
     // Animated particles.
     const area = container.clientWidth * container.clientHeight
-    const COUNT = Math.round(Math.min(1800, Math.max(400, area / 600)))
+    // Device class: low-end phones (≤ 4 cores or ≤ 4 GB) get half the particles — same look, half the per-frame work.
+    const lowEnd = (navigator.hardwareConcurrency ?? 8) <= 4 || ((navigator as { deviceMemory?: number }).deviceMemory ?? 8) <= 4
+    const COUNT = Math.round(Math.min(1800, Math.max(400, area / 600)) * (lowEnd ? 0.5 : 1))
     const particles: Particle[] = []
     const spawn = (p?: Particle): Particle => {
       const q = p ?? ({} as Particle)

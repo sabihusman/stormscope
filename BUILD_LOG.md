@@ -6,6 +6,16 @@
 
 **Correction to the Oct 5 numbers.** Those came from headless Chromium, which on this machine (a) ignores `Emulation.setCPUThrottlingRate` (measured ×0.9) and (b) runs ~4× slower than native Chrome anyway (x64 build under emulation) with SwiftShader doing raster on the CPU. So "CPU 4×: 3.2 s layer enable, 4.5 s pause, 888 ms journey open" was *unthrottled emulated Chromium + software GPU*, not the stated profile. On the stated profile the same build measures: INP tab 80 / pan 40 / radar play 32 / enable rainfall+flood+nowcast 128 / pause 40 / journey open 56 ms; first radar frame 2.36 s (optimistic: empty basemap tiles); one main‑thread task > 200 ms at first load (WebGL `getContext`, 256 ms, driver, not app code); frame drops: 8 frames > 50 ms while enabling the block layers, 17 (8 > 100 ms) during the journey‑open route fit; 140 requests on first load. The remaining lag on the phone is device‑bound (a mid‑range phone GPU is far weaker than this laptop's); the real‑device walkthrough is the next evidence.
 
+**Fix log (each its own commit; numbers headed, CPU 4×, Fast 4G, 390×844 touch, mocked data, single runs — noise is roughly ±10 ms INP, ±2 frames):**
+
+| # | Cause (from the trace) | Fix | Before → after | Kept? |
+|---|---|---|---|---|
+| 2 | First visit: the service worker's `controllerchange` bumped `refreshNonce`, so every API was fetched twice (NWPS 42 = 2 × 21 requests; 140 first‑load requests) | `fetchJSON` stores good live‑data responses in the worker's cache as they arrive; no refetch | 140 → 109 requests, NWPS 42 → 21, first‑load main‑thread 2 436 → 1 817 ms, first radar frame 2 356 → 2 239 ms | kept |
+| 1a | Worker results for several blocks resolve in one microtask burst; each store update redraws every block layer (setData of the merged FeatureCollections + canvas redraws) | queue results, apply one block per animation frame (after paint) | enable‑layers INP 128 → 120 ms, frames > 50 ms 5 → 4, pause‑during‑nowcast frames > 50 ms 1 → 0, journey‑open frames > 100 ms 7 → 1 | kept |
+| 1b | (same burst) rasterize nowcast frames in the worker | RGBA per frame from the worker | INP 120 → 144 ms, frames > 50 ms 4 → 6 (noise‑level loss; the main‑thread raster is a 24–32² loop ≈ 1 ms) | reverted |
+| 5a | DPR‑3 emulation rasterises 2.25× the pixels | MapLibre `pixelRatio ≤ 2` | pan/radar frames unchanged (119–120 fps, 0 drops); enable‑layers 4 → 7 drops (noise) | not applied — the laptop GPU is not the bottleneck; re‑test on a phone GPU |
+| 5b | 13–16 radar frame layers at opacity 0 still fetch + upload tiles on every pan/zoom; the journey route fit reloaded all of them | only the current frame (and the next two while playing) is a visible layer | first‑load requests 111 → 75 (radar tiles 63 → 28), journey‑open fit 78.9 → 87.1 fps, max frame 142 → 100 ms; radar play start INP 24 → 48 ms (tiles now load on demand) | kept |
+
 Short notes on what was hardest and why, plus the QA record. Dates are Sept 29–30, 2026.
 
 ## Hardest parts, in order

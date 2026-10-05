@@ -38,12 +38,17 @@ try {
 // --headed: real Chrome with the machine's GPU (headless SwiftShader inflates raster/upload cost and
 // therefore INP presentation delay; script time is comparable either way).
 const HEADED = args.includes('--headed')
+// --low-device: present the app with a low-end device class (4 cores, 4 GB) so class-scaled work
+// (wind particle count) can be measured on this machine.
+const LOW_DEVICE = args.includes('--low-device')
 const browser = HEADED
   ? await chromium.launch({ headless: false, channel: 'chrome', args: ['--window-size=430,900', '--window-position=40,40'] }).catch(() => chromium.launch({ headless: false, args: ['--window-size=430,900'] }))
   : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 out.profile.renderer = HEADED ? 'headed Chrome, real GPU' : 'headless Chromium, SwiftShader (software GL)'
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: true, station: true, nowcast: false })) } catch {} })
+if (LOW_DEVICE) await ctx.addInitScript(() => { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4 }); Object.defineProperty(navigator, 'deviceMemory', { get: () => 4 }) })
+out.profile.deviceClass = LOW_DEVICE ? 'low (4 cores, 4 GB emulated)' : 'host'
 const page = await ctx.newPage()
 // Replay: no guard needed (nothing leaves the machine); record/live: the guard counts and caps.
 const done = MOCK && !RECORD ? () => {} : trackTraffic(page, 'perf-measure.mjs')
