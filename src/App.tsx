@@ -16,6 +16,7 @@ import { DataController } from './state/DataController'
 import { loadPlace, savePlace, store, toast, useApp } from './state/store'
 import { useGeolocation } from './hooks/useGeolocation'
 import { haversine } from './lib/geo'
+import { WARM_CACHE_NO_REFETCH } from './lib/perfFlags'
 import { LocationPrompt } from './components/LocationPrompt'
 import { SearchBar } from './components/SearchBar'
 import { LayerFab } from './components/LayerFab'
@@ -36,10 +37,16 @@ export default function App() {
     onRegisterError: () => toast('Offline support could not be enabled', 'warn'),
   })
 
-  // First-ever visit: the initial fetches run before the service worker exists. Rather than
-  // refetching every API once it takes control (which doubled first-load traffic), fetchJSON
-  // stores good live-data responses in the worker's cache as they arrive, and MapView re-requests
-  // the basemap/terrain resources through the worker from the HTTP cache.
+  // First-ever visit: the initial fetches run before the service worker exists. With
+  // WARM_CACHE_NO_REFETCH, fetchJSON stores good live-data responses in the worker's cache as they
+  // arrive and MapView re-requests basemap/terrain through the worker from the HTTP cache; the
+  // older behaviour refetched every API once the worker took control (doubling first-load traffic).
+  useEffect(() => {
+    if (WARM_CACHE_NO_REFETCH || !('serviceWorker' in navigator) || navigator.serviceWorker.controller) return
+    const onControl = () => store.set((s) => ({ refreshNonce: s.refreshNonce + 1 }))
+    navigator.serviceWorker.addEventListener('controllerchange', onControl, { once: true })
+    return () => navigator.serviceWorker.removeEventListener('controllerchange', onControl)
+  }, [])
 
   // Returning users land where they left off; persist any new place.
   useEffect(() => {

@@ -6,6 +6,7 @@ import { useReducedMotion } from '../hooks/useMisc'
 import { store, useApp, useVisibleBlocks } from '../state/store'
 import { firstSymbolLayer, useMap } from './MapView'
 import type { NowcastResult } from '../workers/client'
+import { WORKER_RASTER } from '../lib/perfFlags'
 
 const RES = 8 // canvas pixels per grid cell
 const srcId = (key: string) => `nowcast-${key}`
@@ -139,7 +140,7 @@ function drawFrame(canvas: HTMLCanvasElement, nc: NowcastResult, frame: number) 
     scratch.set(n, small)
   }
   const sctx = small.getContext('2d')!
-  if (f.rgba) sctx.putImageData(new ImageData(f.rgba as Uint8ClampedArray<ArrayBuffer>, n, n), 0, 0)
+  if (WORKER_RASTER && f.rgba) sctx.putImageData(new ImageData(f.rgba as Uint8ClampedArray<ArrayBuffer>, n, n), 0, 0)
   else {
     // Older worker result without pixels (hot reload): rasterize here once.
     const img = sctx.createImageData(n, n)

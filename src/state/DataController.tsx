@@ -12,6 +12,7 @@ import type { OmPoint } from '../lib/journey'
 import type { Hazard, HazardReport, SourceStatus } from '../lib/hazardEngine'
 // Routing, forecast-at-ETA, hazards and pavement sensors are loaded on demand (their own chunk).
 import { loadJourney } from '../lib/journeyBundle'
+import { BLOCK_APPLY_PER_FRAME } from '../lib/perfFlags'
 import { describeError, limitTier } from '../lib/fetch'
 import { bboxAround, haversine, inBBox, type LngLat } from '../lib/geo'
 import { MIN } from '../lib/time'
@@ -233,6 +234,10 @@ export function DataController() {
     else requestAnimationFrame(() => window.setTimeout(pump, 0)) // after this frame paints
   }
   const queueBlockPatch = (key: string, patch: Partial<Block>) => {
+    if (!BLOCK_APPLY_PER_FRAME) {
+      updateBlock(key, patch)
+      return
+    }
     patchQueue.current.push({ key, patch })
     schedulePump()
   }

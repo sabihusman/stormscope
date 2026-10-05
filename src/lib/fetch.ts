@@ -26,6 +26,8 @@ export interface FetchOptions extends RequestInit {
   timeoutMs?: number
 }
 
+import { WARM_CACHE_NO_REFETCH } from './perfFlags'
+
 /** Hosts the service worker's `live-data` NetworkFirst route covers (keep in step with vite.config.ts). */
 const LIVE_DATA = /^https:\/\/(api\.rainviewer\.com|api\.open-meteo\.com|geocoding-api\.open-meteo\.com|api\.waterdata\.usgs\.gov|api\.water\.noaa\.gov|api\.weather\.gov|hydro\.nationalmap\.gov|nominatim\.openstreetmap\.org)\//i
 
@@ -39,7 +41,7 @@ export async function fetchJSON<T>(url: string, opts: FetchOptions = {}): Promis
     // First visit: the service worker is not in control yet, so its runtime cache would miss everything
     // this session fetched. Store good live-data responses ourselves (same cache Workbox serves from
     // when offline) instead of refetching every API once the worker takes over.
-    if (res.ok && LIVE_DATA.test(url) && 'serviceWorker' in navigator && !navigator.serviceWorker.controller && typeof caches !== 'undefined') {
+    if (WARM_CACHE_NO_REFETCH && res.ok && LIVE_DATA.test(url) && 'serviceWorker' in navigator && !navigator.serviceWorker.controller && typeof caches !== 'undefined') {
       const copy = res.clone()
       caches
         .open('live-data')
