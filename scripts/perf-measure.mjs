@@ -3,18 +3,27 @@
 // interaction, every main-thread task > 50 ms with its dominant source (from a DevTools trace),
 // JS bundle size, first-load request count/bytes, Open-Meteo 429/limiter waits.
 //
-//   node scripts/perf-measure.mjs <base-url> [out-dir]
+//   node scripts/perf-measure.mjs <base-url> [out-dir] [--mock=<har>] [--record] [--label=<name>]
+//   --mock   answer every API from saved/synthesized bodies (scripts/lib/mock-server.mjs) and tiles
+//            from the HAR: zero live calls. --record captures the tile HAR once (live, through the guard).
 import { chromium } from 'playwright'
 import { mkdirSync, writeFileSync, readdirSync, statSync, readFileSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
-assertBudget('perf-measure.mjs')
+import { installMocks } from './lib/mock-server.mjs'
 
-const BASE = (process.argv[2] || 'http://localhost:4173/').replace(/\/?$/, '/')
-const OUT = process.argv[3] || 'e2e-shots/perf'
+const args = process.argv.slice(2)
+const MOCK = args.find((a) => a.startsWith('--mock='))?.slice(7) ?? null
+const RECORD = args.includes('--record')
+const LABEL = args.find((a) => a.startsWith('--label='))?.slice(8) ?? ''
+const positional = args.filter((a) => !a.startsWith('--'))
+assertBudget('perf-measure.mjs', { openMeteo: !!MOCK ? false : true })
+
+const BASE = (positional[0] || 'http://localhost:4173/').replace(/\/?$/, '/')
+const OUT = positional[1] || 'e2e-shots/perf'
 mkdirSync(OUT, { recursive: true })
-const out = { base: BASE, at: new Date().toISOString(), profile: { cpuThrottle: 4, network: 'Fast 4G (4 Mbps down, 3 Mbps up, 20 ms RTT)' } }
+const out = { base: BASE, label: LABEL, mock: MOCK ? (RECORD ? 'record' : 'replay') : 'live', at: new Date().toISOString(), profile: { cpuThrottle: 4, network: 'Fast 4G (4 Mbps down, 3 Mbps up, 20 ms RTT)' } }
 
 // ---- Bundle size (from the local dist/ that was deployed) ----
 try {
@@ -25,8 +34,11 @@ try {
 
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
+await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: true, station: true, nowcast: false })) } catch {} })
 const page = await ctx.newPage()
-const done = trackTraffic(page, 'perf-measure.mjs')
+// Replay: no guard needed (nothing leaves the machine); record/live: the guard counts and caps.
+const done = MOCK && !RECORD ? () => {} : trackTraffic(page, 'perf-measure.mjs')
+const mocks = MOCK ? await installMocks(ctx, { har: MOCK, record: RECORD }) : null
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Network.enable')
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
@@ -145,7 +157,9 @@ out.headline = { timeToFirstRadarFrameMs: out.firstLoad.timeToFirstRadarFrameMs,
 const byPhase = {}
 for (const t of out.longTasks) { const k = t.label || 'first-load'; byPhase[k] ??= { n: 0, over200: 0, maxMs: 0, totalMs: 0 }; byPhase[k].n++; if (t.durMs > 200) byPhase[k].over200++; byPhase[k].maxMs = Math.max(byPhase[k].maxMs, t.durMs); byPhase[k].totalMs += t.durMs }
 out.longTasksByPhase = byPhase
-writeFileSync(`${OUT}/perf-report.json`, JSON.stringify(out, null, 2))
+if (mocks) out.liveFallthrough = mocks.live.filter((u) => !/tiles\.openfreemap\.org|s3\.amazonaws\.com|gibs\.earthdata\.nasa\.gov/.test(u)).slice(0, 10)
+const file = `${OUT}/perf-report${LABEL ? '-' + LABEL : ''}.json`
+writeFileSync(file, JSON.stringify(out, null, 2))
 console.log(JSON.stringify({ headline: out.headline, firstLoad: out.firstLoad, inp: out.inp, inpOverall: out.inpOverall, longTaskSummary: out.longTaskSummary, longTasksByPhase: byPhase, bundleTotal: out.bundleTotal, bundle: out.bundle, openMeteo: out.openMeteo }, null, 1))
 done()
 await browser.close()
