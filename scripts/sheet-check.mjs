@@ -27,9 +27,11 @@ console.log(`engine: ${browser.browserType().name()} ${browser.version()}${MOCK 
 // WebKit: Playwright cannot route a service worker's fetches, so with mocks the worker is blocked (otherwise its fetches go live).
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'], serviceWorkers: WEBKIT && MOCK ? 'block' : 'allow' })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: true, nowcast: false })) } catch {} })
-if (MOCK) await installMocks(ctx, {})
 const page = await ctx.newPage()
-const __recordBudget = MOCK ? () => {} : trackOpenMeteo(page, 'sheet-check.mjs')
+// Guard first, mocks after (last-registered route runs first): the mocks answer, and only what falls
+// through them reaches the guard — counted and capped, never silently live.
+const __recordBudget = trackOpenMeteo(page, `sheet-check.mjs${MOCK ? ' (mock)' : ''}`)
+if (MOCK) await installMocks(ctx, {})
 const errs = []
 page.on('pageerror', (e) => errs.push(e.message))
 await page.goto(BASE, { waitUntil: 'load' })

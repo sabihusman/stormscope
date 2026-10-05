@@ -174,6 +174,9 @@ export function MapView({ children }: { children: ReactNode }) {
     let cancelled = false
     const apply = () => {
       if (cancelled) return
+      const marks = (window as unknown as { __perfMarks?: boolean }).__perfMarks === true
+      const m0 = marks ? performance.now() : 0
+      if (marks) window.setTimeout(() => performance.measure('terrain-apply', { start: m0, end: performance.now() }), 0)
       if (is3D) {
         map.setTerrain({ source: 'terrain-dem', exaggeration: 1.4 })
         map.setLayoutProperty('hillshade', 'visibility', 'visible')

@@ -40,7 +40,9 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   // WebKit: Playwright cannot route a service worker's fetches, so with mocks the worker is blocked (offline-reload step is then not meaningful).
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch, deviceScaleFactor: vp.deviceScaleFactor, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'], serviceWorkers: WEBKIT && MOCK ? 'block' : 'allow' })
   const page = await ctx.newPage()
-  const done = MOCK ? () => {} : trackTraffic(page, `walkthrough.mjs ${vpName}`)
+  // Guard first, mocks after (last-registered route runs first): the mocks answer, and only what falls
+  // through them reaches the guard — counted and capped, never silently live.
+  const done = trackTraffic(page, `walkthrough.mjs ${vpName}${MOCK ? ' (mock)' : ''}`)
   if (MOCK) await installMocks(ctx, { focus: FOCUS })
   const cdp = WEBKIT ? null : await ctx.newCDPSession(page)
   const consoleErrors = []

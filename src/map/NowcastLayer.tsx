@@ -112,6 +112,8 @@ export function NowcastLayer() {
 }
 
 function redraw(map: MlMap, ready: { key: string; nowcast: { data: NowcastResult | null } }[], canvases: Map<string, HTMLCanvasElement>, frame: number) {
+  const marks = (window as unknown as { __perfMarks?: boolean }).__perfMarks === true
+  const m0 = marks ? performance.now() : 0
   let any = false
   for (const b of ready) {
     const canvas = canvases.get(b.key)
@@ -125,6 +127,7 @@ function redraw(map: MlMap, ready: { key: string; nowcast: { data: NowcastResult
     any = true
   }
   if (any) map.triggerRepaint()
+  if (marks) performance.measure('nowcast-redraw', { start: m0, end: performance.now() })
 }
 
 // One scratch canvas per grid size: the worker already rasterized every frame, so a frame change
@@ -351,11 +354,15 @@ export function WindParticles() {
         p.py = s.y
       }
     }
+    // Timing marks (engines without a profiler, e.g. WebKit): window.__perfMarks = true records
+    // one "particles" measure per frame so a long frame can be attributed to this loop or not.
+    const marks = (window as unknown as { __perfMarks?: boolean }).__perfMarks === true
     const loop = (t: number) => {
       const dt = Math.min(50, t - last) / 1000
       last = t
       raf = requestAnimationFrame(loop)
       if (moving || document.hidden) return
+      const m0 = marks ? performance.now() : 0
       ctx.globalCompositeOperation = 'destination-out'
       // Tail length follows zoom (short ticks at z5, long streaks at z12) and is
       // frame-rate independent (fade per 16.7 ms, converted with this frame's dt).
@@ -397,6 +404,7 @@ export function WindParticles() {
         ctx.strokeStyle = `rgba(15,23,42,${(0.25 + ((b + 0.5) / BUCKETS) * 0.65).toFixed(3)})`
         ctx.stroke(paths[b])
       }
+      if (marks) performance.measure('particles', { start: m0, end: performance.now() })
     }
     raf = requestAnimationFrame(loop)
     map.on('movestart', onMoveStart)
