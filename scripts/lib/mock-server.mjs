@@ -274,11 +274,52 @@ function rwisCurrents() {
 
 const json = (body, status = 200) => ({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) })
 
+// ---------- Basemap: the REAL style / sprites / glyphs harvested from a local service-worker cache
+// (e2e-shots/perf/basemap, see BUILD_LOG) + EMPTY vector tiles. MapLibre still parses the style, manages
+// sources and tiles and runs its worker, but draws no roads/labels — tile hosts were at their daily
+// cap, so basemap render cost is under-represented tonight; the live walkthrough covers it.
+const BASEMAP_DIR = 'e2e-shots/perf/basemap'
+const basemapIndex = existsSync(`${BASEMAP_DIR}/index.json`) ? F(`${BASEMAP_DIR}/index.json`) : {}
+function basemap(url) {
+  const p = new URL(url).pathname
+  const hit = basemapIndex[p]
+  if (hit) return { status: 200, contentType: hit.type || 'application/octet-stream', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=86400' }, body: readFileSync(`${BASEMAP_DIR}/${hit.file}`) }
+  if (/\.pbf$/.test(p) && !p.includes('/fonts/')) return { status: 200, contentType: 'application/x-protobuf', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=86400' }, body: Buffer.alloc(0) } // empty vector tile
+  if (p.includes('/fonts/')) return { status: 204, headers: { 'access-control-allow-origin': '*' }, body: '' }
+  if (p.startsWith('/planet')) return json({ tilejson: '3.0.0', tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'], minzoom: 0, maxzoom: 14 })
+  return { status: 404, body: '' }
+}
+// Terrain (terrarium PNG, gentle synthetic slope) and GIBS tiles (tinted PNG): synthetic, timing only.
+let terrainPng = null
+function terrainTile() {
+  if (terrainPng) return terrainPng
+  const w = 256
+  const raw = Buffer.alloc((w * 4 + 1) * w)
+  for (let y = 0; y < w; y++) {
+    raw[y * (w * 4 + 1)] = 0
+    for (let x = 0; x < w; x++) {
+      const h = 32768 + 300 + 40 * Math.sin(x / 23) + 30 * Math.cos(y / 17) // terrarium: h = R*256 + G + B/256 - 32768
+      const o = y * (w * 4 + 1) + 1 + x * 4
+      raw[o] = Math.floor(h / 256)
+      raw[o + 1] = Math.floor(h % 256)
+      raw[o + 2] = Math.floor((h % 1) * 256)
+      raw[o + 3] = 255
+    }
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(w, 0)
+  ihdr.writeUInt32BE(w, 4)
+  ihdr[8] = 8
+  ihdr[9] = 6
+  terrainPng = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), pngChunk('IHDR', ihdr), pngChunk('IDAT', deflateSync(raw)), pngChunk('IEND', Buffer.alloc(0))])
+  return terrainPng
+}
+
 /**
  * Install the mocks on a Playwright context. `focus` is the geolocation the session uses.
  * Returns { live: string[] } — URLs that fell through to the network (should stay empty in replay).
  */
-export async function installMocks(context, { har, record = false, focus = { lat: 41.673, lng: -93.698 } } = {}) {
+export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 } } = {}) {
   const live = []
   if (har) {
     await context.routeFromHAR(har, { update: record, notFound: record ? 'fallback' : 'abort', url: /^https:\/\/(tiles\.openfreemap\.org|s3\.amazonaws\.com|gibs\.earthdata\.nasa\.gov)\// })
@@ -302,6 +343,11 @@ export async function installMocks(context, { har, record = false, focus = { lat
       if (host === 'mesonet.agron.iastate.edu') return route.fulfill(url.includes('currents.json') ? json(rwisCurrents()) : json({ type: 'FeatureCollection', features: [] }))
       if (host === 'mapservices.weather.noaa.gov') return route.fulfill(json({ type: 'FeatureCollection', features: [] }))
       if (host === 'gibs.earthdata.nasa.gov' && url.includes('WMTSCapabilities')) return route.fulfill({ status: 200, contentType: 'application/xml', headers: { 'access-control-allow-origin': '*' }, body: gibsCapabilities() })
+      if (!har) {
+        if (host === 'tiles.openfreemap.org') return route.fulfill(basemap(url))
+        if (host === 's3.amazonaws.com') return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=86400' }, body: terrainTile() })
+        if (host === 'gibs.earthdata.nasa.gov') return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=600' }, body: radarTile() })
+      }
     } catch (e) {
       return route.fulfill(json({ error: true, reason: String(e) }, 500))
     }

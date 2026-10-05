@@ -97,7 +97,8 @@ export default defineConfig({
   worker: { format: 'es' },
   build: {
     target: 'es2022',
-    sourcemap: false,
+    // Perf builds (PERF_SOURCEMAP=1) ship maps so CPU profiles resolve to source names; release builds don't.
+    sourcemap: process.env.PERF_SOURCEMAP === '1',
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {

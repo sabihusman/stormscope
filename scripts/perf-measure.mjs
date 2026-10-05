@@ -12,9 +12,12 @@ import { gzipSync } from 'node:zlib'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
 import { installMocks } from './lib/mock-server.mjs'
+import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping'
 
 const args = process.argv.slice(2)
-const MOCK = args.find((a) => a.startsWith('--mock='))?.slice(7) ?? null
+const mockArg = args.find((a) => a === '--mock' || a.startsWith('--mock='))
+const MOCK = mockArg ? mockArg.slice(7) || 'synthetic' : null // --mock → synthetic tiles; --mock=<har> → tiles from the HAR
+const HAR = MOCK && MOCK !== 'synthetic' ? MOCK : null
 const RECORD = args.includes('--record')
 const LABEL = args.find((a) => a.startsWith('--label='))?.slice(8) ?? ''
 const positional = args.filter((a) => !a.startsWith('--'))
@@ -32,13 +35,19 @@ try {
   out.bundleTotal = { kb: +out.bundle.reduce((a, f) => a + f.kb, 0).toFixed(0), gzipKb: +out.bundle.reduce((a, f) => a + f.gzipKb, 0).toFixed(0), js: out.bundle.filter((f) => f.file.endsWith('.js')).reduce((a, f) => a + f.gzipKb, 0).toFixed(0) + ' KB gzip' }
 } catch { out.bundle = 'dist/ not built locally' }
 
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+// --headed: real Chrome with the machine's GPU (headless SwiftShader inflates raster/upload cost and
+// therefore INP presentation delay; script time is comparable either way).
+const HEADED = args.includes('--headed')
+const browser = HEADED
+  ? await chromium.launch({ headless: false, channel: 'chrome', args: ['--window-size=430,900', '--window-position=40,40'] }).catch(() => chromium.launch({ headless: false, args: ['--window-size=430,900'] }))
+  : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+out.profile.renderer = HEADED ? 'headed Chrome, real GPU' : 'headless Chromium, SwiftShader (software GL)'
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: true, station: true, nowcast: false })) } catch {} })
 const page = await ctx.newPage()
 // Replay: no guard needed (nothing leaves the machine); record/live: the guard counts and caps.
 const done = MOCK && !RECORD ? () => {} : trackTraffic(page, 'perf-measure.mjs')
-const mocks = MOCK ? await installMocks(ctx, { har: MOCK, record: RECORD }) : null
+const mocks = MOCK ? await installMocks(ctx, { har: HAR, record: RECORD }) : null
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Network.enable')
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
@@ -62,10 +71,38 @@ await page.addInitScript(() => {
 page.on('response', (r) => { if (!window_firstRadar && /tilecache\.rainviewer\.com/.test(r.url()) && r.status() === 200) window_firstRadar = Date.now() })
 let window_firstRadar = 0
 
-// ---- Trace the whole session for task attribution ----
-await cdp.send('Tracing.start', { categories: 'devtools.timeline,disabled-by-default-devtools.timeline,v8.execute,blink.user_timing,disabled-by-default-v8.cpu_profiler', options: 'sampling-frequency=1000', transferMode: 'ReportEvents' })
+// ---- Trace the whole session for task attribution, plus a sampling CPU profile so microtask runs
+// (promise continuations, which the trace only shows as "RunMicrotasks") get function names ----
+await cdp.send('Tracing.start', { categories: 'devtools.timeline,disabled-by-default-devtools.timeline,v8.execute,blink.user_timing', transferMode: 'ReportEvents' })
 const traceEvents = []
 cdp.on('Tracing.dataCollected', (e) => traceEvents.push(...e.value))
+await cdp.send('Profiler.enable')
+await cdp.send('Profiler.setSamplingInterval', { interval: 500 })
+await cdp.send('Profiler.start')
+
+// Environment check: a hidden or throttled page (screen locked/off) makes every timing invalid.
+await page.goto('about:blank')
+out.environment = await page.evaluate(
+  () =>
+    new Promise((res) => {
+      let n = 0
+      const t0 = performance.now()
+      const loop = () => (performance.now() - t0 < 1000 ? (n++, requestAnimationFrame(loop)) : res({ visibility: document.visibilityState, hasFocus: document.hasFocus(), rafPerSecond: n, gpu: (() => { try { const c = document.createElement('canvas'); const gl = c.getContext('webgl2') || c.getContext('webgl'); const d = gl?.getExtension('WEBGL_debug_renderer_info'); return d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : 'n/a' } catch { return 'n/a' } })() }))
+      requestAnimationFrame(loop)
+    }),
+)
+// Calibrate the CPU throttle: a fixed busy loop before/after Emulation.setCPUThrottlingRate (headless
+// Chromium on this machine ignores the rate and runs ~4× slower than native Chrome anyway, so only a
+// measured ratio near 4 means the profile is what it claims to be).
+const bench = () => page.evaluate(() => { const t0 = performance.now(); let x = 0; for (let i = 0; i < 2e7; i++) x += Math.sqrt(i); return Math.round(performance.now() - t0) })
+await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
+const unthrottledMs = await bench()
+await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
+const throttledMs = await bench()
+out.environment.cpu = { unthrottledMs, throttledMs, ratio: +(throttledMs / unthrottledMs).toFixed(1) }
+out.environment.valid = out.environment.visibility === 'visible' && out.environment.rafPerSecond >= 30 && out.environment.cpu.ratio >= 3
+if (!out.environment.valid) console.log(`WARNING: page ${out.environment.visibility}, ${out.environment.rafPerSecond} rAF/s — timings below are INVALID (hidden/throttled window)`)
+console.log('environment:', JSON.stringify(out.environment))
 
 const t0 = Date.now()
 await page.goto(BASE, { waitUntil: 'load' })
@@ -81,7 +118,24 @@ const byHost = {}
 for (const r of first) { const h = new URL(r.url).host; byHost[h] ??= { n: 0, kb: 0 }; byHost[h].n++; byHost[h].kb += r.bytes / 1024 }
 out.firstLoad.requests = { count: first.length, totalKb: +first.reduce((a, r) => a + r.bytes / 1024, 0).toFixed(0), byHost: Object.fromEntries(Object.entries(byHost).sort((a, b) => b[1].kb - a[1].kb).map(([h, v]) => [h, { n: v.n, kb: +v.kb.toFixed(0) }])) }
 
-// ---- Interactions, each labelled for INP attribution ----
+// ---- Interactions, each labelled for INP attribution; a rAF sampler records frame times per label ----
+await page.evaluate(() => {
+  window.__frames = {}
+  let last = performance.now()
+  const loop = (t) => {
+    const k = window.__perfLabel ?? 'first-load'
+    const f = (window.__frames[k] ??= { n: 0, over50: 0, over100: 0, maxMs: 0, totalMs: 0 })
+    const d = t - last
+    last = t
+    f.n++
+    f.totalMs += d
+    if (d > 50) f.over50++
+    if (d > 100) f.over100++
+    if (d > f.maxMs) f.maxMs = Math.round(d)
+    requestAnimationFrame(loop)
+  }
+  requestAnimationFrame(loop)
+})
 const label = (l) => page.evaluate((l) => { window.__perfLabel = l }, l)
 await label('tab-switch')
 for (const t of ['Station', 'Sources', 'Timeline']) { await touchTap(page, await centre(page.getByRole('tab', { name: t }))); await page.waitForTimeout(900) }
@@ -116,8 +170,74 @@ for (let i = 0; i < 90; i++) { await page.waitForTimeout(1000); const s = await 
 await page.waitForTimeout(1500)
 
 const vitals = await page.evaluate(() => window.__perf)
+out.frames = await page.evaluate(() => Object.fromEntries(Object.entries(window.__frames).map(([k, f]) => [k, { frames: f.n, fps: +(f.n / (f.totalMs / 1000)).toFixed(1), over50: f.over50, over100: f.over100, maxMs: f.maxMs }])))
+const { profile } = await cdp.send('Profiler.stop')
 const { value: traceHandle } = await cdp.send('Tracing.end').then(() => new Promise((res) => cdp.once('Tracing.tracingComplete', (e) => res({ value: e }))))
 void traceHandle
+// Profile samples → absolute µs (same TimeTicks clock as the trace), so each long task can be
+// attributed to the functions sampled inside it.
+const pNodes = new Map(profile.nodes.map((n) => [n.id, n]))
+const pParent = new Map()
+for (const n of profile.nodes) for (const c of n.children ?? []) pParent.set(c, n.id)
+const pSamples = []
+{
+  let t = profile.startTime
+  for (let i = 0; i < profile.samples.length; i++) {
+    t += profile.timeDeltas[i] ?? 0
+    pSamples.push({ t, id: profile.samples[i] })
+  }
+}
+// Resolve minified frames to source names through the build's sourcemaps (PERF_SOURCEMAP=1 build).
+const maps = new Map()
+const mapFor = (url) => {
+  const file = (url || '').replace(/^https?:\/\/[^/]+\//, '').replace(/\?.*$/, '')
+  if (!file.startsWith('assets/')) return null
+  if (!maps.has(file)) {
+    try {
+      maps.set(file, new TraceMap(JSON.parse(readFileSync(`dist/${file}.map`, 'utf8'))))
+    } catch {
+      maps.set(file, null)
+    }
+  }
+  return maps.get(file)
+}
+const nameCache = new Map()
+const frameName = (n) => {
+  const cf = n.callFrame
+  const key = `${cf.url}|${cf.lineNumber}|${cf.columnNumber}|${cf.functionName}`
+  if (nameCache.has(key)) return nameCache.get(key)
+  let out = `${cf.functionName || '(anon)'}@${(cf.url || '').replace(/^https?:\/\/[^/]+\//, '').replace(/\?.*$/, '').slice(0, 36)}:${cf.lineNumber}`
+  const m = mapFor(cf.url)
+  if (m && cf.lineNumber >= 0) {
+    const pos = originalPositionFor(m, { line: cf.lineNumber + 1, column: Math.max(0, cf.columnNumber) })
+    if (pos.source) out = `${pos.name || cf.functionName || '(anon)'}@${pos.source.replace(/^.*?(src|node_modules)\//, '$1/').slice(0, 48)}:${pos.line}`
+  }
+  nameCache.set(key, out)
+  return out
+}
+function attribute(tsStart, tsEnd, top = 4) {
+  const self = new Map()
+  const incl = new Map()
+  let n = 0
+  for (const s of pSamples) {
+    if (s.t < tsStart || s.t > tsEnd) continue
+    n++
+    const node = pNodes.get(s.id)
+    if (!node) continue
+    const name = frameName(node)
+    if (!/^\((idle|program|garbage|root)/.test(name)) self.set(name, (self.get(name) ?? 0) + 1)
+    let id = s.id
+    const seen = new Set()
+    while (id != null) {
+      const nn = pNodes.get(id)
+      const k = frameName(nn)
+      if (!seen.has(k) && !/^\((idle|program|garbage|root)/.test(k)) { seen.add(k); incl.set(k, (incl.get(k) ?? 0) + 1) }
+      id = pParent.get(id)
+    }
+  }
+  const pct = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, top).map(([k, v]) => `${k} ${Math.round((100 * v) / Math.max(1, n))}%`)
+  return { samples: n, self: pct(self), inclusive: pct(incl) }
+}
 
 // ---- INP per label (max event duration), long tasks ----
 const inpBy = {}
@@ -128,18 +248,22 @@ out.inpOverall = vitals.inp.length ? Math.max(...vitals.inp.map((e) => e.dur)) :
 // ---- Attribute tasks > 50 ms from the trace: dominant child slice per top-level task ----
 const navEv = traceEvents.find((e) => e.name === 'navigationStart' && e.args?.data?.isLoadingMainFrame !== false) ?? traceEvents.find((e) => e.name === 'navigationStart')
 const navTs = navEv?.ts ?? 0
-const tasks = traceEvents.filter((e) => e.name === 'RunTask' && e.ph === 'X' && e.dur >= 50_000).sort((a, b) => a.ts - b.ts)
-const children = traceEvents.filter((e) => e.ph === 'X' && e.dur && e.name !== 'RunTask' && e.tid != null)
+// Only the page's renderer main thread counts: worker threads and the GPU process also emit RunTask.
+const mainThread = traceEvents.find((e) => e.name === 'thread_name' && e.args?.name === 'CrRendererMain' && e.pid === navEv?.pid) ?? traceEvents.find((e) => e.name === 'thread_name' && e.args?.name === 'CrRendererMain')
+const onMain = (e) => mainThread ? e.pid === mainThread.pid && e.tid === mainThread.tid : true
+const tasks = traceEvents.filter((e) => e.name === 'RunTask' && e.ph === 'X' && e.dur >= 50_000 && onMain(e)).sort((a, b) => a.ts - b.ts)
+const children = traceEvents.filter((e) => e.ph === 'X' && e.dur && e.name !== 'RunTask' && onMain(e))
 const srcOf = (e) => e.args?.data?.functionName || e.args?.data?.url || e.args?.data?.scriptName || e.args?.beginData?.frame || ''
 out.longTasks = tasks.map((t) => {
-  const inside = children.filter((c) => c.tid === t.tid && c.ts >= t.ts && c.ts + c.dur <= t.ts + t.dur + 100)
+  const inside = children.filter((c) => c.ts >= t.ts && c.ts + c.dur <= t.ts + t.dur + 100)
   const agg = {}
   for (const c of inside) { const k = c.name + (srcOf(c) ? ` (${String(srcOf(c)).replace(/^https?:\/\/[^/]+/, '').slice(0, 60)})` : ''); agg[k] = (agg[k] ?? 0) + c.dur }
   const top = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, d]) => `${k} ${(d / 1000).toFixed(0)}ms`)
   // Trace timestamps are µs on the trace clock; align them with the page's performance clock via the
   // navigationStart mark that blink.user_timing records for the main frame.
   const when = vitals.longTasks.find((l) => Math.abs(l.t - (t.ts - navTs) / 1000) < 60)
-  return { durMs: Math.round(t.dur / 1000), label: when?.label ?? '', top }
+  const prof = t.dur >= 150_000 ? attribute(t.ts, t.ts + t.dur) : undefined
+  return { durMs: Math.round(t.dur / 1000), label: when?.label ?? '', top, prof }
 })
 // Classify: rendering (Layout/Paint/Raster/ImageDecode/GPU) vs script.
 const cls = (lt) => (lt.top.some((s) => /FunctionCall|EvaluateScript|v8|RunMicrotasks|TimerFire|XHR|FireAnimationFrame|MessageEvent/.test(s)) ? 'script' : lt.top.length ? 'rendering/decode' : 'unattributed')
@@ -160,6 +284,6 @@ out.longTasksByPhase = byPhase
 if (mocks) out.liveFallthrough = mocks.live.filter((u) => !/tiles\.openfreemap\.org|s3\.amazonaws\.com|gibs\.earthdata\.nasa\.gov/.test(u)).slice(0, 10)
 const file = `${OUT}/perf-report${LABEL ? '-' + LABEL : ''}.json`
 writeFileSync(file, JSON.stringify(out, null, 2))
-console.log(JSON.stringify({ headline: out.headline, firstLoad: out.firstLoad, inp: out.inp, inpOverall: out.inpOverall, longTaskSummary: out.longTaskSummary, longTasksByPhase: byPhase, bundleTotal: out.bundleTotal, bundle: out.bundle, openMeteo: out.openMeteo }, null, 1))
+console.log(JSON.stringify({ environment: out.environment, frames: out.frames, headline: out.headline, firstLoad: out.firstLoad, inp: out.inp, inpOverall: out.inpOverall, longTaskSummary: out.longTaskSummary, longTasksByPhase: byPhase, bundleTotal: out.bundleTotal, bundle: out.bundle, openMeteo: out.openMeteo }, null, 1))
 done()
 await browser.close()
