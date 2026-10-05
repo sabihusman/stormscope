@@ -46,7 +46,9 @@ const browser = HEADED
   : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 out.profile.renderer = HEADED ? 'headed Chrome, real GPU' : 'headless Chromium, SwiftShader (software GL)'
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
-await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: true, station: true, nowcast: false })) } catch {} })
+const LAYERS = JSON.parse(args.find((a) => a.startsWith('--layers='))?.slice(9) ?? '{"radar":true,"satellite":false,"rainfall":false,"flood":false,"rivers":true,"station":true,"nowcast":false}')
+out.profile.layers = LAYERS
+await ctx.addInitScript((layers) => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify(layers)) } catch {} }, LAYERS)
 if (LOW_DEVICE) await ctx.addInitScript(() => { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4 }); Object.defineProperty(navigator, 'deviceMemory', { get: () => 4 }) })
 out.profile.deviceClass = LOW_DEVICE ? 'low (4 cores, 4 GB emulated)' : 'host'
 const page = await ctx.newPage()
@@ -141,16 +143,34 @@ await page.evaluate(() => {
   }
   requestAnimationFrame(loop)
 })
-const label = (l) => page.evaluate((l) => { window.__perfLabel = l }, l)
+// Labels are also recorded with their page time so trace tasks can be attributed by time window —
+// the longtask observer misses tasks started by DevTools (page.evaluate), which would otherwise be
+// lumped into "first-load".
+await page.evaluate(() => { window.__labelTimes = [{ label: 'first-load', t: 0 }] })
+const label = (l) => page.evaluate((l) => { window.__perfLabel = l; window.__labelTimes.push({ label: l, t: performance.now() }) }, l)
 await label('tab-switch')
 for (const t of ['Station', 'Sources', 'Timeline']) { await touchTap(page, await centre(page.getByRole('tab', { name: t }))); await page.waitForTimeout(900) }
 await label('pan')
 for (let i = 0; i < 3; i++) { await touchDrag(page, { x: 195, y: 300 }, { x: 95, y: 220 }, { steps: 10, settleMs: 60 }); await page.waitForTimeout(900) }
+await label('zoom-jump')
+for (const z of [5, 11, 9.5]) { await page.evaluate((z) => window.__map.jumpTo({ zoom: z, center: [-93.698, 41.673] }), z); await page.waitForTimeout(1500) }
+await label('3d-on')
+await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
+await touchTap(page, await centre(page.getByRole('button', { name: /3D terrain/ })))
+await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
+await page.waitForTimeout(2500)
+await label('3d-off')
+await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
+await touchTap(page, await centre(page.getByRole('button', { name: /3D terrain/ })))
+await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
+await page.waitForTimeout(1500)
 await label('radar-play')
-await touchTap(page, await centre(page.getByRole('button', { name: 'Play' })))
-await page.waitForTimeout(5000)
-await touchTap(page, await centre(page.getByRole('button', { name: 'Pause' })))
-await page.waitForTimeout(500)
+if (LAYERS.radar) {
+  await touchTap(page, await centre(page.getByRole('button', { name: 'Play' })))
+  await page.waitForTimeout(5000)
+  await touchTap(page, await centre(page.getByRole('button', { name: 'Pause' })))
+  await page.waitForTimeout(500)
+}
 await label('all-layers-nowcast')
 await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
 for (const n of ['Rainfall', 'Flood risk', 'Nowcast']) { await touchTap(page, await centre(page.getByRole('button', { name: n }))); await page.waitForTimeout(300) }
@@ -175,6 +195,8 @@ for (let i = 0; i < 90; i++) { await page.waitForTimeout(1000); const s = await 
 await page.waitForTimeout(1500)
 
 const vitals = await page.evaluate(() => window.__perf)
+const labelTimes = await page.evaluate(() => window.__labelTimes)
+const labelAt = (pageMs) => { let cur = 'first-load'; for (const l of labelTimes) if (l.t <= pageMs) cur = l.label; return cur }
 out.frames = await page.evaluate(() => Object.fromEntries(Object.entries(window.__frames).map(([k, f]) => [k, { frames: f.n, fps: +(f.n / (f.totalMs / 1000)).toFixed(1), over50: f.over50, over100: f.over100, maxMs: f.maxMs }])))
 const { profile } = await cdp.send('Profiler.stop')
 const { value: traceHandle } = await cdp.send('Tracing.end').then(() => new Promise((res) => cdp.once('Tracing.tracingComplete', (e) => res({ value: e }))))
@@ -266,9 +288,8 @@ out.longTasks = tasks.map((t) => {
   const top = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, d]) => `${k} ${(d / 1000).toFixed(0)}ms`)
   // Trace timestamps are µs on the trace clock; align them with the page's performance clock via the
   // navigationStart mark that blink.user_timing records for the main frame.
-  const when = vitals.longTasks.find((l) => Math.abs(l.t - (t.ts - navTs) / 1000) < 60)
   const prof = t.dur >= 150_000 ? attribute(t.ts, t.ts + t.dur) : undefined
-  return { durMs: Math.round(t.dur / 1000), label: when?.label ?? '', top, prof }
+  return { durMs: Math.round(t.dur / 1000), label: labelAt((t.ts - navTs) / 1000), top, prof }
 })
 // Classify: rendering (Layout/Paint/Raster/ImageDecode/GPU) vs script.
 const cls = (lt) => (lt.top.some((s) => /FunctionCall|EvaluateScript|v8|RunMicrotasks|TimerFire|XHR|FireAnimationFrame|MessageEvent/.test(s)) ? 'script' : lt.top.length ? 'rendering/decode' : 'unattributed')

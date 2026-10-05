@@ -101,7 +101,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     return rec
   }
   const st = (fn) => page.evaluate(fn)
-  const tap = async (locator) => { const c = await centre(locator); if (!c) throw new Error('no target'); if (vp.hasTouch) await touchTap(page, c); else await locator.click() }
+  const tap = async (locator) => { await locator.scrollIntoViewIfNeeded().catch(() => {}); const c = await centre(locator); if (!c) throw new Error('no target'); if (vp.hasTouch) await touchTap(page, c); else await locator.click() }
   const drag = async (from, to) => { if (vp.hasTouch) await touchDrag(page, from, to); else { await page.mouse.move(from.x, from.y); await page.mouse.down(); for (let i = 1; i <= 10; i++) await page.mouse.move(from.x + ((to.x - from.x) * i) / 10, from.y + ((to.y - from.y) * i) / 10); await page.mouse.up() } }
   const openMenu = () => tap(page.getByRole('button', { name: /layer menu/ }))
   const mapLoaded = () => st(() => !!window.__map && window.__map.loaded())
@@ -135,7 +135,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 
   // ---------------- satellite GeoColor / IR + switch with time carry
   await feature('satellite GeoColor', async () => { await openMenu(); await tap(page.getByRole('radio', { name: /Satellite/ })); await page.waitForTimeout(300); await openMenu() }, () => st(() => window.__store.get().layers.satellite && (window.__store.get().satellite.data?.times.length ?? 0) > 0 && !window.__store.get().imageryCarry), { timeoutMs: 40000 })
-  await feature('satellite IR', async () => { await openMenu(); await tap(page.getByRole('radio', { name: /IR|Infrared/i }).first()); await page.waitForTimeout(300); await openMenu() }, () => st(() => window.__store.get().satProduct !== 'geocolor'), { timeoutMs: 20000 })
+  await feature('satellite IR', async () => { await openMenu(); await tap(page.getByRole('button', { name: /Satellite product/ })); await page.waitForTimeout(300); await openMenu() }, () => st(() => window.__store.get().satProduct !== 'geocolor' && (window.__store.get().satellite.data?.times.length ?? 0) > 0), { timeoutMs: 20000 })
   await feature('satellite → radar (time carry)', async () => { await openMenu(); await tap(page.getByRole('radio', { name: /Radar/ })); await page.waitForTimeout(300); await openMenu() }, () => st(() => window.__store.get().layers.radar && !window.__store.get().layers.satellite && !window.__store.get().imageryCarry), { timeoutMs: 30000 })
 
   // ---------------- rainfall, flood, nowcast + particles, 3D
@@ -153,8 +153,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 
   // ---------------- layer menu + movable button
   await feature('layer menu open/close', async () => { await openMenu(); await page.waitForTimeout(400); await openMenu() }, null)
-  await feature('move layer button to top-left', async () => { const fab = await centre(page.getByRole('button', { name: /layer menu/ })); await drag(fab, { x: 40, y: 120 }); await page.waitForTimeout(600) }, () => st(() => window.__store.get().fabCorner !== 'bottom-right'))
-  await feature('move layer button back', async () => { const fab = await centre(page.getByRole('button', { name: /layer menu/ })); await drag(fab, { x: vp.width - 40, y: vp.height - 160 }); await page.waitForTimeout(600) }, () => st(() => window.__store.get().fabCorner === 'bottom-right'))
+  await feature('move layer button to top-left', async () => { const fab = await centre(page.getByRole('button', { name: /layer menu/ })); await drag(fab, { x: 40, y: 120 }); await page.waitForTimeout(600) }, () => st(() => window.__store.get().fabCorner === 'tl'))
+  await feature('move layer button back', async () => { const fab = await centre(page.getByRole('button', { name: /layer menu/ })); await drag(fab, { x: vp.width - 40, y: vp.height - 120 }); await page.waitForTimeout(600) }, () => st(() => window.__store.get().fabCorner === 'br'))
 
   // ---------------- bottom sheet: every tab; collapse by drag, tap, ▼, swipe, back
   for (const t of ['Timeline', 'Journey', 'Station', 'Rivers', 'Flood', 'Sources']) {
@@ -187,6 +187,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
       const m3 = await sheetMode()
       await tap(page.getByRole('tab', { name: t }))
       await page.waitForTimeout(300)
+      await page.evaluate(() => { const b = document.querySelector('.sheet-body'); if (b) b.scrollTop = 0 }) // swipe-down collapses only from the top of the content
       const b2 = await centre(page.locator('.sheet-body'))
       if (vp.hasTouch && b2) await drag(b2, { x: b2.x, y: b2.y + 220 })
       await page.waitForTimeout(300)
@@ -206,7 +207,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   await feature('journey: departure chip +2 h', async () => { await tap(page.getByRole('radio', { name: '+2 h' })) }, () => st(() => window.__store.get().journey.weather.state === 'ready' && window.__store.get().journey.departure > Date.now() + 100 * 60000), { timeoutMs: 60000 })
   await feature('journey: date picker', async () => { await tap(page.getByRole('radio', { name: /Pick/ })); await page.waitForTimeout(400) }, () => st(() => !!document.querySelector('input[type=datetime-local]')), { timeoutMs: 5000 })
   await feature('journey: alternate route', async () => { const alt = page.getByRole('radio', { name: /Alt 1/ }); if (await alt.count()) await tap(alt) }, () => st(() => window.__store.get().journey.selected === 1 && window.__store.get().journey.weather.state === 'ready'), { timeoutMs: 60000 })
-  await feature('journey: strip sample tap', async () => { const s = page.locator('.strip button, .strip [role=button]').first(); if (await s.count()) await tap(s) }, () => st(() => window.__store.get().selection?.kind === 'journey'), { timeoutMs: 5000 })
+  await feature('journey: strip sample tap', async () => { const s = page.locator('li[class^="sev-"]').first(); if (await s.count()) await tap(s) }, () => st(() => window.__store.get().selection?.kind === 'journey'), { timeoutMs: 5000 })
   await feature('journey: hazards + road chips rendered', async () => { await tap(page.getByRole('tab', { name: 'Journey' })) }, () => st(() => /Hazards on this route/.test(document.body.innerText) && /Road conditions/.test(document.body.innerText)))
   await feature('journey: clear', async () => { await tap(page.getByRole('button', { name: 'Change', exact: true })) }, () => st(() => !window.__store.get().journey.to))
 

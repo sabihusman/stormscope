@@ -321,8 +321,6 @@ function terrainTile() {
  */
 export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [] } = {}) {
   const live = []
-  // failHosts: hosts that answer 429 (to exercise the app's rate-limit / unavailable wording).
-  if (failHosts.length) await context.route((u) => failHosts.includes(new URL(u).host), (route) => route.fulfill({ status: 429, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ error: true, reason: 'Minutely API request limit exceeded (harness)' }) }))
   if (har) {
     await context.routeFromHAR(har, { update: record, notFound: record ? 'fallback' : 'abort', url: /^https:\/\/(tiles\.openfreemap\.org|s3\.amazonaws\.com|gibs\.earthdata\.nasa\.gov)\// })
   }
@@ -357,5 +355,8 @@ export async function installMocks(context, { har = null, record = false, focus 
     live.push(url)
     return route.fallback()
   })
+  // failHosts: hosts that answer 429 (to exercise the app's rate-limit / unavailable wording). Registered
+  // last so Playwright runs it first.
+  if (failHosts.length) await context.route((u) => failHosts.includes(new URL(u).host), (route) => route.fulfill({ status: 429, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ error: true, reason: 'Minutely API request limit exceeded (harness)' }) }))
   return { live }
 }

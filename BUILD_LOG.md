@@ -15,6 +15,11 @@
 | 1b | (same burst) rasterize nowcast frames in the worker | RGBA per frame from the worker | INP 120 → 144 ms, frames > 50 ms 4 → 6 (noise‑level loss; the main‑thread raster is a 24–32² loop ≈ 1 ms) | reverted |
 | 5a | DPR‑3 emulation rasterises 2.25× the pixels | MapLibre `pixelRatio ≤ 2` | pan/radar frames unchanged (119–120 fps, 0 drops); enable‑layers 4 → 7 drops (noise) | not applied — the laptop GPU is not the bottleneck; re‑test on a phone GPU |
 | 5b | 13–16 radar frame layers at opacity 0 still fetch + upload tiles on every pan/zoom; the journey route fit reloaded all of them | only the current frame (and the next two while playing) is a visible layer | first‑load requests 111 → 75 (radar tiles 63 → 28), journey‑open fit 78.9 → 87.1 fps, max frame 142 → 100 ms; radar play start INP 24 → 48 ms (tiles now load on demand) | kept |
+| 5c | 400–1 800 wind particles per frame regardless of device | halve the count on ≤ 4 cores or ≤ 4 GB (same look) | low‑class emulation: nowcast playing frames > 50 ms 5 → 3, > 100 ms 2 → 0, max 125 → 75 ms; pause phase 1 → 0 drops; INP 128 → 120 ms | kept |
+| 4 | Entry bundle carried the journey pipeline (routing, hazards, RWIS, panel, layers) | on‑demand `journey` chunk (advancedChunks + React.lazy; the deprecated manualChunks had merged MapLibre into it) | entry JS 112.7 → 89.6 KB gzip; first radar frame 2 251 → 2 290 ms (no change on Fast 4G + this CPU — network/style bound); journey‑open INP 96 → 64 ms, tab switch 88 → 80 ms | kept (no regression, smaller entry) |
+| 3 | "journey open 888 ms" — on the stated profile it is 56–64 ms. The 888 ms came from the mis‑configured headless run; its real component was the route fit reloading tiles for all radar frame layers (see 5b) | 5b | — | resolved by 5b |
+
+**Targets on the stated profile after the kept fixes (mocked data, empty basemap tiles):** INP ≤ 200 ms for every measured interaction ✓ (max 136 ms, enabling three block layers); no app‑code main‑thread task > 200 ms ✓ (the only > 200 ms task is WebGL context creation, 245–256 ms, in the driver); first radar frame 2.2–2.3 s ✓ but optimistic — real basemap tiles and radar tiles add network time; the live walkthrough after the caps reset gives the real number.
 
 Short notes on what was hardest and why, plus the QA record. Dates are Sept 29–30, 2026.
 

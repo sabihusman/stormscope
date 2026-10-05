@@ -166,19 +166,29 @@ export function MapView({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // 2D / 3D toggle.
+  // 2D / 3D toggle. Terrain setup (mesh + framebuffers + hillshade) is deferred past the tap's
+  // own frame so the button press paints immediately and the heavy work lands in the next task.
   useEffect(() => {
     if (!map) return
     const dur = reducedMotion ? 0 : 800
-    if (is3D) {
-      map.setTerrain({ source: 'terrain-dem', exaggeration: 1.4 })
-      map.setLayoutProperty('hillshade', 'visibility', 'visible')
-      if (map.getPitch() < 59) map.easeTo({ pitch: 60, duration: dur })
-    } else {
-      map.setTerrain(null)
-      map.setLayoutProperty('hillshade', 'visibility', 'none')
-      // Skip the no-op ease on mount: an easeTo cancels any camera animation already in flight.
-      if (map.getPitch() > 0) map.easeTo({ pitch: 0, duration: dur })
+    let cancelled = false
+    const apply = () => {
+      if (cancelled) return
+      if (is3D) {
+        map.setTerrain({ source: 'terrain-dem', exaggeration: 1.4 })
+        map.setLayoutProperty('hillshade', 'visibility', 'visible')
+        if (map.getPitch() < 59) map.easeTo({ pitch: 60, duration: dur })
+      } else {
+        map.setTerrain(null)
+        map.setLayoutProperty('hillshade', 'visibility', 'none')
+        // Skip the no-op ease on mount: an easeTo cancels any camera animation already in flight.
+        if (map.getPitch() > 0) map.easeTo({ pitch: 0, duration: dur })
+      }
+    }
+    const raf = requestAnimationFrame(() => window.setTimeout(apply, 0))
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
     }
   }, [map, is3D, reducedMotion])
 
