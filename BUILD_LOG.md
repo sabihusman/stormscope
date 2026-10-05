@@ -1,8 +1,19 @@
 # Build log
 
+## Release — Oct 5, 21:51 UTC: DT2bjBmp promoted to production (live pass still owed)
+
+Vercel sign-in blocked the phone on the protected preview, so on the user's instruction preview DT2bjBmp was promoted before the live pass. `vercel promote` rebuilt the preview as a new production deployment; the bundle hash is unchanged (content-hashed, same source).
+
+| | |
+|---|---|
+| Production now | `dpl_8idjCSZ89DbsaF8RUnq8UbQDaYX4` (stormscope-3o42yesqx), bundle `index-DT2bjBmp.js`, alias https://stormscope-two.vercel.app switched at 21:51:37 UTC |
+| Rollback target | `dpl_BD1Wwak4xAv22cVSBHDUUtziVVHa` (stormscope-j4cfe6ksb), bundle CZGMyuEV — see ROLLBACK.md for the one-line command |
+| Service worker | `autoUpdate` + `skipWaiting` + `clientsClaim` + `cleanupOutdatedCaches`; sw.js and index.html served `max-age=0, must-revalidate`; bundle immutable. Returning-visit check (Playwright, all API hosts aborted, zero live calls): second visit served `/`, CSS and `index-DT2bjBmp.js` from the worker; precache holds only the new bundle. The register code reloads the page once when an updated worker activates. |
+| Live pass | not yet run — caps reset at 00:00 UTC. `node scripts/live-pass.mjs` runs the full suite, one live phone walkthrough and one headed live perf measurement into `e2e-shots/prod/live-<day>/`. Scheduling it from this session was not permitted (persistence); start it by hand or by message after 00:00 UTC. |
+
 ## Morning report — overnight performance round (Oct 5 → 6)
 
-**Summary.** On the stated profile (390×844 touch, CPU 4× calibrated, Fast 4G, real GPU) the app now meets every target with mocked data: INP ≤ 120 ms for all measured interactions, no app‑code main‑thread task > 200 ms, first radar frame 2.2 s (needs the live confirmation below). First‑load requests 140 → 73. Five fixes kept, two reverted, one not applied. The three‑viewport walkthrough found one rendering defect (fixed) and one UX note (logged). **The Oct 5 "CPU 4×" numbers were wrong**: headless Chromium here ignores the throttle, runs emulated and rasterises in software; the lag on your phone is device‑bound, not the 3–4 s stalls that measurement suggested. Preview with everything (superseded): https://stormscope-kwxr2sb80-sabihusman-4178s-projects.vercel.app (jAD3iAiM). **Current preview, incl. the OffscreenCanvas fix and containment: https://stormscope-iwcl312np-sabihusman-4178s-projects.vercel.app (bundle DT2bjBmp, protected — sign in to Vercel on the phone).** Production untouched (CZGMyuEV). No live calls were made; git history is one fix per commit.
+**Summary.** On the stated profile (390×844 touch, CPU 4× calibrated, Fast 4G, real GPU) the app now meets every target with mocked data: INP ≤ 120 ms for all measured interactions, no app‑code main‑thread task > 200 ms, first radar frame 2.2 s (needs the live confirmation below). First‑load requests 140 → 73. Five fixes kept, two reverted, one not applied. The three‑viewport walkthrough found one rendering defect (fixed) and one UX note (logged). **The Oct 5 "CPU 4×" numbers were wrong**: headless Chromium here ignores the throttle, runs emulated and rasterises in software; the lag on your phone is device‑bound, not the 3–4 s stalls that measurement suggested. Preview with everything (superseded): https://stormscope-kwxr2sb80-sabihusman-4178s-projects.vercel.app (jAD3iAiM). **Current preview, incl. the OffscreenCanvas fix and containment: https://stormscope-iwcl312np-sabihusman-4178s-projects.vercel.app (bundle DT2bjBmp, protected — sign in to Vercel on the phone).** Production untouched at the time of writing (CZGMyuEV; promoted to DT2bjBmp 21:51 UTC Oct 5, see release section above). No live calls were made; git history is one fix per commit.
 
 | Item | Cause → fix | Before → after (same profile) | Kept |
 |---|---|---|---|
