@@ -45,7 +45,9 @@ const browser = HEADED
   ? await chromium.launch({ headless: false, channel: 'chrome', args: ['--window-size=430,900', '--window-position=40,40'] }).catch(() => chromium.launch({ headless: false, args: ['--window-size=430,900'] }))
   : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 out.profile.renderer = HEADED ? 'headed Chrome, real GPU' : 'headless Chromium, SwiftShader (software GL)'
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
+const VP = args.includes('--viewport=tablet') ? { width: 800, height: 1280, deviceScaleFactor: 2 } : { width: 390, height: 844, deviceScaleFactor: 3 }
+out.profile.viewport = VP
+const ctx = await browser.newContext({ viewport: { width: VP.width, height: VP.height }, isMobile: true, hasTouch: true, deviceScaleFactor: VP.deviceScaleFactor, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
 const LAYERS = JSON.parse(args.find((a) => a.startsWith('--layers='))?.slice(9) ?? '{"radar":true,"satellite":false,"rainfall":false,"flood":false,"rivers":true,"station":true,"nowcast":false}')
 out.profile.layers = LAYERS
 await ctx.addInitScript((layers) => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify(layers)) } catch {} }, LAYERS)
@@ -153,7 +155,8 @@ for (const t of ['Station', 'Sources', 'Timeline']) { await touchTap(page, await
 await label('pan')
 for (let i = 0; i < 3; i++) { await touchDrag(page, { x: 195, y: 300 }, { x: 95, y: 220 }, { steps: 10, settleMs: 60 }); await page.waitForTimeout(900) }
 await label('zoom-jump')
-for (const z of [5, 11, 9.5]) { await page.evaluate((z) => window.__map.jumpTo({ zoom: z, center: [-93.698, 41.673] }), z); await page.waitForTimeout(1500) }
+// (return nothing: returning the Map would make Playwright serialize it — 0.7 s of fake "stall")
+for (const z of [5, 11, 9.5]) { await page.evaluate((z) => { window.__map.jumpTo({ zoom: z, center: [-93.698, 41.673] }) }, z); await page.waitForTimeout(1500) }
 await label('3d-on')
 await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
 await touchTap(page, await centre(page.getByRole('button', { name: /3D terrain/ })))

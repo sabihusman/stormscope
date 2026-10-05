@@ -361,6 +361,12 @@ export function WindParticles() {
       ctx.lineWidth = 1.6
       ctx.lineCap = 'round'
       const scale = 360 // 1 real second ≈ 6 minutes of drift
+      // One stroke() per particle cost ~200 ms a frame on a tablet at CPU 4× (1 700 particles).
+      // Segments are batched into 8 paths by opacity bucket (0.25–0.9, step 0.08) and stroked
+      // once each: same width, colour and cap; opacity rounded to the nearest 0.08.
+      const BUCKETS = 8
+      const paths: Path2D[] = []
+      for (let i = 0; i < BUCKETS; i++) paths.push(new Path2D())
       for (const p of particles) {
         const uv = sampleUV(p.lng, p.lat)
         if (!uv || p.age++ > 220) {
@@ -372,15 +378,17 @@ export function WindParticles() {
         const s = projectFast(nlng, nlat)
         const sp = Math.hypot(uv[0], uv[1])
         const alpha = Math.min(0.9, 0.25 + sp / 12)
-        ctx.strokeStyle = `rgba(15,23,42,${alpha})`
-        ctx.beginPath()
-        ctx.moveTo(p.px, p.py)
-        ctx.lineTo(s.x, s.y)
-        ctx.stroke()
+        const b = Math.min(BUCKETS - 1, Math.floor(((alpha - 0.25) / 0.65) * BUCKETS))
+        paths[b].moveTo(p.px, p.py)
+        paths[b].lineTo(s.x, s.y)
         p.lng = nlng
         p.lat = nlat
         p.px = s.x
         p.py = s.y
+      }
+      for (let b = 0; b < BUCKETS; b++) {
+        ctx.strokeStyle = `rgba(15,23,42,${(0.25 + ((b + 0.5) / BUCKETS) * 0.65).toFixed(3)})`
+        ctx.stroke(paths[b])
       }
     }
     raf = requestAnimationFrame(loop)

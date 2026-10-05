@@ -118,7 +118,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   // ---------------- pan / zoom across tile levels
   for (const z of [3, 5, 8, 11, 14]) {
     await feature(`zoom ${z} + pan`, async () => {
-      await st((z) => window.__map.jumpTo({ zoom: z, center: [-93.698, 41.673] }), z)
+      await page.evaluate((z) => { window.__map.jumpTo({ zoom: z, center: [-93.698, 41.673] }) }, z) // return nothing (serializing the Map costs ~0.7 s)
       await page.waitForTimeout(600)
       const cx = vp.width / 2, cy = Math.round(vp.height * 0.35)
       await drag({ x: cx, y: cy }, { x: cx - 120, y: cy - 60 })
@@ -126,7 +126,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
       await drag({ x: cx - 120, y: cy - 60 }, { x: cx, y: cy })
     }, () => st(() => window.__map.loaded() && !window.__map.isMoving()), { timeoutMs: 15000 })
   }
-  await st(() => window.__map.jumpTo({ zoom: 9.5, center: [-93.698, 41.673] }))
+  await page.evaluate(() => { window.__map.jumpTo({ zoom: 9.5, center: [-93.698, 41.673] }) })
   await page.waitForTimeout(800)
 
   // ---------------- radar play / pause / scrub
