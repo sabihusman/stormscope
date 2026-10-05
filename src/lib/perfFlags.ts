@@ -7,4 +7,4 @@ export const BLOCK_APPLY_PER_FRAME = false
 /** Use the RGBA frames rasterized in the worker; otherwise rasterize each nowcast frame on the main thread. */
 export const WORKER_RASTER = false
 /** First visit: store API responses in the service worker's cache instead of refetching everything when it takes control. */
-export const WARM_CACHE_NO_REFETCH = false
+export const WARM_CACHE_NO_REFETCH = true
