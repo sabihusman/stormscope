@@ -13,7 +13,6 @@
  */
 import { bboxAround, distancePointToPolyline, haversine, lngLatToTile, lngLatToWorldPx, metresPerDegree, type LngLat } from '../lib/geo'
 import type { FloodCell, FloodResult, HourlyGrid } from '../types'
-import { CLOUD_STOPS, RAIN_STOPS } from '../lib/colors'
 import type { Flowline } from '../api/nhd'
 
 export type WorkerRequest =
@@ -314,21 +313,7 @@ function nowcast(grid: HourlyGrid, frameMinutes: number, hours: number, n: numbe
     return { u: (ux / l) * s, v: (vy / l) * s }
   }
 
-  // Colour lookups for the rasterized frame (same stops the legend uses).
-  const parse = (c: string): [number, number, number, number] => {
-    const m = c.match(/rgba?\(([^)]+)\)/)
-    if (!m) return [0, 0, 0, 0]
-    const [r, g, b, a = '1'] = m[1].split(',').map((s) => s.trim())
-    return [+r, +g, +b, Math.round(+a * 255)]
-  }
-  const cloudLUT = CLOUD_STOPS.map((s) => ({ v: s.value, c: parse(s.color) }))
-  const rainLUT = RAIN_STOPS.map((s) => ({ v: s.value, c: parse(s.color) }))
-  const lut = (v: number, table: { v: number; c: [number, number, number, number] }[]) => {
-    let c: [number, number, number, number] = [0, 0, 0, 0]
-    for (const t of table) if (v >= t.v) c = t.c
-    return c
-  }
-  const frames: { time: number; cloud: Float32Array; rain: Float32Array; u: Float32Array; v: Float32Array; rgba: Uint8ClampedArray }[] = []
+  const frames: { time: number; cloud: Float32Array; rain: Float32Array; u: Float32Array; v: Float32Array }[] = []
   for (let k = 0; k < frameCount; k++) {
     const t = t0 + k * frameMinutes * 60000
     const dt = t - t0
@@ -348,24 +333,7 @@ function nowcast(grid: HourlyGrid, frameMinutes: number, hours: number, n: numbe
       cloud[i] = at(p, grid.cloudCover, t) * (1 - a) + at(src, grid.cloudCover, t) * a
       rain[i] = at(p, grid.precipitation, t) * (1 - a) + at(src, grid.precipitation, t) * a
     }
-    // Rasterize here (n×n RGBA, north row first) so the main thread only uploads pixels.
-    const rgba = new Uint8ClampedArray(n * n * 4)
-    for (let r = 0; r < n; r++) {
-      for (let c = 0; c < n; c++) {
-        const gi = (n - 1 - r) * n + c
-        const cl = lut(cloud[gi], cloudLUT)
-        const rn = lut(rain[gi], rainLUT)
-        const ra = rn[3] / 255
-        const ca = cl[3] / 255
-        const al = ra + ca * (1 - ra)
-        const o = (r * n + c) * 4
-        rgba[o] = al ? (rn[0] * ra + cl[0] * ca * (1 - ra)) / al : 0
-        rgba[o + 1] = al ? (rn[1] * ra + cl[1] * ca * (1 - ra)) / al : 0
-        rgba[o + 2] = al ? (rn[2] * ra + cl[2] * ca * (1 - ra)) / al : 0
-        rgba[o + 3] = Math.round(al * 255)
-      }
-    }
-    frames.push({ time: t, cloud, rain, u, v, rgba })
+    frames.push({ time: t, cloud, rain, u, v })
   }
   return { n, bbox, points: pts, frames, t0, generatedAt: Date.now() }
 }

@@ -16,8 +16,8 @@ export interface NowcastFrame {
   rain: Float32Array
   u: Float32Array
   v: Float32Array
-  /** n×n RGBA pixels (north row first), rasterized in the worker. */
-  rgba: Uint8ClampedArray
+  /** n×n RGBA pixels (north row first) if rasterized in the worker (WORKER_RASTER; off, no gain). */
+  rgba?: Uint8ClampedArray
 }
 export interface NowcastResult {
   n: number
