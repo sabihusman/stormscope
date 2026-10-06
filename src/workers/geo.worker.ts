@@ -76,7 +76,8 @@ async function loadTile(x: number, y: number, z: number): Promise<Uint8ClampedAr
   if (!p) {
     p = (async () => {
       try {
-        const res = await fetch(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`)
+        // Bounded: a tile request that never answers must fail the sample (NaN → model elevation fallback), not hang the flood job.
+        const res = await fetch(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`, { signal: AbortSignal.timeout(15_000) })
         if (!res.ok) return null
         const bmp = await createImageBitmap(await res.blob())
         const c = new OffscreenCanvas(256, 256)
