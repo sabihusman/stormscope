@@ -6,10 +6,10 @@ import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
-assertBudget('boundary-check.mjs', { openMeteo: false })
-
 const argv = process.argv.slice(2)
 const MOCK = argv.includes('--mock')
+// Toggling Rainfall on fetches Open-Meteo for the visible blocks on a live deployment; only the mocked run makes none.
+assertBudget('boundary-check.mjs', { openMeteo: !MOCK })
 const positional = argv.filter((a) => !a.startsWith('--'))
 const BASE = positional[0] || 'http://localhost:4173/'
 const OUT = positional[1] || 'e2e-shots/boundary'
