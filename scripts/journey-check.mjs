@@ -127,8 +127,8 @@ if (detail && s.n >= 2) {
 // Clear.
 await page.getByRole('button', { name: 'Change', exact: true }).click()
 await page.waitForTimeout(1200)
-const cleared = await page.evaluate(() => { const j = window.__store.get().journey; const m = window.__map; return !j.to && !j.routes.data && !j.weather.data && m.getStyle().layers.some((l) => l.id === 'journey-line') })
-check('Change/clear removes the journey from panel and map', cleared)
+const cleared = await page.evaluate(() => { const j = window.__store.get().journey; const m = window.__map; return { to: !!j.to, routes: !!j.routes.data, weather: !!j.weather.data, hazards: !!j.hazards.data, road: !!j.road.data, lineLayer: m.getStyle().layers.some((l) => l.id === 'journey-line'), lineSource: !!m.getSource('journey-line') } })
+check('Change/clear removes the journey from panel and map', Object.values(cleared).every((v) => v === false), JSON.stringify(cleared))
 
 __recordBudget()
 await browser.close()
