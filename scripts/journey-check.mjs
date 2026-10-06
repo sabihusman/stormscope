@@ -3,11 +3,16 @@
 // samples in the first 6 h, honest "hazards not yet checked" wording, rate-limit messaging path.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('journey-check.mjs')
+import { installMocks } from './lib/mock-server.mjs'
 import { mkdirSync } from 'node:fs'
+const argv = process.argv.slice(2)
+// --mock: every API answered locally (zero live calls); only the Iowa scenario has saved bodies (JOURNEY_SCENARIO=1).
+const MOCK = argv.includes('--mock')
+assertBudget(`journey-check.mjs${MOCK ? ' (mock)' : ''}`, { openMeteo: !MOCK })
+const positional = argv.filter((a) => !a.startsWith('--'))
 
-const BASE = process.argv[2] || 'http://localhost:5174/'
-const OUT = process.argv[3] || 'e2e-shots/journey'
+const BASE = positional[0] || 'http://localhost:5174/'
+const OUT = positional[1] || 'e2e-shots/journey'
 mkdirSync(OUT, { recursive: true })
 const results = []
 const check = (name, ok, ev = '') => {
@@ -18,13 +23,15 @@ const SCENARIOS = [
   { name: 'Philadelphia → Baltimore', geo: { latitude: 39.9526, longitude: -75.1652 }, dest: 'Baltimore', arrive: /Arrive Baltimore/ },
   { name: 'Johnston, IA → Iowa City', geo: { latitude: 41.673, longitude: -93.698 }, dest: 'Iowa City', arrive: /Arrive Iowa City/ },
 ]
-const scenario = SCENARIOS[Number(process.env.JOURNEY_SCENARIO ?? 0)] ?? SCENARIOS[0]
+const scenario = SCENARIOS[Number(process.env.JOURNEY_SCENARIO ?? (MOCK ? 1 : 0))] ?? SCENARIOS[0]
+if (MOCK && scenario !== SCENARIOS[1]) { console.log('SKIP  --mock only has saved bodies for the Iowa scenario (JOURNEY_SCENARIO=1)'); process.exit(3) }
 console.log(`scenario: ${scenario.name}`)
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: scenario.geo, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: false, nowcast: false })) } catch {} })
 const page = await ctx.newPage()
-const __recordBudget = trackOpenMeteo(page, 'journey-check.mjs')
+const __recordBudget = trackOpenMeteo(page, `journey-check.mjs${MOCK ? ' (mock)' : ''}`)
+if (MOCK) await installMocks(ctx, {})
 const routing = []
 page.on('response', (r) => /valhalla1\.openstreetmap\.de|router\.project-osrm\.org/.test(r.url()) && routing.push(`${new URL(r.url()).host} ${r.status()}`))
 await page.goto(BASE, { waitUntil: 'load' })
@@ -125,10 +132,23 @@ if (detail && s.n >= 2) {
   check('Selecting an alternate route recomputes its forecast', s.samples > 0)
 }
 // Clear.
+// Clear: wait for a *settled* state, not a moment — everything gone (store + map), and still gone
+// 2 s later so a late response (weather/hazards/road fetch in flight when Change was tapped) can't
+// quietly re-populate the journey. The evidence is the timeline of what was still present.
 await page.getByRole('button', { name: 'Change', exact: true }).click()
-await page.waitForTimeout(1200)
-const cleared = await page.evaluate(() => { const j = window.__store.get().journey; const m = window.__map; return { to: !!j.to, routes: !!j.routes.data, weather: !!j.weather.data, hazards: !!j.hazards.data, road: !!j.road.data, lineLayer: m.getStyle().layers.some((l) => l.id === 'journey-line'), lineSource: !!m.getSource('journey-line') } })
-check('Change/clear removes the journey from panel and map', Object.values(cleared).every((v) => v === false), JSON.stringify(cleared))
+const tClear = Date.now()
+const leftover = () => page.evaluate(() => { const j = window.__store.get().journey; const m = window.__map; const o = { to: !!j.to, routes: !!j.routes.data, weather: !!j.weather.data, hazards: !!j.hazards.data, road: !!j.road.data, lineLayer: m.getStyle().layers.some((l) => l.id === 'journey-line'), lineSource: !!m.getSource('journey-line') }; return Object.keys(o).filter((k) => o[k]) })
+const timeline = []
+let settledAt = null
+for (let i = 0; i < 40; i++) {
+  const left = await leftover()
+  timeline.push(`+${Date.now() - tClear}ms:${left.length ? left.join('+') : 'clear'}`)
+  if (!left.length) { settledAt = Date.now() - tClear; break }
+  await page.waitForTimeout(250)
+}
+let stable = settledAt !== null
+if (stable) for (const ms of [500, 500, 1000]) { await page.waitForTimeout(ms); const left = await leftover(); timeline.push(`+${Date.now() - tClear}ms:${left.length ? left.join('+') : 'clear'}`); if (left.length) stable = false }
+check('Change/clear removes the journey from panel and map, and it stays cleared', stable, `${settledAt === null ? 'never settled within 10 s' : `settled at +${settledAt} ms`}; ${timeline.join(' ')}`)
 
 __recordBudget()
 await browser.close()
