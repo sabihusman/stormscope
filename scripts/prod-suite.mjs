@@ -14,7 +14,8 @@ const force = args.includes('--force')
 const only = args.find((a) => a.startsWith('--only='))?.slice(7).split(',')
 const BASE = (args.find((a) => !a.startsWith('--')) || 'https://stormscope-two.vercel.app/').replace(/\/?$/, '/')
 const RUNS = 'e2e-shots/.prod-runs.json'
-const OUT = 'e2e-shots/prod'
+// One directory per run (bundle + start time), so a later run never overwrites this run's logs/screens.
+const OUT = `e2e-shots/prod/${new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}-${process.env.PROD_SUITE_TAG ?? 'run'}`
 mkdirSync(OUT, { recursive: true })
 
 // A protected preview needs Vercel's automation-bypass header (the suites add it to every request via the guard).
@@ -63,7 +64,7 @@ const SUITES = [
   { name: 'road', script: 'road-check.mjs' },
 ].filter((s) => !only || only.includes(s.name))
 
-console.log(`prod-suite: ${BASE} bundle ${bundle} — ${SUITES.length} suites, sequential`)
+console.log(`prod-suite: ${BASE} bundle ${bundle} — ${SUITES.length} suites, sequential; logs in ${OUT}`)
 const results = []
 for (const s of SUITES) {
   const t0 = Date.now()
@@ -82,7 +83,7 @@ for (const s of SUITES) {
 const summary = `${results.filter((r) => r.ok).length}/${results.length} suites passed`
 // A run cut short by the budget guard doesn't count as "done" for this bundle.
 const incomplete = results.some((r) => r.status === 'skip')
-runs.push({ bundle, base: BASE, at: new Date().toISOString(), only: only ?? null, incomplete, summary, results })
+runs.push({ bundle, base: BASE, at: new Date().toISOString(), only: only ?? null, incomplete, summary, results, logs: OUT })
 writeFileSync(RUNS, JSON.stringify(runs, null, 1))
 console.log(summary)
 process.exit(results.every((r) => r.ok) ? 0 : 1)
