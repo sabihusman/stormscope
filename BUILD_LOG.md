@@ -1,5 +1,38 @@
 # Build log
 
+## Live pass on production — Oct 6, 19:03–19:34 UTC, bundle DT2bjBmp (one pass, no reruns)
+
+**Result: 10 of 15 headless suites green; walkthrough and perf step did not complete. Recommendation: keep DT2bjBmp in production, no rollback.** Nothing red is a product regression: three failures are a Wi‑Fi drop on this machine, one is a harness declaration, one is a wrong harness assertion (identical on the previous production bundle under mocks), and one is a robustness gap that also exists on the previous bundle (fixed in b1fd7ad, not deployed). First radar frame on live data was **not measured**: the perf step was the one running when the network dropped.
+
+| Suite | Result | Cause of red |
+|---|---|---|
+| pwa | 8/8 | |
+| qa | 34/34 | long‑task check green on live data, bar unchanged |
+| satellite-desktop | crash | `page.goto` 30 s timeout at 19:07:16 with zero requests leaving the browser; same script passed on phone 36 s later |
+| satellite-phone | 17/17 | |
+| blocks | 13/13 | |
+| zoom | 0/1 | two of four level‑0 blocks never finished the flood job in 134 s (flood `data` null, no error); the worker's terrain‑tile fetch had no timeout, so one hung S3 request stalls that block's flood job silently → b1fd7ad |
+| fab | 9/9 | 437 s vs 67 s on Oct 5 (network slow) |
+| sheet | 40/40 | |
+| boundary | 14/14 but BLOCKED | suite declared zero Open‑Meteo calls; on a live deployment its Rainfall toggle fetches the visible blocks (4 requests blocked by the guard) → 0d270a0 |
+| follow | 8/8 | |
+| rivers | 8/8 | live old‑vs‑new bbox check included |
+| journey-phl-bal | 15/16 | "Change/clear" check required the `journey-line` layer to still exist after clearing; RouteLayer unmounts on clear and removes it. Mocked diagnostic on DT2bjBmp and on the Oct 5 bundle (6315fb0 rebuilt): identical, journey fully cleared, layer gone → 7c985ec |
+| journey-ia | 14/15 | same |
+| hazards | 30/30 | |
+| road | 26/26 | |
+| walkthrough (phone, live) | aborted | Wi‑Fi disconnected 19:32:28–19:34:31 UTC (Windows NetworkProfile/WLAN events 10001/8003 → 10000/8001); first load timed out, later steps `ERR_NAME_NOT_RESOLVED` |
+| perf (headed, live) | aborted | started 19:33:50, `ERR_NAME_NOT_RESOLVED` on the first navigation |
+
+Traffic (ledger, Oct 6): Open‑Meteo 2420/3000 locations; openfreemap 875/1200, RainViewer tiles 465/1700, S3 terrain 316/450, GIBS 294/1100, NWPS 127/160, USGS 48/50, NWS 33/100, IEM 33/40, NHD 28/35, Nominatim 24/35, Valhalla 4/10. Blocked: 4 Open‑Meteo requests (boundary). Nothing retried, no cap raised. Durations were 2–6× Oct 5 across the board, consistent with the degraded network.
+
+Fixes committed after the pass (not deployed; production unchanged):
+- 0d270a0 harness: boundary-check declares Open‑Meteo on live, zero only under `--mock` (verified 14/14 mocked).
+- 7c985ec harness: journey clear check asserts layer **and** source are removed, prints each sub‑condition.
+- b1fd7ad app: worker terrain fetch bounded at 15 s (`AbortSignal.timeout`); `scripts/flood-stall-check.mjs` (mocked) holds every terrain request open: before, the flood job never settled; after, all four blocks ready with the model‑elevation fallback in 17 s.
+
+Next: one preview with b1fd7ad, one live pass after the Oct 7 cap reset (also re‑runs the walkthrough and the headed perf step for the live first‑radar‑frame number), promote only on green and the iPhone check.
+
 ## Release — Oct 5, 21:51 UTC: DT2bjBmp promoted to production (live pass still owed)
 
 Vercel sign-in blocked the phone on the protected preview, so on the user's instruction preview DT2bjBmp was promoted before the live pass. `vercel promote` rebuilt the preview as a new production deployment; the bundle hash is unchanged (content-hashed, same source).
