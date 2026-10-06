@@ -181,7 +181,7 @@ vercel promote https://<preview>.vercel.app     # only when every suite is green
 
 Preview URLs sit behind Vercel Authentication; the suites pass Vercel's *Protection Bypass for Automation* headers on every request to a `*.vercel.app` host when `VERCEL_AUTOMATION_BYPASS_SECRET` is set (generate one under Project Settings → Deployment Protection, or `vercel api /v1/projects/stormscope/protection-bypass -X PATCH --input body.json`; revoke it afterwards). `npm run qa:prod` runs the same thing against the production alias.
 
-`scripts/prod-suite.mjs` runs the suites **sequentially** (one browser at a time) against the deployed bundle, identifies the bundle by its hashed entry script, records the result in `e2e-shots/.prod-runs.json`, and **refuses to run the same bundle twice** unless you pass `--force`. It also refuses to start a full run the Open-Meteo day budget cannot finish (~1 500 locations). `--only=road,hazards` runs a subset without marking the bundle as fully tested; `npm run qa:local` does the same against the dev server with `--force`.
+`scripts/prod-suite.mjs` runs the suites **sequentially** (one browser at a time) against the deployed bundle, identifies the bundle by its hashed entry script, writes each run's logs and screenshots to its own `e2e-shots/prod/<UTC stamp>-run/` directory, records the result (and that path) in `e2e-shots/.prod-runs.json`, and **refuses to run the same bundle twice** unless you pass `--force`. It also refuses to start a full run the Open-Meteo day budget cannot finish (~1 500 locations). `--only=road,hazards` runs a subset without marking the bundle as fully tested; `npm run qa:local` does the same against the dev server with `--force`.
 
 ## Project layout
 
