@@ -1,0 +1,308 @@
+[
+  {
+    "file": "01-first-run-location-prompt.png",
+    "name": "first-run-location-prompt",
+    "what": "First run: location prompt over the map (radar not centred yet)",
+    "how": "fresh profile, open the app"
+  },
+  {
+    "file": "02-first-run-search-open.png",
+    "name": "first-run-search-open",
+    "what": "First run \u2192 \"Search for a place\": empty search field, map behind",
+    "how": "tap \"Search for a place\""
+  },
+  {
+    "file": "03-search-results.png",
+    "name": "search-results",
+    "what": "Search results list for \"Iowa City\"",
+    "how": "type in the search field"
+  },
+  {
+    "file": "04-after-address-home.png",
+    "name": "after-address-home",
+    "what": "After choosing an address: map recentred, sheet collapsed \u2014 no current conditions shown",
+    "how": "pick the first result"
+  },
+  {
+    "file": "05-search-no-results.png",
+    "name": "search-no-results",
+    "what": "Search with no matches",
+    "how": "type a nonsense query"
+  },
+  {
+    "file": "06-first-run-location-denied.png",
+    "name": "first-run-location-denied",
+    "what": "Location denied / failed: prompt turns into an error card with Try again",
+    "how": "tap Allow with permission denied"
+  },
+  {
+    "file": "07-no-location-map-only.png",
+    "name": "no-location-map-only",
+    "what": "\"Just show the map\": no place set, status strip says \"No location set\"",
+    "how": "tap \"Just show the map\""
+  },
+  {
+    "file": "08-journey-no-place.png",
+    "name": "journey-no-place",
+    "what": "Journey tab without a location: dead end (\"Set your location first\")",
+    "how": "open Journey tab with no place"
+  },
+  {
+    "file": "09-flood-no-place-layer-off.png",
+    "name": "flood-no-place-layer-off",
+    "what": "Flood tab without a location: layer-off message, no way to pick a place",
+    "how": "open Flood tab"
+  },
+  {
+    "file": "10-first-run-locating.png",
+    "name": "first-run-locating",
+    "what": "Locating\u2026 (button disabled while the fix is pending)",
+    "how": "tap Allow, fix pending"
+  },
+  {
+    "file": "11-loading-after-grant.png",
+    "name": "loading-after-grant",
+    "what": "Right after granting location: map centred, every data pill still loading (\"\u2026\"), nothing about the weather yet",
+    "how": "grant location, APIs slow"
+  },
+  {
+    "file": "12-loading-timeline-half.png",
+    "name": "loading-timeline-half",
+    "what": "Timeline tab while radar is still loading",
+    "how": "open the sheet during load"
+  },
+  {
+    "file": "13-error-radar-429.png",
+    "name": "error-radar-429",
+    "what": "Radar/station/rivers APIs answering 429: pills show \"!\", Timeline shows the error text",
+    "how": "force 429 from the data hosts"
+  },
+  {
+    "file": "14-error-sources-panel.png",
+    "name": "error-sources-panel",
+    "what": "Sources panel during the same failure: red dots, error text per source",
+    "how": "open Sources tab"
+  },
+  {
+    "file": "15-home-after-grant.png",
+    "name": "home-after-grant",
+    "what": "Home after location grant: full-screen radar map, collapsed sheet with status pills \u2014 no temperature, no conditions, no warnings",
+    "how": "grant location, wait for data"
+  },
+  {
+    "file": "16-offline-pill.png",
+    "name": "offline-pill",
+    "what": "Offline: \"Offline \u2014 showing last saved data\" pill in the status strip",
+    "how": "go offline"
+  },
+  {
+    "file": "17-sheet-half-timeline.png",
+    "name": "sheet-half-timeline",
+    "what": "Sheet at half: Timeline tab (radar scrubber) is the default panel",
+    "how": "tap the handle"
+  },
+  {
+    "file": "18-sheet-full-timeline.png",
+    "name": "sheet-full-timeline",
+    "what": "Sheet at full height: same Timeline content, map reduced to a sliver",
+    "how": "drag the handle up"
+  },
+  {
+    "file": "19-station-panel.png",
+    "name": "station-panel",
+    "what": "Station tab: nearest NWS observation (pressure, humidity, wind, temperature, precip totals) \u2014 the only place \"current\" weather appears",
+    "how": "open Station tab"
+  },
+  {
+    "file": "20-rivers-panel.png",
+    "name": "rivers-panel",
+    "what": "Rivers tab: gauge list for the current place",
+    "how": "open Rivers tab"
+  },
+  {
+    "file": "21-flood-layer-off.png",
+    "name": "flood-layer-off",
+    "what": "Flood tab with the layer off: \"The flood risk layer is off\" + Turn on",
+    "how": "open Flood tab"
+  },
+  {
+    "file": "22-flood-zoomed-out.png",
+    "name": "flood-zoomed-out",
+    "what": "Flood tab after turning the layer on at the default zoom: \"Zoom in to a region to load forecast blocks\" \u2014 no way to pick a place from here",
+    "how": "tap Turn on"
+  },
+  {
+    "file": "23-flood-ready.png",
+    "name": "flood-ready",
+    "what": "Flood tab with data at zoom 11: cell counts + a long explanation paragraph",
+    "how": "zoom in to the place"
+  },
+  {
+    "file": "24-sources-panel.png",
+    "name": "sources-panel",
+    "what": "Sources tab: units toggle, motion note, data sources with freshness, Open-Meteo budget, attribution",
+    "how": "open Sources tab"
+  },
+  {
+    "file": "25-sources-panel-full.png",
+    "name": "sources-panel-full",
+    "what": "Sources tab at full height",
+    "how": "drag up"
+  },
+  {
+    "file": "26-timeline-rainfall.png",
+    "name": "timeline-rainfall",
+    "what": "Timeline with Radar + Rainfall + Flood on: layer switcher, horizon chips, scrubber",
+    "how": "turn Rainfall on, pick it in the timeline"
+  },
+  {
+    "file": "27-map-tap-point.png",
+    "name": "map-tap-point",
+    "what": "Tap on empty map: \"Map point\" popup with coordinates, Use as my location / Set as destination",
+    "how": "tap the map"
+  },
+  {
+    "file": "28-map-tap-rain-24h.png",
+    "name": "map-tap-rain-24h",
+    "what": "Tap on a rain cell: \"Expected rainfall \u00b7 24 h\" dialog with three accumulation lines and \"Scrub timeline\"",
+    "how": "tap a coloured rain cell"
+  },
+  {
+    "file": "29-map-tap-flood.png",
+    "name": "map-tap-flood",
+    "what": "Tap on a flood cell: risk popup with \"How this is scored\"",
+    "how": "tap a flood cell"
+  },
+  {
+    "file": "30-map-tap-gauge.png",
+    "name": "map-tap-gauge",
+    "what": "Tap on a river gauge: stage/flood category popup with \"All gauges\"",
+    "how": "tap a gauge dot"
+  },
+  {
+    "file": "31-map-tap-station.png",
+    "name": "map-tap-station",
+    "what": "Tap on the station marker: observation popup with \"Full observation\"",
+    "how": "tap the station marker"
+  },
+  {
+    "file": "32-layer-menu.png",
+    "name": "layer-menu",
+    "what": "Layer menu (\u2630): imagery radio, five toggles, 3D, legend, units, move-corner",
+    "how": "tap \u2630"
+  },
+  {
+    "file": "33-layer-menu-satellite.png",
+    "name": "layer-menu-satellite",
+    "what": "Satellite selected: product sub-item appears; GOES imagery behind",
+    "how": "tap Satellite"
+  },
+  {
+    "file": "34-legend-all-layers.png",
+    "name": "legend-all-layers",
+    "what": "Legend open with radar, rainfall, flood, rivers and nowcast on",
+    "how": "turn everything on, open Legend"
+  },
+  {
+    "file": "35-timeline-nowcast.png",
+    "name": "timeline-nowcast",
+    "what": "Timeline on Nowcast: wind streaks + cloud on the map, 10-min frames",
+    "how": "pick Nowcast in the timeline"
+  },
+  {
+    "file": "36-3d-terrain.png",
+    "name": "3d-terrain",
+    "what": "3D terrain on",
+    "how": "toggle 3D in the layer menu"
+  },
+  {
+    "file": "37-follow-mode.png",
+    "name": "follow-mode",
+    "what": "Panned away from the place: \"Showing map area \u00b7 back to my spot\" pill; data now follows the map centre",
+    "how": "pan the map"
+  },
+  {
+    "file": "38-layer-unavailable.png",
+    "name": "layer-unavailable",
+    "what": "A layer failed: switched off, \"unavailable \u2014 reason\" in the menu, toast at the bottom",
+    "how": "inject a layer failure"
+  },
+  {
+    "file": "39-panel-unavailable.png",
+    "name": "panel-unavailable",
+    "what": "A panel failed: \"Rivers unavailable \u2014 reason\" with Retry; tabs and map keep working",
+    "how": "inject a panel failure"
+  },
+  {
+    "file": "40-journey-empty.png",
+    "name": "journey-empty",
+    "what": "Journey tab, no destination: search field, departure chips, hint to tap the map",
+    "how": "open Journey"
+  },
+  {
+    "file": "41-journey-search-results.png",
+    "name": "journey-search-results",
+    "what": "Journey destination results",
+    "how": "type a destination"
+  },
+  {
+    "file": "42-journey-route-half.png",
+    "name": "journey-route-half",
+    "what": "Journey with route + forecast at half height: arrival card, worst-along-the-way, strip; route on the map above",
+    "how": "pick the destination"
+  },
+  {
+    "file": "43-journey-route-full.png",
+    "name": "journey-route-full",
+    "what": "Journey at full height",
+    "how": "drag up"
+  },
+  {
+    "file": "44-journey-hazards-road.png",
+    "name": "journey-hazards-road",
+    "what": "Journey scrolled to Hazards on this route + Road conditions (RWIS chips)",
+    "how": "scroll the panel"
+  },
+  {
+    "file": "45-journey-departure-picker.png",
+    "name": "journey-departure-picker",
+    "what": "Custom departure: datetime field under the chips",
+    "how": "tap Pick\u2026"
+  },
+  {
+    "file": "46-journey-map-route.png",
+    "name": "journey-map-route",
+    "what": "Map with the route, alternates, sample dots and destination; sheet collapsed",
+    "how": "collapse the sheet"
+  },
+  {
+    "file": "47-map-tap-journey-sample.png",
+    "name": "map-tap-journey-sample",
+    "what": "Tap on a route sample: ETA + conditions popup",
+    "how": "tap a sample dot"
+  },
+  {
+    "file": "48-map-tap-point-with-journey.png",
+    "name": "map-tap-point-with-journey",
+    "what": "Tap on empty map while a journey exists: same \"Map point\" popup",
+    "how": "tap the map"
+  },
+  {
+    "file": "49-journey-replay-banner.png",
+    "name": "journey-replay-banner",
+    "what": "Journey tab opened via ?replay=\u2026 \u2014 under the mock server the fixture did not bootstrap in this capture (no banner); kept for completeness, see audit #34",
+    "how": "open ?replay=\u2026"
+  },
+  {
+    "file": "50-tablet-home.png",
+    "name": "tablet-home",
+    "what": "Tablet portrait: same phone layout stretched \u2014 sheet across the full width, FAB and legend chips",
+    "how": "grant location, open the sheet"
+  },
+  {
+    "file": "51-desktop-home.png",
+    "name": "desktop-home",
+    "what": "Desktop: same phone layout stretched \u2014 sheet across the full width, FAB and legend chips",
+    "how": "grant location, open the sheet"
+  }
+]

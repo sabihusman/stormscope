@@ -1,5 +1,17 @@
 # Build log
 
+## UX redesign — Phase 1 deliverable (no code), Oct 6
+
+Decision taken: **conditions-first**. Deliverable for approval in `docs/ux/` — open `docs/ux/phase1-report.html`.
+
+- `inventory/` — 51 screens of the shipped bundle at 390×844 (first run granted / denied / locating / address typed, loading, 429 errors, offline, every tab at half and full height, every map tap popup, layer menu, legend, satellite, nowcast, 3D, follow mode, layer and panel failures, journey states, replay banner, tablet and desktop). Captured by `scripts/ux-inventory.mjs` with the mock server (zero live calls) in headed Chrome. (An earlier pass showed the sheet collapsed in every half/full shot; that was a bug in the capture helper, which set the sheet mode to `undefined`, not the app — verified by measuring the DOM.)
+- `audit.md` — 34 issues against Nielsen's heuristics with screen, severity and a one-line fix; three root causes named (home is a map not an answer; one sheet holds six unrelated things; taps answer with the layer, not the place).
+- `ia.md` — Now / Map / Trip / More with one shared place picker, Timeline demoted to a Map control, reference views bound to the place, one map-tap model; tablet/desktop as rail + column + map; five open questions.
+- `wireframes.html` (+ `wireframes/*.png`) — flows: first run granted, denied, map point (chip → details), plan a trip, flood risk for a place, tablet/desktop.
+- `changes.md` — what moves / is removed / is new, and every suite that breaks with its replacement.
+
+Waiting for approval before Phase 2. No app code changed; production unchanged (DT2bjBmp); preview fggy71t7z still queued for its live pass.
+
 ## Oct 6, 20:00 UTC — preview for the next live pass, and the journey "clear" check
 
 **Preview deployed:** https://stormscope-fggy71t7z-sabihusman-4178s-projects.vercel.app (`dpl_4fAZJAZawpvELcZLQFpCjNEUxs9f`, bundle `index-6aHNKG35.js` = HEAD with b1fd7ad; the harness commits change only scripts, not the bundle). Protected; the live pass will use a temporary automation‑bypass secret for the headless browsers only. Production stays on DT2bjBmp; rollback target unchanged (ROLLBACK.md).

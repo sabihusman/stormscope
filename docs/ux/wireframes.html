@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>StormScope — conditions-first wireframes (Phase 1 proposal)</title>
+<style>
+  :root { --ink:#1f2937; --mute:#6b7280; --line:#cbd5e1; --box:#f1f5f9; --accent:#0ea5e9; --warn:#fde68a; --warn-ink:#92400e; --danger:#fecaca; --danger-ink:#991b1b; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px; font:14px/1.35 system-ui, sans-serif; color:var(--ink); background:#fff; }
+  h1 { font-size:20px; margin:0 0 4px; } h2 { font-size:16px; margin:28px 0 8px; } p.lead { color:var(--mute); margin:0 0 16px; max-width:900px; }
+  .flow { display:flex; gap:18px; align-items:flex-start; overflow-x:auto; padding-bottom:8px; }
+  .step { width:300px; flex:none; }
+  .step .cap { font-size:12px; color:var(--mute); margin:6px 2px 0; min-height:48px; }
+  .step .cap b { color:var(--ink); }
+  .phone { width:300px; height:650px; border:2px solid var(--ink); border-radius:22px; padding:10px 10px 0; background:#fff; position:relative; overflow:hidden; display:flex; flex-direction:column; gap:8px; }
+  .bar { display:flex; align-items:center; gap:6px; }
+  .chip { border:1px solid var(--line); border-radius:999px; padding:6px 10px; background:var(--box); font-size:12px; white-space:nowrap; }
+  .chip.fill { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .grow { flex:1; }
+  .box { border:1px dashed var(--line); border-radius:10px; padding:8px; background:var(--box); font-size:12px; }
+  .box.solid { border-style:solid; background:#fff; }
+  .box h4 { margin:0 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mute); }
+  .alert { background:var(--danger); color:var(--danger-ink); border:1px solid #fca5a5; border-radius:10px; padding:8px; font-size:12px; }
+  .alert.watch { background:var(--warn); color:var(--warn-ink); border-color:#fcd34d; }
+  .big { font-size:34px; font-weight:700; line-height:1; }
+  .row { display:flex; gap:6px; align-items:center; }
+  .strip { display:flex; gap:4px; overflow:hidden; }
+  .strip div { flex:none; width:44px; text-align:center; font-size:10px; border:1px solid var(--line); border-radius:8px; padding:4px 2px; background:#fff; }
+  .map { background:repeating-linear-gradient(45deg,#e2e8f0 0 8px,#f8fafc 8px 16px); border-radius:10px; position:relative; min-height:90px; flex:1; }
+  .map.full { border-radius:10px 10px 0 0; }
+  .pin { position:absolute; left:50%; top:50%; width:14px; height:14px; border-radius:50%; background:var(--accent); border:3px solid #fff; box-shadow:0 0 0 2px var(--accent); transform:translate(-50%,-50%); }
+  .fab { position:absolute; right:10px; bottom:10px; width:40px; height:40px; border-radius:50%; background:var(--accent); color:#fff; display:grid; place-items:center; font-size:18px; }
+  .tabs { margin:auto -10px 0; border-top:1px solid var(--line); display:flex; background:#fff; }
+  .tabs div { flex:1; text-align:center; font-size:11px; padding:8px 0 10px; color:var(--mute); }
+  .tabs div.on { color:var(--accent); font-weight:700; }
+  .btn { display:inline-block; border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; background:#fff; }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.block { display:block; text-align:center; }
+  .overlay { position:absolute; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:flex-end; padding:10px; }
+  .card { background:#fff; border-radius:14px; padding:12px; width:100%; font-size:12px; }
+  .card h3 { margin:0 0 6px; font-size:15px; }
+  .skeleton { background:linear-gradient(90deg,#e5e7eb,#f3f4f6,#e5e7eb); border-radius:6px; height:12px; margin:4px 0; }
+  .skeleton.tall { height:34px; }
+  .mute { color:var(--mute); }
+  .sheet { position:absolute; left:0; right:0; bottom:0; background:#fff; border-top:2px solid var(--ink); border-radius:16px 16px 0 0; padding:10px; font-size:12px; }
+  .handle { width:36px; height:4px; background:var(--line); border-radius:2px; margin:0 auto 8px; }
+  .chipcard { position:absolute; left:10px; right:10px; bottom:52px; background:#fff; border:1px solid var(--ink); border-radius:12px; padding:8px 10px; font-size:12px; display:flex; gap:8px; align-items:center; }
+  .tiles { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .tiles .box { min-height:52px; }
+  .list .box { margin-bottom:6px; }
+  .wide { display:flex; gap:18px; }
+  .tablet { width:560px; height:420px; border:2px solid var(--ink); border-radius:14px; display:flex; overflow:hidden; }
+  .rail { width:56px; border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:center; gap:14px; padding-top:12px; font-size:10px; color:var(--mute); }
+  .rail div.on { color:var(--accent); font-weight:700; }
+  .col { width:230px; border-right:1px solid var(--line); padding:8px; display:flex; flex-direction:column; gap:6px; font-size:11px; }
+  .desktop { width:760px; height:420px; }
+  .desktop .col { width:300px; }
+  .legend { font-size:12px; color:var(--mute); margin:8px 0 0; }
+</style>
+</head>
+<body>
+<h1>StormScope — conditions-first wireframes (Phase 1 proposal, no code)</h1>
+<p class="lead">Phone 390×844 drawn at 300×650. Grey dashed boxes are content regions; solid boxes are cards. Four bottom destinations: <b>Now · Map · Trip · More</b>. Every location-dependent screen carries the same place row (current place · change). "Change" always opens the same picker sheet with three ways to pick: use my location, search, pick on map.</p>
+
+<h2>Flow A — First run, location granted → current conditions within a few seconds</h2>
+<div class="flow">
+  <div class="step"><div class="phone">
+    <div class="map full" style="opacity:.35"></div>
+    <div class="overlay"><div class="card"><h3>Where are you?</h3><p class="mute" style="margin:0 0 8px">Conditions, warnings and radar for your spot. Your location stays on this device.</p><span class="btn primary block">Use my location</span><div style="height:6px"></div><span class="btn block">Search for a place</span><div style="height:6px"></div><span class="btn block" style="border:0;color:var(--mute)">Pick a point on the map</span></div></div>
+  </div><div class="cap"><b>A1 · Prompt.</b> Same three choices as today, but "Just show the map" becomes "Pick a point on the map" — every path ends with a place, so Now is never empty.</div></div>
+  <div class="step"><div class="phone">
+    <div class="bar"><span class="chip grow">📍 Locating…</span><span class="chip">Change</span></div>
+    <div class="box solid"><div class="skeleton" style="width:60%"></div><div class="skeleton tall" style="width:40%"></div><div class="skeleton" style="width:80%"></div></div>
+    <div class="box solid"><h4>Next 12 hours</h4><div class="strip"><div class="skeleton" style="width:100%"></div></div></div>
+    <div class="map"><span class="mute" style="position:absolute;left:8px;top:6px;font-size:11px">Radar loading…</span></div>
+    <div class="tabs"><div class="on">Now</div><div>Map</div><div>Trip</div><div>More</div></div>
+  </div><div class="cap"><b>A2 · Now, loading.</b> Skeleton in the shape of the answer. One Open‑Meteo call (current + 12 h hourly for one point) and one NWS alerts call start the moment the fix lands.</div></div>
+  <div class="step"><div class="phone">
+    <div class="bar"><span class="chip grow">📍 Johnston, Iowa</span><span class="chip">Change</span></div>
+    <div class="alert">⚠ <b>Severe Thunderstorm Warning</b> until 4:45 PM · NWS Des Moines › details</div>
+    <div class="box solid"><div class="row"><span class="big">72°</span><div><b>Thunderstorms</b><br><span class="mute">Feels like 75° · wind SW 14 mph · rain 0.3 in/h</span></div></div><div class="mute" style="margin-top:4px">Observed 12 min ago at Des Moines Intl (4.3 mi) · forecast model now</div></div>
+    <div class="box solid"><h4>Next 12 hours</h4><div class="strip"><div>3PM<br>⛈<br>72°</div><div>4PM<br>⛈<br>70°</div><div>5PM<br>🌧<br>68°</div><div>6PM<br>🌧<br>66°</div><div>7PM<br>☁<br>65°</div><div>8PM<br>☁<br>64°</div></div><div class="mute">Rain next 24 h: 1.1 in › timeline</div></div>
+    <div class="map"><span class="pin"></span><span class="chip" style="position:absolute;right:6px;bottom:6px">Open map ›</span></div>
+    <div class="row"><span class="btn primary grow" style="text-align:center">Plan a trip</span><span class="btn">Rivers · 2 high</span></div>
+    <div class="tabs"><div class="on">Now</div><div>Map</div><div>Trip</div><div>More</div></div>
+  </div><div class="cap"><b>A3 · Now, ready.</b> Order of attention: active NWS alert → conditions → next 12 h → map preview → Trip + reference tiles. Target: this screen within 5 s of the grant on a 4G phone.</div></div>
+</div>
+
+<h2>Flow B — First run, location denied (or timed out)</h2>
+<div class="flow">
+  <div class="step"><div class="phone">
+    <div class="map full" style="opacity:.35"></div>
+    <div class="overlay"><div class="card"><h3>Couldn't get your location</h3><p class="mute" style="margin:0 0 8px">Permission was denied. Search for a place, or pick one on the map. You can re‑enable location in browser settings.</p><span class="btn primary block">Search for a place</span><div style="height:6px"></div><span class="btn block">Pick a point on the map</span><div style="height:6px"></div><span class="btn block" style="border:0;color:var(--mute)">Try location again</span></div></div>
+  </div><div class="cap"><b>B1 · Denied.</b> Primary action flips to Search (the thing most likely to succeed). No dead end: "Just show the map" is gone.</div></div>
+  <div class="step"><div class="phone">
+    <div class="bar"><span class="chip grow" style="background:#fff">🔍 Iowa City|</span><span class="chip">✕</span></div>
+    <div class="list"><div class="box solid"><b>Iowa City</b><br><span class="mute">Iowa, United States</span></div><div class="box solid"><b>Iowa City</b><br><span class="mute">Johnson County, Iowa</span></div></div>
+    <div class="box"><span class="mute">Recent: Johnston, Iowa · Des Moines</span></div>
+    <div class="grow"></div>
+    <div class="tabs"><div class="on">Now</div><div>Map</div><div>Trip</div><div>More</div></div>
+  </div><div class="cap"><b>B2 · Search.</b> Same search as the Change picker; recent places listed. Choosing a result lands on A3 for that place.</div></div>
+  <div class="step"><div class="phone">
+    <div class="bar"><span class="chip grow">📍 Iowa City, Iowa</span><span class="chip">Change</span></div>
+    <div class="box solid" style="border-color:var(--line)"><span class="mute">No active NWS alerts for Iowa City · checked just now</span></div>
+    <div class="box solid"><div class="row"><span class="big">68°</span><div><b>Light rain</b><br><span class="mute">Feels like 66° · wind S 9 mph · rain 0.05 in/h</span></div></div></div>
+    <div class="box solid"><h4>Next 12 hours</h4><div class="strip"><div>3PM<br>🌧<br>68°</div><div>4PM<br>🌧<br>67°</div><div>5PM<br>☁<br>66°</div><div>6PM<br>☁<br>64°</div><div>7PM<br>☁<br>62°</div><div>8PM<br>🌙<br>60°</div></div></div>
+    <div class="map"><span class="pin"></span></div>
+    <div class="row"><span class="btn primary grow" style="text-align:center">Plan a trip</span><span class="btn">Rivers · all normal</span></div>
+    <div class="tabs"><div class="on">Now</div><div>Map</div><div>Trip</div><div>More</div></div>
+  </div><div class="cap"><b>B3 · Now for a searched place.</b> The "no alerts" line is explicit (never a silent absence). Typed address and granted location converge on the identical screen.</div></div>
+</div>
+
+<h2>Flow C — Check a map point (chip, not dialog)</h2>
+<div class="flow">
+  <div class="step"><div class="phone">
+    <div class="bar"><span class="chip grow">📍 Johnston, Iowa</span><span class="chip">Radar ▾</span><span class="chip">Legend</span></div>
+    <div class="map full"><span class="pin"></span><div class="fab">☰</div></div>
+    <div class="sheet" style="padding:6px 10px"><div class="row"><span>▶</span><span class="grow" style="height:4px;background:var(--line);border-radius:2px"></span><span class="mute">2:40 PM · −20 min</span></div></div>
+    <div class="tabs"><div>Now</div><div class="on">Map</div><div>Trip</div><div>More</div></div>
+  </div><div class="cap"><b>C1 · Map.</b> Full-bleed map, layer FAB, legend chip, and a one-line timeline scrubber for the animated layer. No panel tabs here.</div></div>
+  <div class="step"><div class="phone">
+    <div class="bar"><span class="chip grow">📍 Johnston, Iowa</span><span class="chip">Radar ▾</span><span class="chip">Legend</span></div>
+    <div class="map full"><span class="pin" style="left:62%;top:38%;background:#fff;box-shadow:0 0 0 2px var(--ink)"></span><div class="fab">☰</div>
+      <div class="chipcard"><span style="font-size:20px">🌧</span><div class="grow"><b>66° · Light rain</b> <span class="mute">at this point</span><br><span class="mute">0.4 in next 24 h · 2.1 mi from you</span></div><span class="btn">Details</span></div>
+    </div>
+    <div class="tabs"><div>Now</div><div class="on">Map</div><div>Trip</div><div>More</div></div>
+  </div><div class="cap"><b>C2 · Tap a point.</b> A small chip appears above the nav: conditions at that point from the nearest forecast cell. Tap elsewhere to dismiss. Nothing modal.</div></div>
+  <div class="step"><div class="phone">
+    <div class="map full" style="opacity:.5"><span class="pin" style="left:62%;top:30%"></span></div>
+    <div class="sheet" style="height:62%"><div class="handle"></div><b>41.729, −93.698</b> <span class="mute">· 2.1 mi NE of Johnston</span>
+      <div class="box solid" style="margin-top:8px"><div class="row"><span class="big" style="font-size:26px">66°</span><div><b>Light rain</b><br><span class="mute">wind SW 12 mph · cloud 90 %</span></div></div></div>
+      <div class="box solid" style="margin-top:6px"><h4>Rain, next 24 h</h4><div class="strip"><div>3PM<br>0.05</div><div>4PM<br>0.10</div><div>5PM<br>0.12</div><div>6PM<br>0.06</div><div>…</div></div><span class="mute">0.4 in total · by 6 PM 0.33 in · 0.12 in/h at 5 PM</span></div>
+      <div class="row" style="margin-top:8px"><span class="btn">Use as my place</span><span class="btn">Trip here</span><span class="btn">Flood risk here</span></div>
+    </div>
+  </div><div class="cap"><b>C3 · Details.</b> The existing 24 h rainfall numbers live here, below the point's conditions, as a strip rather than three sentences. Actions are the same as today's popup plus "Flood risk here".</div></div>
+</div>
+
+<h2>Flow D — Plan a trip (one tap from Now)</h2>
+<div class="flow">
+  <div class="step"><div class="phone">
+    <div class="bar"><span class="chip grow">📍 Johnston, Iowa</span><span class="chip">Change</span></div>
+    <div class="box solid" style="opacity:.6"><div class="row"><span class="big">72°</span><div><b>Thunderstorms</b></div></div></div>
+    <div class="box solid" style="opacity:.6"><h4>Next 12 hours</h4><div class="strip"><div>3PM</div><div>4PM</div><div>5PM</div></div></div>
+    <div class="map" style="opacity:.6"></div>
+    <div class="row"><span class="btn primary grow" style="text-align:center;outline:3px solid #fbbf24">Plan a trip</span><span class="btn">Rivers</span></div>
+    <div class="tabs"><div class="on">Now</div><div>Map</div><div>Trip</div><div>More</div></div>
+  </div><div class="cap"><b>D1 · Now → Plan a trip.</b> Also reachable from the Trip tab. One tap either way.</div></div>
+  <div class="step"><div class="phone">
+    <div class="box solid"><h4>From</h4>📍 Johnston, Iowa <span class="mute">(your place · change)</span></div>
+    <div class="box solid"><h4>To</h4><span class="mute">🔍 City, address or place · or pick on map</span></div>
+    <div class="row"><span class="chip fill">Now</span><span class="chip">+30 min</span><span class="chip">+1 h</span><span class="chip">+2 h</span><span class="chip">Pick…</span></div>
+    <div class="box"><span class="mute">Recent trips: Iowa City · Omaha</span></div>
+    <div class="grow"></div>
+    <div class="tabs"><div>Now</div><div>Map</div><div class="on">Trip</div><div>More</div></div>
+  </div><div class="cap"><b>D2 · Trip, empty.</b> From is prefilled and changeable; To is the only required input. Departure chips unchanged.</div></div>
+  <div class="step"><div class="phone">
+    <div class="row"><span class="chip grow">Johnston → Iowa City</span><span class="chip">Edit</span></div>
+    <div class="row"><span class="chip fill">Fastest · 1 h 49</span><span class="chip">Alt 1 · 1 h 57</span><span class="chip">Leave +1 h</span></div>
+    <div class="alert watch">Winter Weather Advisory on I‑80 · 4:10–4:40 PM, 62–88 mi in</div>
+    <div class="box solid"><b>Arrive Iowa City 4:38 PM</b> · 🌨 Snow · 28°<br><span class="mute">Worst along the way: 🧊 Icy — RWIS Grinnell confirms ice</span></div>
+    <div class="map"><span class="mute" style="position:absolute;left:8px;top:6px;font-size:11px">Route with coloured samples · tap a dot</span></div>
+    <div class="box solid"><h4>Along the way</h4><div class="strip"><div>2:49<br>☁<br>31°</div><div>3:10<br>🌨<br>29°</div><div>3:40<br>🧊<br>27°</div><div>4:10<br>🧊<br>26°</div><div>4:38<br>🌨<br>28°</div></div></div>
+    <div class="box solid"><h4>Hazards · Road sensors</h4><span class="mute">NWS checked (3) · SPC checked (0) · 4 RWIS stations ›</span></div>
+    <div class="tabs"><div>Now</div><div>Map</div><div class="on">Trip</div><div>More</div></div>
+  </div><div class="cap"><b>D3 · Trip result.</b> Same content as today's Journey panel, re‑ordered: hazards and arrival first, strip, then the route map inline, then sources. Map shows the route when you open Map.</div></div>
+</div>
+
+<h2>Flow E — Flood risk for a place (More → Flood, with a working picker)</h2>
+<div class="flow">
+  <div class="step"><div class="phone">
+    <div class="list"><div class="box solid"><b>🌊 Flood risk</b><br><span class="mute">Screening for a place: rain + terrain + drainage</span></div><div class="box solid"><b>📈 Rivers &amp; gauges</b><br><span class="mute">2 of 14 gauges high near Johnston</span></div><div class="box solid"><b>🌡 Station observations</b><br><span class="mute">Des Moines Intl · 12 min ago</span></div><div class="box solid"><b>ℹ Sources, freshness &amp; settings</b><br><span class="mute">Units, motion, data budget</span></div></div>
+    <div class="grow"></div>
+    <div class="tabs"><div>Now</div><div>Map</div><div>Trip</div><div class="on">More</div></div>
+  </div><div class="cap"><b>E1 · More.</b> Reference views with a one-line status each, so the list itself answers something.</div></div>
+  <div class="step"><div class="phone">
+    <div class="bar"><span class="chip">‹ More</span><b class="grow">Flood risk</b></div>
+    <div class="bar"><span class="chip grow">📍 Johnston, Iowa</span><span class="chip">Change</span></div>
+    <div class="box solid"><div class="row"><span class="big" style="font-size:26px;color:#b45309">Elevated</span><div><b>at your place</b><br><span class="mute">1.1 in rain next 24 h · low ground · 0.3 mi to a stream</span></div></div></div>
+    <div class="map"><span class="pin"></span><span class="chip" style="position:absolute;right:6px;bottom:6px">Open map ›</span></div>
+    <div class="box"><h4>Around you (2 km cells)</h4>elevated 32 · high 4 · severe 0</div>
+    <div class="box"><span class="mute">Indicative screening, not an official warning. Horizon 24 h ›</span></div>
+    <div class="tabs"><div>Now</div><div>Map</div><div>Trip</div><div class="on">More</div></div>
+  </div><div class="cap"><b>E2 · Flood for the current place.</b> Defaults to the current place and computes for it regardless of map zoom. The first line is the answer for *your* spot; cell counts come second.</div></div>
+  <div class="step"><div class="phone">
+    <div class="map full" style="opacity:.5"></div>
+    <div class="overlay"><div class="card"><h3>Pick a place</h3><span class="btn primary block">◎ Use my location</span><div style="height:6px"></div><span class="btn block">🔍 Search</span><div style="height:6px"></div><span class="btn block">🗺 Pick a point on the map</span><div style="height:8px"></div><span class="mute">Recent: Johnston, Iowa · Iowa City</span></div></div>
+  </div><div class="cap"><b>E3 · The one picker.</b> "Change" everywhere opens this sheet. "Pick on map" switches to Map in a pick mode with a crosshair and a Done button, then returns here.</div></div>
+</div>
+
+<h2>Tablet and desktop adaptation</h2>
+<div class="wide">
+  <div><div class="tablet"><div class="rail"><div class="on">Now</div><div>Map</div><div>Trip</div><div>More</div></div><div class="col"><div class="chip">📍 Johnston, Iowa · Change</div><div class="alert">⚠ Severe T‑storm Warning</div><div class="box solid"><span class="big" style="font-size:22px">72°</span> Thunderstorms</div><div class="box solid">Next 12 h strip</div><div class="btn primary block">Plan a trip</div></div><div class="map" style="border-radius:0"><span class="pin"></span><div class="fab">☰</div></div></div><div class="legend">Tablet portrait: left rail replaces the bottom nav; the Now column sits beside the live map, so "small map preview" is simply the map.</div></div>
+  <div><div class="tablet desktop"><div class="rail"><div>Now</div><div>Map</div><div class="on">Trip</div><div>More</div></div><div class="col"><div class="chip">Johnston → Iowa City · Edit</div><div class="alert watch">Winter Weather Advisory on I‑80</div><div class="box solid">Arrive 4:38 PM · Snow 28°</div><div class="box solid">Along the way strip</div><div class="box">Hazards · Road sensors</div></div><div class="map" style="border-radius:0"><span class="mute" style="position:absolute;left:8px;top:6px;font-size:11px">Route on the map</span><div class="fab">☰</div></div></div><div class="legend">Desktop: same rail + column + map. Trip and More render in the column; the map always stays visible, so no bottom sheet is needed at this width.</div></div>
+</div>
+</body>
+</html>
