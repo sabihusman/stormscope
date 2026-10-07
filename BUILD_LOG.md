@@ -1,5 +1,35 @@
 # Build log
 
+## Oct 7 (later) — river gauges made lazy; caps sized from a measured session and a measured pass
+
+**NWPS has no area query for what the Rivers page needs.** Checked against the v1 swagger (`api.water.noaa.gov/nwps/v1/docs/swagger.json`): `GET /gauges?bbox…` returns, per gauge, name, position and `status` (observed + forecast value and **flood category**); flood-stage thresholds (`flood.categories`) and `usgsId` exist only on `GET /gauges/{lid}`; `POST /gauges/raag` returns flood *statements*, not stages. So the per-gauge detail stays, but it is now fetched only when the Rivers page is open.
+
+**Change (5ecbb17):** gauges load in two tiers and only while something shows them, cached per place for 15 min (the refresh cadence), details cached per gauge for the session. *Summary* = one NWPS list request → nearest 20 forecast points with their flood category, risk classified from the category (flooding / high / normal); shown by the Now tile (IntersectionObserver, ≥ 50 % on screen) and the map's rivers layer. *Full* = summary + 20 details + 3 USGS bbox requests (USGS-only sites, names, 10-day medians); only the Rivers page asks for it, and it reuses the summary's list. A place change by itself costs no gauge request; the Now tile says "N NOAA gauges" until the full tier has loaded, then "N gauges"; the More menu row no longer says "not loaded".
+
+**Requests per place change (NWPS / USGS), measured with `scripts/traffic-count.mjs` (mocked; same code path as live):** before 21 / 3 on every place change, whatever screen was open (the mock returns the same gauges for every place, so its second and third place changes showed 11 and 6 thanks to the per-gauge cache; live every new place is 21). After: 0 / 0 on the place change itself; 1 / 0 when the Now tile is on screen or the Map is open with the rivers layer on; 20 / 3 the first time the Rivers page opens for a place (1 / 3 after the 15-min cache expires, details being session-cached).
+
+**One ordinary session — open app (grant location) → change place twice → open Map → open Trip — requests per host, after the change (before in brackets):**
+
+| host | open app | place → Ames | place → Cedar Rapids | open Map | open Trip | session |
+|---|---|---|---|---|---|---|
+| api.water.noaa.gov | 1 (21) | 1 (11) | 1 (6) | 0 | 0 | **3 (38)** |
+| api.weather.gov (alerts 1 + station 3) | 4 | 4 | 4 | 0 | 0 | 12 |
+| api.open-meteo.com (1 location each) | 1 | 1 | 1 | 0 | 0 | 3 |
+| api.waterdata.usgs.gov | 0 (3) | 0 (3) | 0 (3) | 0 | 0 | **0 (9)** |
+| nominatim (reverse geocode) | 1 | 1 | 1 | 0 | 0 | 3 |
+| geocoding-api.open-meteo.com | 0 | 1 | 1 | 0 | 0 | 2 |
+| api.rainviewer.com / tilecache | 1 / 1 | 0 | 0 / 1 | 0 | 0 | 1 / 2 |
+| tiles.openfreemap.org (basemap) | 13 | 2 | 2 | 0 | 0 | 17 |
+| all | 22 (43) | 10 (23) | 11 (19) | 0 | 0 | **43 (85)** |
+
+Extras, reported separately: scrolling the Now screen to the Rivers tile costs nothing more (the summary had already loaded — at 390 × 844 the tile is on screen while the cards above it are still short), and opening More → Rivers costs 20 NWPS + 3 USGS. Open Map and open Trip cost nothing: the live map is already mounted behind the Now screen's map window, and Trip makes no request until a destination is set. The 1 NWPS request on each place change in this run is the Now tile being on screen; with the tile scrolled out of view it is 0.
+
+**Caps (f46494f), sized from one measured full pass, × ~1.15, no retry allowance.** The pass = all 17 suites run mocked on this build (the guard now counts mocked requests per host without charging them; `prod-suite --mock` runs the batch) + the Oct 6 live counts of the sections the mock skips (hazards and road live sections, journey Philadelphia) + the phone walkthrough mocked + the perf step. Per host for the pass: NWPS 126 (was capped at 750, before that 160), NWS 122, Open-Meteo 97 requests / ≈ 3 250 locations (17 suites 2 077 + live-only 119 + walkthrough 422 + perf ≤ 637), USGS 42 (27 of them rivers-check's own Node-side comparisons), SPC MapServer 72, IEM 48, nominatim 34, RainViewer API 41, NHD 25, GIBS 844, terrain 353. New caps: NWPS 150, NWS 140, Open-Meteo 120 requests and a 3 600-location day budget (6 400 of Open-Meteo's 10 000 left for real use), SPC 85, IEM 60, nominatim 40, NHD 30, RainViewer 50; USGS stays 50; tile hosts keep the Oct 5 live sizing (the mock serves fewer glyph/sprite requests than the real style, so mocked tile counts under-report). prod-suite's start guard 1 500 → 2 200 locations.
+
+**Mocked batch on this build (bundle DOAE6Rb1, `e2e-shots/mock/20261007-1521-lazy-rivers/`):** pwa 8/8, flows 25/25, units 12/12, qa 35/36 (the SwiftShader long-task check: 528 ms idle with the nowcast overlay — informational under software rendering, the live headed number is what counts), satellite 17/17 ×2, blocks 13/13, zoom 1/1, fab 10/10, sheet 16/16, boundary 14/14, follow 8/8, rivers 4/4 (3 live-only skipped), journey Iowa 16/16 (Philadelphia has no mocked bodies), hazards 25/25 and road 21/21 (live sections skipped); phone walkthrough 43/43 features. Re-scoped for the lazy gauges (e97c868): units, qa, follow, rivers, boundary, walkthrough and ux-inventory no longer wait for `rivers` at load — `ui.openRivers` opens the page and waits for the full tier; rivers-check opens the page before its checks (its first check now reads "Rivers page loaded the full tier"); boundary waits for gauges after opening the Map; units' gust check reads only lines that carry a gust value (the unit-free hazard label "Damaging gusts" has none by design — it had made the check clock-dependent); rivers-check's USGS cap pre-check is live-only (under `--mock` it refused to start once fewer than 27 USGS requests remained in the day cap, although the mocked run makes no USGS call). Nothing was loosened: every check that passed before still passes with the same assertion.
+
+Not done: the live pass. Today's ledger stands at NWPS 160/160 (old cap; 150 under the new one) and the pass needs the 00:00 UTC reset. No promotion.
+
 ## Oct 7 — live pass attempt on the redesign preview: stopped at the NWPS cap; two traffic defects found and fixed
 
 - **All 17 suites mocked on the final build** (zero live calls): pwa 8/8, flows 25/25, units 12/12, qa 32/34 (long-task 216/327 ms under SwiftShader + 3 sprite 404s from the mock, since fixed), satellite 17/17 ×2, blocks 13/13, zoom 1/1, fab 10/10, sheet 16/16, boundary 14/14, follow 8/8, rivers 4/4 (3 live-only checks skipped), journey Iowa 16/16 (Philadelphia has no mocked bodies), hazards 25/25, road 21/21 (live sections skipped).
