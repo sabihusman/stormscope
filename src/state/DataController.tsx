@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { fetchRadar, RAINVIEWER_URL } from '../api/rainviewer'
 import { fetchSatFrames, GIBS_WMTS, SAT_LAYERS, satelliteFor } from '../api/gibs'
-import { fetchHourlyGrid, fetchOpenMeteoCurrent, OPEN_METEO_URL } from '../api/openMeteo'
+import { fetchHourlyGrid, fetchOpenMeteoCurrent, fetchPlaceForecast, OPEN_METEO_URL } from '../api/openMeteo'
 import { fetchFlowlines, NHD_URL } from '../api/nhd'
 import { fetchNwpsDetails, fetchNwpsGauges, NWPS_URL, nwpsValid } from '../api/nwps'
 import { fetchUsgsLatest, fetchUsgsNames, fetchUsgsRecentMedianFlow, USGS_OGC } from '../api/usgsWater'
-import { fetchNwsNearestObservation, NWS_URL, OutsideNwsCoverage } from '../api/nws'
+import { fetchActiveAlerts, fetchNwsNearestObservation, NWS_URL, OutsideNwsCoverage } from '../api/nws'
 import { reverseGeocode } from '../api/geocode'
 import type { RouteResult } from '../api/routing'
 import type { OmPoint } from '../lib/journey'
@@ -20,7 +20,7 @@ import { blockCenter, blockGridSpec, FLOOD_N, NOWCAST_N, TERRAIN_Z } from '../li
 import { usePolling } from '../hooks/usePolling'
 import { geoWorker } from '../workers/client'
 import { applyImageryCarry, nearestFrame, newBlock, patchJourney, setResource, store, toast, updateBlock, useApp, type Block } from './store'
-import type { Resource, RiverGauge } from '../types'
+import type { AlertsData, Resource, RiverGauge } from '../types'
 
 // Refresh cadences (ms).
 export const REFRESH = {
@@ -29,6 +29,10 @@ export const REFRESH = {
   grid: 30 * MIN,
   rivers: 15 * MIN,
   station: 10 * MIN,
+  /** Current conditions + hourly for the place. */
+  conditions: 10 * MIN,
+  /** Active NWS alerts for the place: refreshed while the app is open, not only on place change. */
+  alerts: 3 * MIN,
 }
 
 const RIVER_RADIUS_M = 40_000
@@ -762,17 +766,61 @@ export function DataController() {
     [key, nonce],
   )
 
+  // ---- Place conditions (Now screen): one Open-Meteo location per place, every 10 min ----
+  const placeKey = place ? `${place.lngLat.lat.toFixed(3)},${place.lngLat.lng.toFixed(3)}` : ''
+  usePolling(
+    async () => {
+      if (!place) return
+      const prev = store.get().conditions
+      // A new place must not show the old place's numbers while loading.
+      setResource('conditions', prev.data && haversine(prev.data.lngLat, place.lngLat) > 2000 ? { ...prev, data: null, state: 'loading', error: null } : loading(prev))
+      try {
+        const f = await fetchPlaceForecast(place.lngLat)
+        setResource('conditions', ready(f, 'Open-Meteo (best match model)', OPEN_METEO_URL, f.current.time))
+      } catch (e) {
+        setResource('conditions', failed(store.get().conditions, e))
+      }
+    },
+    REFRESH.conditions,
+    !!place,
+    [placeKey, nonce],
+  )
+
+  // ---- Active NWS alerts for the place: every 3 min while open; outside the US it says so ----
+  usePolling(
+    async () => {
+      if (!place) return
+      const prev = store.get().alerts
+      if (!likelyUS(place.lngLat)) {
+        setResource('alerts', ready({ alerts: [], coverage: 'outside-us' } as AlertsData, 'NOAA NWS alerts', `${NWS_URL}/alerts`))
+        return
+      }
+      setResource('alerts', loading(prev))
+      try {
+        const a = await fetchActiveAlerts(place.lngLat)
+        setResource('alerts', ready(a, 'NOAA NWS alerts (api.weather.gov)', `${NWS_URL}/alerts`))
+      } catch (e) {
+        setResource('alerts', failed(store.get().alerts, e))
+      }
+    },
+    REFRESH.alerts,
+    !!place,
+    [placeKey, nonce],
+  )
+
   // ---- Staleness ticker: mark a resource stale once it's older than 2× its cadence ----
   useEffect(() => {
     const t = setInterval(() => {
       const s = store.get()
-      const check = (k: 'radar' | 'satellite' | 'rivers' | 'station', cadence: number) => {
+      const check = (k: 'radar' | 'satellite' | 'rivers' | 'station' | 'conditions' | 'alerts', cadence: number) => {
         const r = s[k]
         if (r.freshness && !r.stale && Date.now() - r.freshness.fetchedAt > cadence * 2) setResource(k, { ...r, stale: true })
       }
       check('radar', REFRESH.radar)
       check('satellite', REFRESH.satellite)
       check('rivers', REFRESH.rivers)
+      check('conditions', REFRESH.conditions)
+      check('alerts', REFRESH.alerts)
       check('station', REFRESH.station)
     }, 30_000)
     return () => clearInterval(t)

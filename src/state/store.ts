@@ -1,5 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react'
-import type { FloodResult, HourlyGrid, LayerId, Place, RadarData, RainHorizon, Resource, RiverGauge, StationObs } from '../types'
+import type { AlertsData, FloodResult, HourlyGrid, LayerId, Place, PlaceForecast, RadarData, RainHorizon, Resource, RiverGauge, StationObs } from '../types'
 import type { NowcastResult, RainfallCellsResult } from '../workers/client'
 export type { LayerId } from '../types'
 import type { Flowline } from '../api/nhd'
@@ -114,6 +114,10 @@ export interface AppState {
   satFrame: number
   rivers: Resource<RiverGauge[]>
   station: Resource<StationObs>
+  /** Current conditions + 48 h hourly for the place (the Now screen). */
+  conditions: Resource<PlaceForecast>
+  /** Active NWS alerts for the place. */
+  alerts: Resource<AlertsData>
 
   /** Forecast blocks by key. Blocks persist across pans; only missing ones are fetched. */
   blocks: Record<string, Block>
@@ -195,6 +199,8 @@ export const store = createStore<AppState>({
   satFrame: 0,
   rivers: emptyResource(),
   station: emptyResource(),
+  conditions: emptyResource(),
+  alerts: emptyResource(),
   blocks: {},
   visibleBlocks: [],
   blockLevel: 1,

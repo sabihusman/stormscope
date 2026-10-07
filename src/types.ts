@@ -121,6 +121,62 @@ export interface FloodResult {
   horizonHours: number
 }
 
+// ---- Place forecast (the Now screen) ----
+export interface HourPoint {
+  time: number
+  tempC: number | null
+  apparentC: number | null
+  code: number | null
+  precipMm: number | null
+  precipProb: number | null
+  windMs: number | null
+  gustMs: number | null
+  windDirDeg: number | null
+  cloudPct: number | null
+}
+export interface PlaceForecast {
+  lngLat: LngLat
+  current: {
+    time: number
+    tempC: number | null
+    apparentC: number | null
+    code: number | null
+    precipMm: number | null
+    humidityPct: number | null
+    windMs: number | null
+    gustMs: number | null
+    windDirDeg: number | null
+    cloudPct: number | null
+    isDay: boolean
+  }
+  /** Hourly from the current hour, 48 h. */
+  hourly: HourPoint[]
+}
+
+// ---- NWS active alerts for a point ----
+export interface NwsAlert {
+  id: string
+  event: string
+  severity: 'Extreme' | 'Severe' | 'Moderate' | 'Minor' | 'Unknown'
+  urgency: string
+  certainty: string
+  headline: string | null
+  description: string | null
+  instruction: string | null
+  onset: number | null
+  ends: number | null
+  expires: number | null
+  senderName: string | null
+  areaDesc: string | null
+  /** NWS message type: Alert, Update, Cancel. */
+  messageType: string | null
+}
+export interface AlertsData {
+  alerts: NwsAlert[]
+  /** 'us' when api.weather.gov covers the place; 'outside-us' when it answered 404/400 for the point. */
+  coverage: 'us' | 'outside-us'
+}
+
 // ---- Location ----
 export interface Place {
   name: string

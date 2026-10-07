@@ -46,6 +46,15 @@ function omSeries(locIdx, field, nHours, startSec) {
       case 'temperature_2m':
         v = h.temperature_2m[k] ?? 10
         break
+      case 'apparent_temperature':
+        v = (h.temperature_2m[k] ?? 10) - 1.5
+        break
+      case 'precipitation_probability':
+        v = Math.min(100, Math.round((h.precipitation[k] ?? 0) * 60 + 10))
+        break
+      case 'is_day':
+        v = 1
+        break
       case 'weather_code':
         v = h.weather_code[k] ?? 1
         break
@@ -179,7 +188,7 @@ function gibsCapabilities() {
 }
 
 // ---------- NWS station observations ----------
-function nws(url, focus) {
+function nws(url, focus, alerts = []) {
   const u = new URL(url)
   if (u.pathname.startsWith('/points/')) return { properties: { observationStations: 'https://api.weather.gov/gridpoints/DMX/73,52/stations', gridId: 'DMX', gridX: 73, gridY: 52 } }
   if (/\/stations$/.test(u.pathname)) return { features: [{ properties: { stationIdentifier: 'KDSM', name: 'Des Moines International Airport' }, geometry: { coordinates: [focus.lng - 0.08, focus.lat - 0.1] } }, { properties: { stationIdentifier: 'KIKV', name: 'Ankeny Regional Airport' }, geometry: { coordinates: [focus.lng + 0.1, focus.lat + 0.06] } }] }
@@ -187,7 +196,8 @@ function nws(url, focus) {
     const qv = (value, unitCode) => ({ value, unitCode })
     return { geometry: { coordinates: [focus.lng - 0.08, focus.lat - 0.1] }, properties: { timestamp: new Date(Date.now() - 12 * 60_000).toISOString(), textDescription: 'Mostly Cloudy', temperature: qv(14.4, 'wmoUnit:degC'), windDirection: qv(210, 'wmoUnit:degree_(angle)'), windSpeed: qv(18.4, 'wmoUnit:km_h-1'), windGust: qv(31, 'wmoUnit:km_h-1'), barometricPressure: qv(98530, 'wmoUnit:Pa'), seaLevelPressure: qv(101250, 'wmoUnit:Pa'), relativeHumidity: qv(68, 'wmoUnit:percent'), precipitationLastHour: qv(0.3, 'wmoUnit:mm'), precipitationLast3Hours: qv(null, 'wmoUnit:mm'), precipitationLast6Hours: qv(null, 'wmoUnit:mm') } }
   }
-  if (u.pathname.startsWith('/alerts/active')) return { type: 'FeatureCollection', features: [] }
+  // `alerts` (installMocks option): synthetic active alerts for the point, e.g. [{ event: 'Severe Thunderstorm Warning', severity: 'Severe' }].
+  if (u.pathname.startsWith('/alerts/active')) return { type: 'FeatureCollection', features: alerts.map((a, i) => ({ properties: { id: `mock-${i}`, event: a.event, severity: a.severity ?? 'Severe', urgency: 'Expected', certainty: 'Likely', headline: a.headline ?? `${a.event} issued ${new Date().toUTCString()}`, description: a.description ?? 'Mock alert text.', instruction: a.instruction ?? null, onset: new Date(Date.now() - 10 * 60_000).toISOString(), ends: new Date(Date.now() + 90 * 60_000).toISOString(), expires: new Date(Date.now() + 90 * 60_000).toISOString(), senderName: 'NWS Des Moines IA', areaDesc: 'Polk, IA', messageType: 'Alert', ...a } })) }
   if (u.pathname.startsWith('/zones/')) return { geometry: null, properties: {} }
   return {}
 }
@@ -319,7 +329,7 @@ function terrainTile() {
  * Install the mocks on a Playwright context. `focus` is the geolocation the session uses.
  * Returns { live: string[] } — URLs that fell through to the network (should stay empty in replay).
  */
-export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [] } = {}) {
+export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], alerts = [] } = {}) {
   const live = []
   if (har) {
     await context.routeFromHAR(har, { update: record, notFound: record ? 'fallback' : 'abort', url: /^https:\/\/(tiles\.openfreemap\.org|s3\.amazonaws\.com|gibs\.earthdata\.nasa\.gov)\// })
@@ -334,7 +344,7 @@ export async function installMocks(context, { har = null, record = false, focus 
       if (host === 'nominatim.openstreetmap.org') return route.fulfill(json(url.includes('/reverse') ? { name: 'Johnston', display_name: 'Johnston, Polk County, Iowa, United States', address: { city: 'Johnston', state: 'Iowa', country: 'United States' } } : []))
       if (host === 'api.rainviewer.com') return route.fulfill(json(rainviewer()))
       if (host === 'tilecache.rainviewer.com') return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=600' }, body: radarTile() })
-      if (host === 'api.weather.gov' || host === 'alerts.weather.gov') return route.fulfill(json(nws(url, focus)))
+      if (host === 'api.weather.gov' || host === 'alerts.weather.gov') return route.fulfill(json(nws(url, focus, alerts)))
       if (host === 'api.water.noaa.gov') return route.fulfill(json(nwps(url, focus)))
       if (host === 'api.waterdata.usgs.gov') return route.fulfill(json(usgs(url, focus)))
       if (host === 'hydro.nationalmap.gov') return route.fulfill(json({ type: 'FeatureCollection', features: [] }))

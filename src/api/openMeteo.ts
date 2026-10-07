@@ -1,6 +1,6 @@
 import { fetchJSON, limitTier } from '../lib/fetch'
 import type { LngLat } from '../lib/geo'
-import type { GridSpec, HourlyGrid, StationObs } from '../types'
+import type { GridSpec, HourlyGrid, PlaceForecast, StationObs } from '../types'
 
 export const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast'
 
@@ -118,6 +118,83 @@ interface OmCurrentResponse {
     temperature_2m: number | null
   }
   hourly: { time: number[]; precipitation: (number | null)[]; pressure_msl: (number | null)[] }
+}
+
+interface OmPlaceResponse {
+  latitude: number
+  longitude: number
+  current: {
+    time: number
+    is_day: number
+    temperature_2m: number | null
+    apparent_temperature: number | null
+    weather_code: number | null
+    precipitation: number | null
+    relative_humidity_2m: number | null
+    wind_speed_10m: number | null
+    wind_direction_10m: number | null
+    wind_gusts_10m: number | null
+    cloud_cover: number | null
+  }
+  hourly: {
+    time: number[]
+    temperature_2m: (number | null)[]
+    apparent_temperature: (number | null)[]
+    weather_code: (number | null)[]
+    precipitation: (number | null)[]
+    precipitation_probability: (number | null)[]
+    wind_speed_10m: (number | null)[]
+    wind_direction_10m: (number | null)[]
+    wind_gusts_10m: (number | null)[]
+    cloud_cover: (number | null)[]
+  }
+}
+
+/**
+ * Current conditions + 48 h hourly for one place (the Now screen). One location = one call
+ * against the shared budget. The block grid cannot feed this: it carries no temperature.
+ */
+export async function fetchPlaceForecast(p: LngLat, signal?: AbortSignal): Promise<PlaceForecast> {
+  const url =
+    `${OPEN_METEO_URL}?latitude=${p.lat.toFixed(4)}&longitude=${p.lng.toFixed(4)}` +
+    `&current=temperature_2m,apparent_temperature,weather_code,precipitation,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,is_day` +
+    `&hourly=temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover` +
+    `&forecast_hours=48&past_hours=1&timeformat=unixtime&timezone=GMT&wind_speed_unit=ms&models=best_match`
+  const j = await budgeted(1, () => fetchJSON<OmPlaceResponse>(url, { signal, timeoutMs: 20_000 }))
+  const h = j.hourly
+  const nowSec = j.current.time
+  const hourly = h.time
+    .map((t, i) => ({
+      time: t * 1000,
+      tempC: h.temperature_2m[i] ?? null,
+      apparentC: h.apparent_temperature[i] ?? null,
+      code: h.weather_code[i] ?? null,
+      precipMm: h.precipitation[i] ?? null,
+      precipProb: h.precipitation_probability?.[i] ?? null,
+      windMs: h.wind_speed_10m[i] ?? null,
+      gustMs: h.wind_gusts_10m[i] ?? null,
+      windDirDeg: h.wind_direction_10m[i] ?? null,
+      cloudPct: h.cloud_cover[i] ?? null,
+    }))
+    // From the hour that contains "now" onwards.
+    .filter((x) => x.time >= Math.floor(nowSec / 3600) * 3600 * 1000)
+  return {
+    lngLat: { lng: j.longitude, lat: j.latitude },
+    current: {
+      time: nowSec * 1000,
+      tempC: j.current.temperature_2m,
+      apparentC: j.current.apparent_temperature,
+      code: j.current.weather_code,
+      precipMm: j.current.precipitation,
+      humidityPct: j.current.relative_humidity_2m,
+      windMs: j.current.wind_speed_10m,
+      gustMs: j.current.wind_gusts_10m,
+      windDirDeg: j.current.wind_direction_10m,
+      cloudPct: j.current.cloud_cover,
+      isDay: j.current.is_day !== 0,
+    },
+    hourly,
+  }
 }
 
 /** Open-Meteo "station-like" fallback for locations without a weather.gov station. */
