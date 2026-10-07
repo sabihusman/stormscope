@@ -1887,6 +1887,20 @@ small {
   width: 400px;
   bottom: calc(var(--sab) + var(--dock-h) + 40px);
 }
+/* The chip never covers the ☰ button: it leaves the button's corner free. */
+.app.narrow.fab-br .point-chip {
+  right: calc(var(--sar) + 80px);
+}
+.app.narrow.fab-bl .point-chip {
+  left: calc(var(--sal) + 80px);
+}
+.app.wide.fab-bl .point-chip,
+.app.wide.fab-bl .sheet {
+  left: calc(var(--rail-w) + 80px);
+}
+.app.wide.fab-bl:not(.screen-map) .sheet {
+  left: calc(var(--rail-w) + var(--col-w) + 80px);
+}
 .chip-ico {
   font-size: 22px;
 }

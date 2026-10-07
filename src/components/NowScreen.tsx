@@ -7,6 +7,7 @@ import { U } from '../lib/units'
 import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
 import { go, setLayer, startPickOnMap, store, useApp, wantFlood } from '../state/store'
+import { REPLAY_IN_URL } from '../state/DataController'
 import type { NwsAlert } from '../types'
 import { PlaceRow } from './PlaceRow'
 
@@ -280,7 +281,9 @@ function Tiles() {
   const floodTile = useRef<HTMLButtonElement>(null)
   const place = useApp((s) => s.place)
   const label = useApp((s) => s.placeLabel)
-  const floodKey = place ? floodKeyFor(place.lngLat) : null
+  // Replays drive Trip only: no live screening request for the tile while one is active.
+  const replay = useApp((s) => !!s.replay) || REPLAY_IN_URL
+  const floodKey = place && !replay ? floodKeyFor(place.lngLat) : null
   const flood = useApp((s) => (floodKey ? s.blocks[floodKey]?.flood : undefined))
   useEffect(() => {
     const el = riversTile.current
@@ -312,7 +315,7 @@ function Tiles() {
   }, [floodKey])
   const here = place ? floodHere(flood, place.lngLat) : null
   const placeName = (label ?? place?.name ?? '').split(',')[0]
-  const floodLine = here ? `${riskWord(here.risk)} at ${placeName}` : flood?.error ? flood.error : place ? 'computing…' : 'for this place ›'
+  const floodLine = here ? `${riskWord(here.risk)} at ${placeName}` : flood?.error ? flood.error : place && !replay ? 'computing…' : 'for this place ›'
   const high = rivers.data?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
   const what = tier === 'full' ? 'gauges' : 'NOAA gauges'
   const riversLine = rivers.data

@@ -36,7 +36,8 @@ export const REFRESH = {
   alerts: 3 * MIN,
 }
 
-const REPLAY_IN_URL = typeof location !== 'undefined' && new URLSearchParams(location.search).has('replay')
+/** Replays are known from the URL before the bootstrap lands in the store. */
+export const REPLAY_IN_URL = typeof location !== 'undefined' && new URLSearchParams(location.search).has('replay')
 const RIVER_RADIUS_M = 40_000
 /** Blocks kept in memory (visible + recently seen). */
 const MAX_CACHED_BLOCKS = 30
