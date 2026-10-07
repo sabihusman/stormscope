@@ -170,11 +170,11 @@ check('Map tap shows a point chip (no dialog) that stays on-screen at every corn
 await page.mouse.click(W / 2, H / 2)
 await settle(page, 2500)
 const chipText = await page.locator('.point-chip').innerText().catch(() => '')
-check('Point chip states conditions at the point (temperature or loading state) and its relation to the place', /°|Loading conditions|unavailable/.test(chipText) && /at |of /.test(chipText), chipText.replace(/\n/g, ' | '))
+check('Point chip states conditions at the point (temperature or loading state) and its relation to the place', /°|Loading conditions|unavailable/.test(chipText) && / at | of /.test(chipText), chipText.replace(/\n/g, ' | '))
 await page.getByRole('button', { name: 'Details' }).click()
 for (let i = 0; i < 40; i++) { if (/Next 24 h|Rain, next 24 h|unavailable/.test(await sheetText(page))) break; await settle(page, 250) }
 const details = await sheetText(page)
-check('Details sheet: point conditions, 24 h strip, actions', /This point/.test(details) && /Next 24 h|Rain, next 24 h/.test(details) && /Use as my place/.test(details) && /Trip here/.test(details), details.split('\n').slice(0, 2).join(' | '))
+check('Details sheet: point conditions, 24 h strip, actions', /This point/.test(details) && /next 24 h/i.test(details) && /Use as my place/.test(details) && /Trip here/.test(details), details.split('\n').slice(0, 6).join(' | '))
 await page.screenshot({ path: `${OUT}/point-details.png` })
 await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
 

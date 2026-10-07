@@ -35,6 +35,7 @@ export const REFRESH = {
   alerts: 3 * MIN,
 }
 
+const REPLAY_IN_URL = typeof location !== 'undefined' && new URLSearchParams(location.search).has('replay')
 const RIVER_RADIUS_M = 40_000
 /** Blocks kept in memory (visible + recently seen). */
 const MAX_CACHED_BLOCKS = 30
@@ -74,7 +75,8 @@ export function DataController() {
   const floodFor = useApp((s) => s.floodFor)
   const satProduct = useApp((s) => s.satProduct)
   const placeKey = place ? `${place.lngLat.lat.toFixed(3)},${place.lngLat.lng.toFixed(3)}` : ''
-  const replayActive = useApp((s) => !!s.replay)
+  // Replays are known from the URL before the bootstrap lands in the store (the geolocated place would otherwise fire one live call first).
+  const replayActive = useApp((s) => !!s.replay) || REPLAY_IN_URL
 
   // A new place (geolocation, search, map tap) always re-centres the point data on it.
   useEffect(() => {
