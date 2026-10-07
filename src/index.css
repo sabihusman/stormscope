@@ -1934,3 +1934,22 @@ small {
 .screen.trip .panel {
   padding: 0;
 }
+
+/* Flood page */
+.flood-word {
+  font-size: 30px;
+}
+.flood-here.risk-low { border-color: rgba(34, 197, 94, 0.5); }
+.flood-here.risk-elevated { border-color: rgba(250, 204, 21, 0.6); }
+.flood-here.risk-high { border-color: rgba(249, 115, 22, 0.7); }
+.flood-here.risk-severe { border-color: rgba(220, 38, 38, 0.8); }
+.flood-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.method summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--accent);
+}

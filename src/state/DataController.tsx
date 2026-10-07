@@ -71,8 +71,9 @@ export function DataController() {
   const nonce = useApp((s) => s.refreshNonce)
   const focus = useApp((s) => s.focus)
   const visibleBlocks = useApp((s) => s.visibleBlocks)
+  const floodFor = useApp((s) => s.floodFor)
   const satProduct = useApp((s) => s.satProduct)
-  const key = focus ? `${focus.lat.toFixed(3)},${focus.lng.toFixed(3)}` : ''
+  const placeKey = place ? `${place.lngLat.lat.toFixed(3)},${place.lngLat.lng.toFixed(3)}` : ''
 
   // A new place (geolocation, search, map tap) always re-centres the point data on it.
   useEffect(() => {
@@ -287,7 +288,7 @@ export function DataController() {
       }
     }
 
-    if (s.layers.flood) {
+    if (s.layers.flood || key === s.floodFor) {
       await ensureFlowlines(b)
       const cur = store.get().blocks[key]
       const fl = cur?.flowlines
@@ -320,9 +321,11 @@ export function DataController() {
   const quotaBackoffUntil = useRef(0)
   const reconcile = async () => {
     const s = store.get()
-    const need = s.layers.rainfall || s.layers.flood || s.layers.nowcast
+    const need = s.layers.rainfall || s.layers.flood || s.layers.nowcast || !!s.floodFor
+    // The Flood page's block for the place is computed whatever the map shows.
+    const want = s.floodFor && !s.visibleBlocks.includes(s.floodFor) ? [...s.visibleBlocks, s.floodFor] : s.visibleBlocks
     // Nothing is fetched while the tab is hidden: the 30-min refresh only counts visible time.
-    if (!need || !s.visibleBlocks.length || document.hidden) return
+    if (!need || !want.length || document.hidden) return
     if (Date.now() < quotaBackoffUntil.current) return
     const force = lastNonce.current !== s.refreshNonce
     lastNonce.current = s.refreshNonce
@@ -331,9 +334,9 @@ export function DataController() {
     // Make sure every visible block exists, stamp it, and evict the oldest hidden ones.
     store.set((st) => {
       const blocks = { ...st.blocks }
-      for (const k of st.visibleBlocks) blocks[k] = { ...(blocks[k] ?? newBlock(k)), lastSeen: now }
+      for (const k of want) blocks[k] = { ...(blocks[k] ?? newBlock(k)), lastSeen: now }
       const hidden = Object.values(blocks)
-        .filter((b) => !st.visibleBlocks.includes(b.key))
+        .filter((b) => !want.includes(b.key))
         .sort((a, b) => a.lastSeen - b.lastSeen)
       while (Object.keys(blocks).length > MAX_CACHED_BLOCKS && hidden.length) delete blocks[hidden.shift()!.key]
       return { blocks }
@@ -346,7 +349,7 @@ export function DataController() {
 
     // Nearest blocks first; grids fetch through a small concurrency gate.
     await Promise.all(
-      store.get().visibleBlocks.map(async (k) => {
+      want.map(async (k) => {
         const b = store.get().blocks[k]
         if (!b) return
         await ensureGrid(b, force)
@@ -359,7 +362,7 @@ export function DataController() {
   reconcileRef.current = reconcile
   useEffect(() => {
     void reconcileRef.current()
-  }, [visibleBlocks, layers.rainfall, layers.flood, layers.nowcast, rainHorizon, nonce])
+  }, [visibleBlocks, layers.rainfall, layers.flood, layers.nowcast, rainHorizon, nonce, floodFor])
   // Periodic freshness pass (also fires when the tab returns to the foreground).
   useEffect(() => {
     const t = setInterval(() => void reconcileRef.current(), 60_000)
@@ -614,11 +617,12 @@ export function DataController() {
   // ---- Rivers: NOAA NWPS + USGS ----
   usePolling(
     async () => {
-      if (!focus) return
+      const at = place?.lngLat
+      if (!at) return
       const prev = store.get().rivers
       setResource('rivers', loading(prev))
-      const bbox = bboxAround(focus, RIVER_RADIUS_M)
-      const us = likelyUS(focus)
+      const bbox = bboxAround(at, RIVER_RADIUS_M)
+      const us = likelyUS(at)
       if (!us) {
         setResource('rivers', {
           ...ready([] as RiverGauge[], 'USGS / NOAA NWPS', NWPS_URL),
@@ -642,7 +646,7 @@ export function DataController() {
 
         // Nearest 20 NWPS gauges get full detail (flood categories + USGS id).
         const near = nwps
-          .map((g) => ({ g, d: haversine(focus, { lng: g.longitude, lat: g.latitude }) }))
+          .map((g) => ({ g, d: haversine(at, { lng: g.longitude, lat: g.latitude }) }))
           .sort((a, b) => a.d - b.d)
           .slice(0, 20)
         const details = await fetchNwpsDetails(near.map((n) => n.g.lid))
@@ -693,7 +697,7 @@ export function DataController() {
         const names = await fetchUsgsNames(bbox).catch(() => new Map<string, { name: string; type: string }>())
         const usgsOnly = [...usgsById.values()]
           .filter((u) => u.flow || u.stage)
-          .map((u) => ({ u, d: haversine(focus, u.lngLat) }))
+          .map((u) => ({ u, d: haversine(at, u.lngLat) }))
           .sort((a, b) => a.d - b.d)
           .slice(0, 25)
         const medians = await fetchUsgsRecentMedianFlow(bbox, usgsOnly.filter((x) => x.u.flow).map((x) => x.u.usgsId), 10).catch(() => new Map<string, number>())
@@ -724,27 +728,28 @@ export function DataController() {
           const t = g.stage?.time ?? g.flow?.time
           if (t && Date.now() - t > 12 * 3600_000 && g.riskLevel === 'normal') g.riskLevel = 'unknown'
         }
-        const list = [...gauges.values()].sort((a, b) => haversine(focus, a.lngLat) - haversine(focus, b.lngLat))
+        const list = [...gauges.values()].sort((a, b) => haversine(at, a.lngLat) - haversine(at, b.lngLat))
         setResource('rivers', ready(list, sourceLabel, `${USGS_OGC} · ${NWPS_URL}`))
       } catch (e) {
         setResource('rivers', failed(prev, e))
       }
     },
     REFRESH.rivers,
-    !!focus && layers.rivers,
-    [key, nonce],
+    !!place,
+    [placeKey, nonce],
   )
 
   // ---- Station observations ----
   usePolling(
     async () => {
-      if (!focus) return
+      const at = place?.lngLat
+      if (!at) return
       const prev = store.get().station
       setResource('station', loading(prev))
       try {
-        if (likelyUS(focus)) {
+        if (likelyUS(at)) {
           try {
-            const obs = await fetchNwsNearestObservation(focus)
+            const obs = await fetchNwsNearestObservation(at)
             setResource('station', ready(obs, 'NOAA NWS (api.weather.gov)', NWS_URL, obs.observedAt))
             return
           } catch (e) {
@@ -754,19 +759,18 @@ export function DataController() {
             }
           }
         }
-        const obs = await fetchOpenMeteoCurrent(focus)
+        const obs = await fetchOpenMeteoCurrent(at)
         setResource('station', ready(obs, 'Open-Meteo (model, no station)', OPEN_METEO_URL, obs.observedAt))
       } catch (e) {
         setResource('station', failed(prev, e))
       }
     },
     REFRESH.station,
-    !!focus && layers.station,
-    [key, nonce],
+    !!place,
+    [placeKey, nonce],
   )
 
   // ---- Place conditions (Now screen): one Open-Meteo location per place, every 10 min ----
-  const placeKey = place ? `${place.lngLat.lat.toFixed(3)},${place.lngLat.lng.toFixed(3)}` : ''
   usePolling(
     async () => {
       if (!place) return

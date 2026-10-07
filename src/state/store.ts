@@ -151,6 +151,8 @@ export interface AppState {
   pickMode: boolean
   pickReturn: Screen
   recentPlaces: RecentPlace[]
+  /** Block key the Flood page wants computed for the place (independent of map zoom / layer). */
+  floodFor: string | null
   legendOpen: boolean
   selection: Selection | null
   toast: { id: number; text: string; kind: 'info' | 'warn' | 'error' } | null
@@ -238,6 +240,7 @@ export const store = createStore<AppState>({
       return []
     }
   })(),
+  floodFor: null,
   legendOpen: false,
   selection: null,
   toast: null,

@@ -1,25 +1,17 @@
+import { useEffect } from 'react'
 import { FLOOD_CATEGORY_COLORS, FLOOD_CATEGORY_LABELS, FLOOD_STOPS } from '../lib/colors'
+import { blockAt, blockKey } from '../lib/blocks'
+import type { RainHorizon } from '../types'
 import { haversine } from '../lib/geo'
 import { timeAgo } from '../lib/time'
 import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
 import { describeGauge, RISK_COLORS } from '../map/RiversLayer'
-import { aggregate, setUnits, store, useApp, useVisibleBlocks, type Aggregate, type Block } from '../state/store'
+import { aggregate, go, setUnits, store, useApp, useVisibleBlocks, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/openMeteo'
 import type { Resource } from '../types'
-
-function AggFreshness({ a, now, source }: { a: Aggregate; now: number; source: string }) {
-  if (!a.fetchedAt) return <small className="muted">{a.state === 'loading' ? 'loading…' : a.error ? a.error : a.total === 0 ? 'zoom in to load blocks' : 'not loaded'}</small>
-  return (
-    <small className={`fresh ${a.stale ? 'stale' : ''}`}>
-      {source} · {a.ready}/{a.total} blocks · updated {timeAgo(a.fetchedAt, now)}
-      {a.stale ? ' · stale' : ''}
-      {a.error ? ` · ${a.error}` : ''}
-    </small>
-  )
-}
 
 function Freshness({ r, now }: { r: Resource<unknown>; now: number }) {
   if (!r.freshness) return <small className="muted">{r.state === 'loading' ? 'loading…' : r.error ? r.error : 'not loaded'}</small>
@@ -29,17 +21,6 @@ function Freshness({ r, now }: { r: Resource<unknown>; now: number }) {
       {r.stale ? ' · stale' : ''}
       {r.error ? ` · last refresh failed: ${r.error}` : ''}
     </small>
-  )
-}
-
-function LayerOff({ what, id }: { what: string; id: 'station' | 'rivers' | 'flood' }) {
-  return (
-    <div className="panel-empty">
-      <p>The {what} layer is off.</p>
-      <button className="btn small" onClick={() => store.set((s) => ({ layers: { ...s.layers, [id]: true } }))}>
-        Turn on {what}
-      </button>
-    </div>
   )
 }
 
@@ -58,13 +39,8 @@ export function UnitsToggle() {
 
 export function StationPanel() {
   const r = useApp((s) => s.station)
-  const enabled = useApp((s) => s.layers.station)
   const units = useApp((s) => s.units)
-  const focus = useApp((s) => s.focus)
-  const place = useApp((s) => s.place)
   const now = useNow()
-  const following = !!focus && (!place || haversine(focus, place.lngLat) > 1000)
-  if (!enabled) return <LayerOff what="station" id="station" />
   const o = r.data
   if (!o)
     return (
@@ -78,7 +54,7 @@ export function StationPanel() {
       <div className="panel-title">
         <strong>{o.name}</strong>
         <small className="muted">
-          {o.provider === 'weather.gov' ? `${o.stationId} · ${U.distance(o.distanceM, units)} from ${following ? 'the map centre' : 'you'}` : 'Model analysis (no station nearby)'} · observed{' '}
+          {o.provider === 'weather.gov' ? `${o.stationId} · ${U.distance(o.distanceM, units)} from your place` : 'Model analysis (no station nearby)'} · observed{' '}
           {timeAgo(o.observedAt, now)}
         </small>
       </div>
@@ -138,10 +114,8 @@ export function StationPanel() {
 export function RiversPanel() {
   const r = useApp((s) => s.rivers)
   const place = useApp((s) => s.place)
-  const enabled = useApp((s) => s.layers.rivers)
   const units = useApp((s) => s.units)
   const now = useNow()
-  if (!enabled) return <LayerOff what="rivers" id="rivers" />
   const list = r.data
   return (
     <div className="panel">
@@ -192,48 +166,71 @@ export function RiversPanel() {
 }
 
 export function FloodPanel() {
-  const blocks = useVisibleBlocks()
-  const enabled = useApp((s) => s.layers.flood)
+  const place = useApp((s) => s.place)
+  const label = useApp((s) => s.placeLabel)
+  const floodFor = useApp((s) => s.floodFor)
+  const block = useApp((s) => (s.floodFor ? s.blocks[s.floodFor] : undefined))
   const horizon = useApp((s) => s.rainHorizon)
   const units = useApp((s) => s.units)
   const now = useNow()
-  if (!enabled) return <LayerOff what="flood risk" id="flood" />
-  const agg = aggregate(blocks, (b) => b.flood)
-  const gridAgg = aggregate(blocks, (b) => b.grid)
-  const first = blocks.find((b) => b.flood.data)
-  const d = first
-    ? {
-        cells: blocks.flatMap((b) => b.flood.data?.cells ?? []),
-        horizonHours: first.flood.data!.horizonHours,
-        drainageAvailable: blocks.some((b) => b.flood.data?.drainageAvailable),
-        flowlineCount: blocks.reduce((n, b) => n + (b.flood.data?.flowlineCount ?? 0), 0),
-      }
-    : null
-  const fl = { error: blocks.find((b) => b.flowlines.error)?.flowlines.error ?? null }
-  const counts = d
-    ? FLOOD_STOPS.slice(1).map((s, i, arr) => ({
-        label: s.label,
-        color: s.color,
-        n: d.cells.filter((c) => c.risk >= s.value && (i + 1 >= arr.length || c.risk < arr[i + 1].value)).length,
-      }))
-    : []
-  const maxRain = d ? Math.max(0, ...d.cells.map((c) => c.rain24)) : 0
-  return (
-    <div className="panel">
-      <div className="panel-title">
-        <strong>Flood-risk screening</strong>
-        <AggFreshness a={agg} now={now} source="Derived: Open-Meteo rain + AWS terrain + USGS NHD" />
+  // Ask the controller for the place's finest block while this page is open.
+  const wantKey = place ? blockKey(blockAt(place.lngLat, 0)) : null
+  useEffect(() => {
+    store.set({ floodFor: wantKey })
+    return () => store.set({ floodFor: null })
+  }, [wantKey])
+  if (!place)
+    return (
+      <div className="panel-empty">
+        <p>Pick a place to screen it for flood risk.</p>
+        <button className="btn small" onClick={() => store.set({ pickerOpen: true })}>
+          Pick a place
+        </button>
       </div>
-      {!d ? (
-        <p className="muted">
-          {blocks.length === 0
-            ? 'Zoom in to a region to load forecast blocks.'
-            : agg.state === 'loading' || gridAgg.state === 'loading'
-              ? 'Computing terrain, drainage and rainfall…'
-              : (agg.error ?? gridAgg.error ?? 'Pick a location.')}
+    )
+  const d = block?.flood.data
+  const grid = block?.grid
+  const cells = d?.cells ?? []
+  const here = cells.length ? cells.reduce((best, c) => (haversine(c.center, place.lngLat) < haversine(best.center, place.lngLat) ? c : best)) : null
+  const riskLabel = (r: number) => [...FLOOD_STOPS].reverse().find((s) => r >= s.value)?.label ?? 'low'
+  const counts = FLOOD_STOPS.slice(1).map((s, i, arr) => ({ label: s.label, color: s.color, n: cells.filter((c) => c.risk >= s.value && (i + 1 >= arr.length || c.risk < arr[i + 1].value)).length }))
+  const name = (label ?? place.name).split(',')[0]
+  const showOnMap = () => {
+    store.set((s) => ({ layers: { ...s.layers, flood: true, rainfall: false, nowcast: false } }))
+    go('map')
+    const m = (window as unknown as { __map?: { easeTo: (o: object) => void } }).__map
+    m?.easeTo({ center: [place.lngLat.lng, place.lngLat.lat], zoom: 11, duration: 600 })
+  }
+  return (
+    <div className="panel flood-page">
+      {!here ? (
+        <p className="muted" aria-busy="true">
+          {block?.flood.error || grid?.error ? `Unavailable — ${block?.flood.error ?? grid?.error}` : floodFor && !block ? 'Preparing…' : 'Computing terrain, drainage and rainfall for this place…'}
         </p>
       ) : (
         <>
+          <div className={`card now-card flood-here risk-${riskLabel(here.risk)}`}>
+            <div className="cond-main">
+              <span className="cond-temp flood-word">{riskLabel(here.risk)[0].toUpperCase() + riskLabel(here.risk).slice(1)}</span>
+              <div className="cond-text">
+                <strong>at {name}</strong>
+                <span className="muted">
+                  {U.precip(here.rain24, units)} rain next {d!.horizonHours} h · {here.relElevation <= -2 ? 'low ground' : here.relElevation >= 2 ? 'high ground' : 'level ground'} ({here.relElevation >= 0 ? '+' : ''}
+                  {U.height(here.relElevation, units)} vs surroundings)
+                  {here.drainageDistM != null ? ` · ${U.distance(here.drainageDistM, units)} to a mapped stream` : ''}
+                </span>
+              </div>
+            </div>
+            <small className="muted cond-foot">Indicative screening, not an official flood warning · computed {timeAgo(d!.computedAt, now)}</small>
+          </div>
+          <div className="segmented small" role="radiogroup" aria-label="Rain horizon">
+            {([6, 12, 24, 48] as RainHorizon[]).map((h) => (
+              <button key={h} role="radio" aria-checked={horizon === h} className={horizon === h ? 'on' : ''} onClick={() => store.set({ rainHorizon: h, rainFrame: 0 })}>
+                next {h} h
+              </button>
+            ))}
+          </div>
+          <h4 className="strip-title">Around {name} (≈{U.distance(55_000, units)} box)</h4>
           <div className="stat-grid three">
             {counts.map((c) => (
               <div className="stat" key={c.label}>
@@ -245,17 +242,16 @@ export function FloodPanel() {
               </div>
             ))}
           </div>
-          {counts.every((c) => c.n === 0) && (
+          <button className="btn small" onClick={showOnMap}>
+            Show on the map
+          </button>
+          <details className="method">
+            <summary>How this is scored</summary>
             <p className="muted">
-              No cells reach the elevated threshold — the most rain forecast anywhere in the box over the next {d.horizonHours} h is {U.precip(maxRain, units)}.
+              Cells of ≈{U.distance(2300, units)} from: forecast rainfall over the horizon (Open-Meteo), elevation relative to the surroundings (AWS terrain tiles) and geodesic distance to mapped drainage (
+              {d!.drainageAvailable ? `${d!.flowlineCount} USGS NHD flowlines` : 'not available here — terrain + rain only'}). Rain gates everything; terrain and drainage modulate it. The horizon follows the Rain timeline.
             </p>
-          )}
-          <p className="muted">
-            Next <strong>{d.horizonHours} h</strong> across {agg.ready} forecast block{agg.ready === 1 ? '' : 's'} ({d.cells.length.toLocaleString()} cells of ≈{U.distance(2300, units)}–{U.distance(7000, units)}) from: forecast
-            rainfall (Open-Meteo), elevation relative to the surroundings (AWS terrain tiles) and geodesic distance to mapped drainage ({d.drainageAvailable ? `${d.flowlineCount} USGS NHD flowlines` : 'not available here — terrain + rain only'}).
-            {fl.error && !d.drainageAvailable ? ` ${fl.error}.` : ''} The horizon follows the Rainfall timeline (now {horizon} h). Indicative screening only — not an official
-            flood warning.
-          </p>
+          </details>
         </>
       )}
     </div>
