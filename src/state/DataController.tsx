@@ -453,8 +453,7 @@ export function DataController() {
           placeLabel: sc.from.name,
           focus: from.lngLat,
           journey: { ...s.journey, to: { name: sc.to.name, lngLat: { lng: sc.to.lng, lat: sc.to.lat }, source: 'search' }, departure: Date.parse(sc.departure), routes: { ...s.journey.routes, data: null, state: 'idle' }, weather: { ...s.journey.weather, data: null, state: 'idle' }, hazards: { ...s.journey.hazards, data: null, state: 'idle' }, road: { ...s.journey.road, data: null, state: 'idle' } },
-          tab: 'journey',
-          sheet: 'half',
+          screen: 'trip',
         }))
       })
       .catch((e) => toast(`Replay index failed: ${describeError(e)}`, 'error'))

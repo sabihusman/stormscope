@@ -1287,3 +1287,553 @@ small {
 .station-chips .chip-dry { border-left-color: #22c55e; }
 .station-chips .chip-unknown,
 .station-chips .chip-stale { border-left-color: #94a3b8; }
+
+/* =====================================================================
+   Conditions-first shell: bottom nav / rail, screens, Now cards, picker
+   ===================================================================== */
+:root {
+  --nav-h: 58px;
+  --rail-w: 64px;
+  --col-w: 400px;
+}
+.nav {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--nav-h) + var(--sab));
+  padding-bottom: var(--sab);
+  display: flex;
+  background: var(--panel-solid);
+  border-top: 1px solid var(--line);
+  z-index: 40;
+}
+.nav-item {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 11px;
+  position: relative;
+}
+.nav-item.on {
+  color: var(--accent);
+  font-weight: 700;
+}
+.nav-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.nav-badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 22px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--err);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+/* Map screen chrome sits above the nav. */
+.app.narrow.screen-map .sheet {
+  bottom: calc(var(--nav-h) + var(--sab));
+  padding-bottom: 0;
+}
+.app.narrow.screen-map .fab-stack {
+  bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-h) + 14px);
+}
+.app.narrow.screen-map .maplibregl-ctrl-bottom-left,
+.app.narrow.screen-map .maplibregl-ctrl-bottom-right {
+  bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-peek) + 4px) !important;
+}
+.app.narrow.screen-map .toast {
+  bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-h) + 16px);
+}
+
+/* Screens (Now / Trip / More) cover the map on a phone. */
+.screen {
+  position: absolute;
+  inset: 0 0 calc(var(--nav-h) + var(--sab)) 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(var(--sat) + 10px) calc(var(--sar) + 12px) 16px calc(var(--sal) + 12px);
+  background: var(--bg);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.screen-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.screen-head h2 {
+  margin: 0;
+  font-size: 20px;
+  flex: 1;
+}
+.banner.offline {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.place-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.place-row .place-chip {
+  height: 42px;
+}
+.chip-action {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.now-card {
+  padding: 12px 14px;
+}
+.now-card h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.now-card h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.now-card.quiet {
+  color: var(--muted);
+  font-size: 13px;
+}
+.now-card.err {
+  border-color: rgba(239, 68, 68, 0.5);
+  font-size: 13px;
+}
+.now-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.now-card.alert {
+  padding: 0;
+  border-width: 1px;
+}
+.now-card.alert summary {
+  list-style: none;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.now-card.alert summary::-webkit-details-marker {
+  display: none;
+}
+.alert-icon {
+  font-size: 20px;
+}
+.alert-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.alert-main small {
+  color: var(--muted);
+}
+.alert-body {
+  margin: 0 12px 10px;
+  font-size: 13px;
+  white-space: pre-line;
+}
+.sev-extreme,
+.sev-severe {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+.sev-moderate {
+  background: rgba(250, 204, 21, 0.14);
+  border-color: rgba(250, 204, 21, 0.55);
+}
+.sev-minor {
+  background: rgba(148, 163, 184, 0.12);
+}
+.cond-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cond-temp {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  flex: none;
+}
+.cond-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+.cond-text strong {
+  font-size: 16px;
+}
+.cond-observed {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+.cond-foot {
+  display: block;
+  margin-top: 6px;
+}
+.now-card.stale {
+  border-color: rgba(250, 204, 21, 0.5);
+}
+.hour-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.hour-strip::-webkit-scrollbar {
+  display: none;
+}
+.hour-strip li {
+  flex: none;
+  width: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.6);
+  font-size: 12px;
+}
+.hour-strip li:first-child {
+  border-color: var(--accent);
+}
+.hour-i {
+  font-size: 18px;
+}
+.hour-temp {
+  font-weight: 600;
+}
+.hour-p {
+  font-size: 10px;
+  min-height: 12px;
+}
+.link-row {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.08);
+  text-align: left;
+  font-size: 13px;
+}
+.now-map-window {
+  position: relative;
+  height: 180px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  background: rgba(30, 41, 59, 0.5);
+  flex: none;
+}
+.now-map-window .map-open {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 16;
+  pointer-events: none;
+}
+/* The live map positioned into the window on a phone. */
+.app.narrow.screen-now.has-map-window .map-root {
+  top: var(--mw-top);
+  left: var(--mw-left);
+  width: var(--mw-w);
+  height: var(--mw-h);
+  bottom: auto;
+  right: auto;
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 15;
+  pointer-events: none;
+}
+.app.narrow.screen-now .maplibregl-ctrl-top-right,
+.app.narrow.screen-now .maplibregl-ctrl-bottom-left,
+.app.narrow.screen-now .maplibregl-ctrl-bottom-right,
+.app.narrow:not(.screen-map) .wind-canvas {
+  display: none;
+}
+.app.narrow:not(.screen-map):not(.screen-now) .map-root {
+  visibility: hidden;
+}
+.now-actions {
+  display: flex;
+  gap: 8px;
+}
+.now-actions .btn {
+  flex: 1;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 13px;
+  min-height: 64px;
+}
+.tile > small:first-child {
+  color: var(--muted);
+}
+.warn-text {
+  color: var(--warn);
+}
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(30, 41, 59, 0.9);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.skeleton {
+  height: 12px;
+  margin: 6px 0;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.15), rgba(148, 163, 184, 0.3), rgba(148, 163, 184, 0.15));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.skeleton.tall {
+  height: 36px;
+}
+.skeleton.w40 { width: 40%; }
+.skeleton.w60 { width: 60%; }
+.skeleton.w80 { width: 80%; }
+.skeleton.w100 { width: 100%; height: 56px; }
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Place picker */
+.picker-overlay {
+  align-items: flex-end;
+}
+.picker-card {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 18px 18px 0 0;
+  padding: 14px 16px calc(var(--sab) + 16px);
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.picker-head h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.place-search {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.search-results.inline.recents li.muted {
+  padding: 6px 12px 2px;
+}
+.recents-row {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Pick-a-point mode */
+.app.picking .map-root {
+  cursor: crosshair;
+}
+.pick-ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);
+}
+.crosshair::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+.pick-actions {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--sab) + 16px);
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+.pick-actions .btn {
+  flex: 1;
+}
+
+/* More */
+.more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.more-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  text-align: left;
+}
+.more-icon {
+  font-size: 22px;
+}
+.more-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.page-body .panel {
+  padding: 0;
+}
+
+/* ---- Wide: rail + column + map ---- */
+.app.wide .nav {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: auto;
+  width: var(--rail-w);
+  height: auto;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: calc(var(--sat) + 12px);
+  border-top: 0;
+  border-right: 1px solid var(--line);
+  gap: 6px;
+}
+.app.wide .nav-item {
+  flex: none;
+  height: 60px;
+}
+.app.wide .screen {
+  left: var(--rail-w);
+  right: auto;
+  width: var(--col-w);
+  bottom: 0;
+  border-right: 1px solid var(--line);
+}
+.app.wide .map-root {
+  left: calc(var(--rail-w) + var(--col-w));
+}
+.app.wide.screen-map .map-root {
+  left: var(--rail-w);
+}
+.app.wide .now-map-window {
+  display: none;
+}
+.app.wide .topbar {
+  left: calc(var(--rail-w) + var(--col-w) + 10px);
+  right: 10px;
+}
+.app.wide.screen-map .topbar {
+  left: calc(var(--rail-w) + 10px);
+}
+.app.wide .legend,
+.app.wide .legend-chip {
+  left: calc(var(--rail-w) + var(--col-w) + 10px);
+}
+.app.wide.screen-map .legend,
+.app.wide.screen-map .legend-chip {
+  left: calc(var(--rail-w) + 10px);
+}
+.app.wide .sheet {
+  left: auto;
+  right: 12px;
+  bottom: 12px;
+  width: 400px;
+}
+.app.wide .pick-actions {
+  left: calc(var(--rail-w) + 12px);
+}
+
+/* Toasts sit above the nav on the content screens; the FAB hugs the map's own edge on wide layouts. */
+.app.narrow:not(.screen-map) .toast {
+  bottom: calc(var(--nav-h) + var(--sab) + 16px);
+}
+.app.wide:not(.screen-map) .fab-stack {
+  right: calc(var(--sar) + 12px);
+}
+.app.wide .toast {
+  left: calc(var(--rail-w) + var(--col-w) / 2);
+}

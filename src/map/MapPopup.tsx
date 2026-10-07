@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { timeAgo } from '../lib/time'
-import { setJourneyTo, store, useApp } from '../state/store'
+import { go, setJourneyTo, setPlace, store, useApp } from '../state/store'
 import { useNow } from '../hooks/useMisc'
 import { useMap } from './MapView'
 
@@ -83,35 +83,33 @@ export function MapPopup() {
         {sel.kind === 'point' && (
           <button
             className="btn small"
-            onClick={() => {
-              store.set({ place: { name: 'Map point', lngLat: sel.lngLat, source: 'map' }, selection: null })
-            }}
+            onClick={() => setPlace({ name: 'Map point', lngLat: sel.lngLat, source: 'map' })}
           >
-            Use as my location
+            Use as my place
           </button>
         )}
         {sel.kind === 'point' && (
           <button className="btn small" onClick={() => setJourneyTo({ name: `Map point ${sel.lngLat.lat.toFixed(3)}, ${sel.lngLat.lng.toFixed(3)}`, lngLat: sel.lngLat, source: 'map' })}>
-            Set as destination
+            Trip here
           </button>
         )}
         {sel.kind === 'gauge' && (
-          <button className="btn small" onClick={() => store.set({ tab: 'rivers', sheet: 'half', selection: null })}>
+          <button className="btn small" onClick={() => go('more', 'rivers')}>
             All gauges
           </button>
         )}
         {sel.kind === 'flood' && (
-          <button className="btn small" onClick={() => store.set({ tab: 'flood', sheet: 'half', selection: null })}>
+          <button className="btn small" onClick={() => go('more', 'flood')}>
             How this is scored
           </button>
         )}
         {sel.kind === 'station' && (
-          <button className="btn small" onClick={() => store.set({ tab: 'station', sheet: 'half', selection: null })}>
+          <button className="btn small" onClick={() => go('more', 'station')}>
             Full observation
           </button>
         )}
         {sel.kind === 'rain' && (
-          <button className="btn small" onClick={() => store.set({ tab: 'timeline', animLayer: 'rainfall', sheet: 'half', selection: null })}>
+          <button className="btn small" onClick={() => store.set({ animLayer: 'rainfall', sheet: 'half', selection: null })}>
             Scrub timeline
           </button>
         )}

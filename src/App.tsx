@@ -13,7 +13,7 @@ import { MapPopup } from './map/MapPopup'
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
 import { DataController } from './state/DataController'
-import { loadPlace, savePlace, store, toast, useApp, type LayerId } from './state/store'
+import { endPickOnMap, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
 import { useGeolocation } from './hooks/useGeolocation'
 import { haversine } from './lib/geo'
 import { WARM_CACHE_NO_REFETCH } from './lib/perfFlags'
@@ -23,6 +23,11 @@ import { LayerFab } from './components/LayerFab'
 import { Legend } from './components/Legend'
 import { BottomSheet } from './components/BottomSheet'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { Nav } from './components/Nav'
+import { NowScreen } from './components/NowScreen'
+import { TripScreen } from './components/TripScreen'
+import { MoreScreen } from './components/MoreScreen'
+import { PlacePicker } from './components/PlacePicker'
 
 /** A map layer boundary keyed on its toggle, so turning the layer on again retries it. */
 function LayerGuard({ name, layer, children }: { name: string; layer: LayerId; children: ReactNode }) {
@@ -34,14 +39,29 @@ function LayerGuard({ name, layer, children }: { name: string; layer: LayerId; c
   )
 }
 
+/** ≥ 768 px: left rail + content column + always-visible map. */
+function useWide() {
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 768px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const on = () => setWide(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return wide
+}
+
 export default function App() {
   const geo = useGeolocation()
-  const [searchOpen, setSearchOpen] = useState(false)
   const t = useApp((s) => s.toast)
   const place = useApp((s) => s.place)
   const sheet = useApp((s) => s.sheet)
   const fabCorner = useApp((s) => s.fabCorner)
   const journeyTo = useApp((s) => !!s.journey.to)
+  const screen = useApp((s) => s.screen)
+  const pickMode = useApp((s) => s.pickMode)
+  const pickerOpen = useApp((s) => s.pickerOpen)
+  const wide = useWide()
 
   // PWA update prompt.
   const { needRefresh, updateServiceWorker } = useRegisterSW({
@@ -76,14 +96,23 @@ export default function App() {
       // Same spot as last time (within 1 km): keep the resolved label instead of "Your location".
       const cur = store.get()
       const keep = cur.place && cur.placeLabel && haversine(cur.place.lngLat, geo.position) < 1000 ? cur.placeLabel : null
-      store.set({ place: { name: keep ?? 'Your location', lngLat: geo.position, source: 'geolocation' }, selection: null })
+      setPlace({ name: keep ?? 'Your location', lngLat: geo.position, source: 'geolocation' }, keep ?? undefined)
     }
   }, [geo.status, geo.position])
 
-  const showPrompt = !place && (geo.status === 'prompt' || geo.status === 'locating' || geo.status === 'denied' || geo.status === 'timeout' || geo.status === 'unavailable') && !searchOpen
+  const showPrompt = !place && (geo.status === 'prompt' || geo.status === 'locating' || geo.status === 'denied' || geo.status === 'timeout' || geo.status === 'unavailable') && !pickerOpen && !pickMode
+
+  const confirmPick = () => {
+    const m = (window as unknown as { __map?: { getCenter: () => { lng: number; lat: number } } }).__map
+    if (!m) return
+    const c = m.getCenter()
+    geo.dismiss()
+    setPlace({ name: 'Map point', lngLat: { lng: c.lng, lat: c.lat }, source: 'map' })
+    endPickOnMap(false)
+  }
 
   return (
-    <div className={`app sheet-${sheet} fab-${fabCorner}`}>
+    <div className={`app screen-${screen} sheet-${sheet} fab-${fabCorner} ${wide ? 'wide' : 'narrow'} ${pickMode ? 'picking' : ''}`}>
       <MapView>
         {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
         <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
@@ -100,26 +129,63 @@ export default function App() {
             <ErrorBoundary kind="layer" name="Route overlay"><RouteLayer /></ErrorBoundary>
           </Suspense>
         )}
-        <ErrorBoundary kind="layer" name="Map popup"><MapPopup /></ErrorBoundary>
+        {screen === 'map' && !pickMode && <ErrorBoundary kind="layer" name="Map popup"><MapPopup /></ErrorBoundary>}
       </MapView>
       <DataController />
 
-      <ErrorBoundary kind="panel" name="Search">
-        <SearchBar open={searchOpen} onOpen={() => setSearchOpen(true)} onClose={() => setSearchOpen(false)} onLocate={geo.request} locating={geo.status === 'locating'} />
-      </ErrorBoundary>
-      <ErrorBoundary kind="panel" name="Legend"><Legend /></ErrorBoundary>
-      <ErrorBoundary kind="panel" name="Layer menu"><LayerFab /></ErrorBoundary>
-      <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>
+      {/* Map screen chrome. On wide layouts the map is always visible, so its chrome stays too. */}
+      {(screen === 'map' || wide) && !pickMode && (
+        <>
+          <ErrorBoundary kind="panel" name="Search">
+            <SearchBar onLocate={geo.request} locating={geo.status === 'locating'} />
+          </ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Legend"><Legend /></ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Layer menu"><LayerFab /></ErrorBoundary>
+        </>
+      )}
+      {screen === 'map' && !pickMode && (
+        <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>
+      )}
+      {pickMode && (
+        <div className="pick-ui" role="group" aria-label="Pick a point on the map">
+          <div className="crosshair" aria-hidden="true" />
+          <div className="pick-actions">
+            <button className="btn" onClick={() => endPickOnMap(true)}>
+              Cancel
+            </button>
+            <button className="btn primary" onClick={confirmPick}>
+              Use this point
+            </button>
+          </div>
+        </div>
+      )}
+
+      {screen === 'now' && (
+        <ErrorBoundary kind="panel" name="Now">
+          <NowScreen onLocate={geo.request} locating={geo.status === 'locating'} />
+        </ErrorBoundary>
+      )}
+      {screen === 'trip' && (
+        <ErrorBoundary kind="panel" name="Trip"><TripScreen /></ErrorBoundary>
+      )}
+      {screen === 'more' && (
+        <ErrorBoundary kind="panel" name="More"><MoreScreen /></ErrorBoundary>
+      )}
+      <Nav />
+      <PlacePicker onLocate={geo.request} locating={geo.status === 'locating'} />
 
       {showPrompt && (
         <LocationPrompt
           status={geo.status}
           message={geo.message}
           onAllow={geo.request}
-          onSkip={geo.dismiss}
           onSearch={() => {
             geo.dismiss()
-            setSearchOpen(true)
+            store.set({ pickerOpen: true })
+          }}
+          onPickOnMap={() => {
+            geo.dismiss()
+            startPickOnMap()
           }}
         />
       )}

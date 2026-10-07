@@ -1,36 +1,23 @@
-import { lazy, Suspense, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNow, useOnline } from '../hooks/useMisc'
 import { timeAgo } from '../lib/time'
 import { haversine } from '../lib/geo'
-import { aggregate, store, useApp, useVisibleBlocks, type PanelTab, type SheetMode } from '../state/store'
+import { aggregate, store, useApp, useVisibleBlocks, type SheetMode } from '../state/store'
 import { Timeline } from './Timeline'
-import { FloodPanel, RiversPanel, SourcesPanel, StationPanel } from './Panels'
 import { ErrorBoundary } from './ErrorBoundary'
 
-// The journey panel (and the routing/hazard/road code behind it) loads when the tab is first opened.
-const JourneyPanel = lazy(() => import('./JourneyPanel').then((m) => ({ default: m.JourneyPanel })))
-
-const TABS: { id: PanelTab; label: string }[] = [
-  { id: 'timeline', label: 'Timeline' },
-  { id: 'journey', label: 'Journey' },
-  { id: 'station', label: 'Station' },
-  { id: 'rivers', label: 'Rivers' },
-  { id: 'flood', label: 'Flood' },
-  { id: 'sources', label: 'Sources' },
-]
 const ORDER: SheetMode[] = ['peek', 'half', 'full']
 const step = (m: SheetMode, d: 1 | -1): SheetMode => ORDER[Math.max(0, Math.min(ORDER.length - 1, ORDER.indexOf(m) + d))]
 
 /**
- * Collapsible bottom sheet. The map stays visible and interactive above it in every mode.
- * Collapsing works four ways on a phone: drag the handle down, tap the handle, tap the ▼ button
- * (pinned outside the scrolling tab row, so it is on screen at every width), or — when the
+ * The Map screen's sheet: the timeline control for the animated layer, with the map's data
+ * status strip. The map stays visible and interactive above it in every mode. Collapsing works
+ * four ways on a phone: drag the handle down, tap the handle, tap the ▼ button, or — when the
  * content is scrolled to its top — drag the content itself down. Expanding also pushes a
  * history entry so the browser/Android back gesture collapses the sheet instead of leaving.
  */
 export function BottomSheet() {
   const mode = useApp((s) => s.sheet)
-  const tab = useApp((s) => s.tab)
   const online = useOnline()
   const drag = useRef<{ id: number; y: number; t: number } | null>(null)
   const bodyTouch = useRef<{ y: number; x: number; top: number; done: boolean } | null>(null)
@@ -58,7 +45,6 @@ export function BottomSheet() {
       const dt = performance.now() - d.t
       const m = store.get().sheet
       if (Math.abs(dy) < 8 && dt < 400) {
-        // Tap: expanded → collapse, collapsed → open.
         setMode(m === 'peek' ? 'half' : 'peek')
         return
       }
@@ -100,7 +86,6 @@ export function BottomSheet() {
   useEffect(() => {
     const onPop = () => {
       if (poppingOurs.current) {
-        // The pop we asked for when the UI collapsed the sheet: nothing to do (the sheet may already be open again).
         poppingOurs.current = false
         return
       }
@@ -121,12 +106,12 @@ export function BottomSheet() {
     } else if (mode === 'peek' && pushed.current) {
       pushed.current = false
       poppingOurs.current = true
-      history.back() // consumes our entry; the popstate handler ignores this one
+      history.back()
     }
   }, [mode])
 
   return (
-    <section className={`sheet ${mode}`} aria-label="Details panel">
+    <section className={`sheet ${mode}`} aria-label="Timeline panel">
       <div
         className="sheet-handle"
         onPointerDown={onPointerDown}
@@ -142,19 +127,10 @@ export function BottomSheet() {
       >
         <span className="grabber" />
       </div>
-      <StatusStrip online={online} />
       <nav className="tabs">
-        <div className="tablist" role="tablist">
-          {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} onClick={() => store.set({ tab: t.id, sheet: mode === 'peek' ? 'half' : mode })}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <StatusStrip online={online} />
         <button
           className="icon-btn sheet-toggle"
-          // Pointer-up toggles directly: after a touch scroll/overscroll gesture Chromium can skip the
-          // synthesized click for the next tap; the click handler then dedupes against it.
           onPointerUp={(e) => {
             if (e.pointerType === 'mouse') return
             toggledAt.current = performance.now()
@@ -170,18 +146,8 @@ export function BottomSheet() {
         </button>
       </nav>
       <div className="sheet-body" hidden={mode === 'peek'} onTouchStart={onBodyTouchStart} onTouchMove={onBodyTouchMove} onTouchEnd={onBodyTouchEnd} onTouchCancel={onBodyTouchEnd}>
-        {/* Each panel is contained: a throw shows "unavailable — reason" + Retry here; tabs, handle and the map keep working. */}
-        <ErrorBoundary key={tab} kind="panel" name={TABS.find((t) => t.id === tab)?.label ?? 'Panel'}>
-          {tab === 'timeline' && <Timeline />}
-          {tab === 'journey' && (
-            <Suspense fallback={<p className="muted">Loading journey tools…</p>}>
-              <JourneyPanel />
-            </Suspense>
-          )}
-          {tab === 'station' && <StationPanel />}
-          {tab === 'rivers' && <RiversPanel />}
-          {tab === 'flood' && <FloodPanel />}
-          {tab === 'sources' && <SourcesPanel />}
+        <ErrorBoundary kind="panel" name="Timeline">
+          <Timeline />
         </ErrorBoundary>
       </div>
     </section>
@@ -199,15 +165,13 @@ function StatusStrip({ online }: { online: boolean }) {
     { k: 'Radar', r: s.radar, on: s.layers.radar },
     { k: 'Satellite', r: s.satellite, on: s.layers.satellite },
     { k: `Rain ${g.ready}/${g.total}`, r: rain, on: s.layers.rainfall || s.layers.flood || s.layers.nowcast },
-    { k: 'Rivers', r: s.rivers, on: s.layers.rivers },
-    { k: 'Station', r: s.station, on: s.layers.station },
   ].filter((i) => i.on)
   return (
-    <div className="status-strip" aria-live="polite">
-      {!online && <span className="pill offline">Offline — showing last saved data</span>}
+    <div className="status-strip tablist" aria-live="polite">
+      {!online && <span className="pill offline">Offline</span>}
       {following && (
-        <button className="pill follow" onClick={() => store.set((x) => ({ recenterNonce: x.recenterNonce + 1 }))} disabled={!s.place} title={s.place ? 'Back to my location' : undefined}>
-          Showing map area{s.place ? ' · back to my spot' : ''}
+        <button className="pill follow" onClick={() => store.set((x) => ({ recenterNonce: x.recenterNonce + 1 }))} disabled={!s.place} title={s.place ? 'Back to my place' : undefined}>
+          Showing map area{s.place ? ' · back to my place' : ''}
         </button>
       )}
       {items.map((i) => (
@@ -215,7 +179,6 @@ function StatusStrip({ online }: { online: boolean }) {
           {i.k} {i.r.freshness ? timeAgo(i.r.freshness.fetchedAt, now) : i.r.state === 'loading' ? '…' : i.r.error ? '!' : '—'}
         </span>
       ))}
-      {!s.place && !s.focus && <span className="pill">No location set — pan &amp; zoom in, or search</span>}
     </div>
   )
 }

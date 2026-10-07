@@ -39,7 +39,13 @@ export const emptyResource = <T>(): Resource<T> => ({ state: 'idle', data: null,
 
 export type FabCorner = 'br' | 'bl' | 'tl' | 'tr'
 export type SheetMode = 'peek' | 'half' | 'full'
-export type PanelTab = 'timeline' | 'journey' | 'station' | 'rivers' | 'flood' | 'sources'
+/** Top-level destinations (bottom nav on a phone, rail on wider screens). */
+export type Screen = 'now' | 'map' | 'trip' | 'more'
+export type MorePage = 'flood' | 'rivers' | 'station' | 'settings'
+export interface RecentPlace {
+  name: string
+  lngLat: LngLat
+}
 export type AnimLayer = 'radar' | 'satellite' | 'rainfall' | 'nowcast'
 
 export interface Selection {
@@ -134,8 +140,17 @@ export interface AppState {
   nowcastFrame: number
   playing: boolean
 
+  /** Map details sheet (timeline / point details). */
   sheet: SheetMode
-  tab: PanelTab
+  screen: Screen
+  /** Page inside More, or null for the list. */
+  morePage: MorePage | null
+  /** The shared place picker (use my location / search / pick on map). */
+  pickerOpen: boolean
+  /** Map "pick a point" mode: crosshair + confirm; `pickReturn` is where to go afterwards. */
+  pickMode: boolean
+  pickReturn: Screen
+  recentPlaces: RecentPlace[]
   legendOpen: boolean
   selection: Selection | null
   toast: { id: number; text: string; kind: 'info' | 'warn' | 'error' } | null
@@ -211,8 +226,19 @@ export const store = createStore<AppState>({
   nowcastFrame: 0,
   playing: false,
   sheet: 'peek',
-  tab: 'timeline',
-  legendOpen: true,
+  screen: 'now',
+  morePage: null,
+  pickerOpen: false,
+  pickMode: false,
+  pickReturn: 'now',
+  recentPlaces: ((): RecentPlace[] => {
+    try {
+      return JSON.parse(localStorage.getItem('stormscope.recent') ?? '[]') as RecentPlace[]
+    } catch {
+      return []
+    }
+  })(),
+  legendOpen: false,
   selection: null,
   toast: null,
   layerErrors: {},
@@ -339,7 +365,37 @@ export function setLayer(id: LayerId, on: boolean) {
 }
 
 export function setJourneyTo(to: Place) {
-  store.set((s) => ({ journey: { ...s.journey, to, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0 }, tab: 'journey', sheet: s.sheet === 'peek' ? 'half' : s.sheet }))
+  store.set((s) => ({ journey: { ...s.journey, to, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0 }, screen: 'trip', selection: null }))
+}
+
+/** Navigate. `more` pages take the current place as their input. */
+export function go(screen: Screen, morePage: MorePage | null = null) {
+  store.set((s) => ({ screen, morePage: screen === 'more' ? morePage : s.morePage, pickerOpen: false, selection: screen === 'map' ? s.selection : null, playing: screen === 'map' ? s.playing : false }))
+}
+
+/** Set the place from any picker path and remember it in recents (search/map picks only). */
+export function setPlace(place: Place, label?: string) {
+  store.set((s) => {
+    const name = label ?? place.name
+    let recentPlaces = s.recentPlaces
+    if (place.source !== 'geolocation') {
+      recentPlaces = [{ name, lngLat: place.lngLat }, ...s.recentPlaces.filter((r) => r.name !== name)].slice(0, 5)
+      try {
+        localStorage.setItem('stormscope.recent', JSON.stringify(recentPlaces))
+      } catch {
+        /* ignore */
+      }
+    }
+    return { place, placeLabel: label ?? (place.source === 'search' ? place.name : s.placeLabel), selection: null, pickerOpen: false, pickMode: false, recentPlaces }
+  })
+}
+
+/** Enter "pick a point on the map": the map screen shows a crosshair and a confirm button. */
+export function startPickOnMap() {
+  store.set((s) => ({ pickMode: true, pickReturn: s.screen === 'map' ? 'now' : s.screen, screen: 'map', pickerOpen: false, selection: null }))
+}
+export function endPickOnMap(cancel: boolean) {
+  store.set((s) => ({ pickMode: false, screen: cancel ? s.pickReturn : s.pickReturn === 'map' ? 'now' : s.pickReturn }))
 }
 export function setDeparture(ms: number) {
   store.set((s) => ({ journey: { ...s.journey, departure: ms } }))
