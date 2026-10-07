@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { useNow, useOnline } from '../hooks/useMisc'
+import { useNow, useOnline, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
+import { floodHere, floodKeyFor, riskWord } from '../lib/floodHere'
 import { clock, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
 import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
-import { go, startPickOnMap, store, useApp } from '../state/store'
+import { go, setLayer, startPickOnMap, store, useApp, wantFlood } from '../state/store'
 import type { NwsAlert } from '../types'
 import { PlaceRow } from './PlaceRow'
 
@@ -177,9 +178,12 @@ function HourlyCard() {
   const h = r.data?.hourly ?? []
   const next12 = h.slice(0, 12)
   const rain24 = h.slice(0, 24).reduce((a, x) => a + (x.precipMm ?? 0), 0)
+  const wide = useWide()
+  // Opens the Map with the playback bar running over the next 24 h (on wide layouts the map is already beside this card).
   const openTimeline = () => {
-    store.set((s) => ({ layers: { ...s.layers, rainfall: true }, animLayer: 'rainfall', sheet: 'half' }))
-    go('map')
+    if (!store.get().layers.rainfall) setLayer('rainfall', true)
+    store.set({ rainHorizon: 24, playing: true, playTime: null })
+    if (!wide) go('map')
   }
   return (
     <div className="card now-card hourly">
@@ -271,21 +275,44 @@ function Tiles() {
   const station = useApp((s) => s.station)
   const units = useApp((s) => s.units)
   const now = useNow()
-  // Gauges are fetched only while this tile is on screen (or the Rivers page / map layer shows them).
+  // Gauges and the flood screening are fetched only while these tiles are on screen (or their pages / map layers show them).
   const riversTile = useRef<HTMLButtonElement>(null)
+  const floodTile = useRef<HTMLButtonElement>(null)
+  const place = useApp((s) => s.place)
+  const label = useApp((s) => s.placeLabel)
+  const floodKey = place ? floodKeyFor(place.lngLat) : null
+  const flood = useApp((s) => (floodKey ? s.blocks[floodKey]?.flood : undefined))
   useEffect(() => {
     const el = riversTile.current
-    if (!el || typeof IntersectionObserver === 'undefined') {
+    const fl = floodTile.current
+    if (!el || !fl || typeof IntersectionObserver === 'undefined') {
       store.set({ riversTileVisible: true })
-      return () => store.set({ riversTileVisible: false })
+      wantFlood('tile', floodKey)
+      return () => {
+        store.set({ riversTileVisible: false })
+        wantFlood('tile', null)
+      }
     }
-    const io = new IntersectionObserver(([e]) => store.set({ riversTileVisible: e.isIntersecting }), { threshold: 0.5 })
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.target === el) store.set({ riversTileVisible: e.isIntersecting })
+          if (e.target === fl) wantFlood('tile', e.isIntersecting ? floodKey : null)
+        }
+      },
+      { threshold: 0.5 },
+    )
     io.observe(el)
+    io.observe(fl)
     return () => {
       io.disconnect()
       store.set({ riversTileVisible: false })
+      wantFlood('tile', null)
     }
-  }, [])
+  }, [floodKey])
+  const here = place ? floodHere(flood, place.lngLat) : null
+  const placeName = (label ?? place?.name ?? '').split(',')[0]
+  const floodLine = here ? `${riskWord(here.risk)} at ${placeName}` : flood?.error ? flood.error : place ? 'computing…' : 'for this place ›'
   const high = rivers.data?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
   const what = tier === 'full' ? 'gauges' : 'NOAA gauges'
   const riversLine = rivers.data
@@ -304,9 +331,9 @@ function Tiles() {
         <small>📈 Rivers</small>
         <span className={high ? 'warn-text' : ''}>{riversLine}</span>
       </button>
-      <button className="card tile" onClick={() => go('more', 'flood')}>
+      <button className={`card tile ${here ? `risk-${riskWord(here.risk).toLowerCase()}` : ''}`} ref={floodTile} onClick={() => go('more', 'flood')}>
         <small>🌊 Flood risk</small>
-        <span>for this place ›</span>
+        <span className={here && here.risk >= 0.5 ? 'warn-text' : ''}>{floodLine}</span>
       </button>
       <button className="card tile" onClick={() => go('more', 'station')}>
         <small>🌡 Station</small>

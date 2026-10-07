@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { FLOOD_CATEGORY_COLORS, FLOOD_CATEGORY_LABELS, FLOOD_STOPS } from '../lib/colors'
-import { blockAt, blockKey } from '../lib/blocks'
+import { floodHere, floodKeyFor, riskLabel, riskWord } from '../lib/floodHere'
 import type { RainHorizon } from '../types'
 import { haversine } from '../lib/geo'
 import { timeAgo } from '../lib/time'
@@ -8,7 +8,7 @@ import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
 import { describeGauge, RISK_COLORS } from '../map/RiversLayer'
-import { aggregate, go, setUnits, store, useApp, useVisibleBlocks, type Block } from '../state/store'
+import { aggregate, go, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/openMeteo'
 import type { Resource } from '../types'
@@ -174,10 +174,10 @@ export function FloodPanel() {
   const units = useApp((s) => s.units)
   const now = useNow()
   // Ask the controller for the place's finest block while this page is open.
-  const wantKey = place ? blockKey(blockAt(place.lngLat, 0)) : null
+  const wantKey = place ? floodKeyFor(place.lngLat) : null
   useEffect(() => {
-    store.set({ floodFor: wantKey })
-    return () => store.set({ floodFor: null })
+    wantFlood('panel', wantKey)
+    return () => wantFlood('panel', null)
   }, [wantKey])
   if (!place)
     return (
@@ -191,8 +191,7 @@ export function FloodPanel() {
   const d = block?.flood.data
   const grid = block?.grid
   const cells = d?.cells ?? []
-  const here = cells.length ? cells.reduce((best, c) => (haversine(c.center, place.lngLat) < haversine(best.center, place.lngLat) ? c : best)) : null
-  const riskLabel = (r: number) => [...FLOOD_STOPS].reverse().find((s) => r >= s.value)?.label ?? 'low'
+  const here = floodHere(block?.flood, place.lngLat)
   const counts = FLOOD_STOPS.slice(1).map((s, i, arr) => ({ label: s.label, color: s.color, n: cells.filter((c) => c.risk >= s.value && (i + 1 >= arr.length || c.risk < arr[i + 1].value)).length }))
   const name = (label ?? place.name).split(',')[0]
   const showOnMap = () => {
@@ -211,7 +210,7 @@ export function FloodPanel() {
         <>
           <div className={`card now-card flood-here risk-${riskLabel(here.risk)}`}>
             <div className="cond-main">
-              <span className="cond-temp flood-word">{riskLabel(here.risk)[0].toUpperCase() + riskLabel(here.risk).slice(1)}</span>
+              <span className="cond-temp flood-word">{riskWord(here.risk)}</span>
               <div className="cond-text">
                 <strong>at {name}</strong>
                 <span className="muted">
