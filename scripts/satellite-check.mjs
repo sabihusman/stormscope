@@ -5,7 +5,7 @@ import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 // --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
 const MOCK = process.argv.includes('--mock')
-assertBudget(MOCK ? 'satellite-check.mjs (mock)' : 'satellite-check.mjs', { openMeteo: false })
+assertBudget(MOCK ? 'satellite-check.mjs (mock)' : 'satellite-check.mjs', { openMeteo: !MOCK }) // the Now screen fetches one Open-Meteo location per place on every load
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
