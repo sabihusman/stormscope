@@ -119,6 +119,10 @@ export interface AppState {
   satProduct: SatProduct
   satFrame: number
   rivers: Resource<RiverGauge[]>
+  /** What `rivers` holds: 'summary' = NOAA forecast points with flood category (one request); 'full' = plus flood-stage thresholds and USGS sites (the Rivers page). */
+  riversTier: 'summary' | 'full' | null
+  /** The Now screen's Rivers tile is on screen (gauges are only loaded while something shows them). */
+  riversTileVisible: boolean
   station: Resource<StationObs>
   /** Current conditions + 48 h hourly for the place (the Now screen). */
   conditions: Resource<PlaceForecast>
@@ -217,6 +221,8 @@ export const store = createStore<AppState>({
   })(),
   satFrame: 0,
   rivers: emptyResource(),
+  riversTier: null,
+  riversTileVisible: false,
   station: emptyResource(),
   conditions: emptyResource(),
   alerts: emptyResource(),

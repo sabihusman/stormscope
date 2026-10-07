@@ -46,7 +46,7 @@ function MoreList() {
   const high = rivers.data?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
   const sub: Record<NonNullable<MorePage>, string> = {
     flood: 'Screening for a place: rain + terrain + drainage',
-    rivers: rivers.data ? (high ? `${high} of ${rivers.data.length} gauges high` : `${rivers.data.length} gauges nearby`) : rivers.state === 'loading' ? 'loading…' : 'not loaded',
+    rivers: rivers.data ? (high ? `${high} of ${rivers.data.length} gauges high` : `${rivers.data.length} gauges nearby`) : rivers.state === 'loading' ? 'loading…' : 'Gauges and flood stages nearby',
     station: station.data ? `${station.data.name} · ${timeAgo(station.data.observedAt, now)}` : station.state === 'loading' ? 'loading…' : 'not loaded',
     settings: `${units === 'imperial' ? 'Imperial' : 'Metric'} · motion · data budget`,
   }

@@ -3,8 +3,8 @@ import { fetchRadar, RAINVIEWER_URL } from '../api/rainviewer'
 import { fetchSatFrames, GIBS_WMTS, SAT_LAYERS, satelliteFor } from '../api/gibs'
 import { fetchHourlyGrid, fetchOpenMeteoCurrent, fetchPlaceForecast, OPEN_METEO_URL } from '../api/openMeteo'
 import { fetchFlowlines, NHD_URL } from '../api/nhd'
-import { fetchNwpsDetails, fetchNwpsGauges, NWPS_URL, nwpsValid } from '../api/nwps'
-import { fetchUsgsLatest, fetchUsgsNames, fetchUsgsRecentMedianFlow, USGS_OGC } from '../api/usgsWater'
+import { fetchNwpsDetails, fetchNwpsGauges, NWPS_URL, nwpsValid, type NwpsGaugeDetail, type NwpsGaugeSummary } from '../api/nwps'
+import { fetchUsgsLatest, fetchUsgsNames, fetchUsgsRecentMedianFlow, USGS_OGC, type UsgsLatest } from '../api/usgsWater'
 import { fetchActiveAlerts, fetchNwsNearestObservation, NWS_URL, OutsideNwsCoverage } from '../api/nws'
 import { reverseGeocode } from '../api/geocode'
 import type { RouteResult } from '../api/routing'
@@ -18,8 +18,9 @@ import { bboxAround, haversine, inBBox, type LngLat } from '../lib/geo'
 import { MIN } from '../lib/time'
 import { blockCenter, blockGridSpec, FLOOD_N, NOWCAST_N, TERRAIN_Z } from '../lib/blocks'
 import { usePolling } from '../hooks/usePolling'
+import { useWide } from '../hooks/useMisc'
 import { geoWorker } from '../workers/client'
-import { applyImageryCarry, nearestFrame, newBlock, patchJourney, setResource, store, toast, updateBlock, useApp, type Block } from './store'
+import { applyImageryCarry, emptyResource, nearestFrame, newBlock, patchJourney, setResource, store, toast, updateBlock, useApp, type Block } from './store'
 import type { AlertsData, Resource, RiverGauge } from '../types'
 
 // Refresh cadences (ms).
@@ -62,6 +63,123 @@ function failed<T>(prev: Resource<T>, e: unknown): Resource<T> {
 function loading<T>(prev: Resource<T>): Resource<T> {
   // A retry with no data yet keeps the last error visible (e.g. "Rate limited") instead of a blank spinner.
   return { ...prev, state: prev.data ? 'ready' : 'loading', error: prev.data ? null : prev.error }
+}
+
+// ---- Rivers: NOAA NWPS + USGS, in two tiers ----
+// 'summary' = one NWPS bbox request: the nearest 20 forecast points with their observed/forecast flood
+// category — enough for the Now tile ("N gauges, M high") and the map dots. 'full' = plus one NWPS
+// detail request per gauge (flood-stage thresholds + USGS id; cached per gauge for the session) and
+// three USGS bbox requests (latest readings, site names, 10-day medians) for the USGS-only sites —
+// only the Rivers page shows those. NWPS has no area query for the thresholds: in the v1 swagger
+// (/nwps/v1/docs/swagger.json) the /gauges list carries `status` only, and /gauges/{id} is the sole
+// source of `flood.categories` and `usgsId`; POST /gauges/raag returns flood statements, not stages.
+export type RiversTier = 'summary' | 'full'
+const NWPS_NEAREST = 20
+function nwpsGauge(g: NwpsGaugeSummary, d: NwpsGaugeDetail | undefined, usgsById: Map<string, UsgsLatest>): RiverGauge {
+  const obs = g.status?.observed
+  const usgsId = d?.usgsId ? `USGS-${d.usgsId}` : undefined
+  const u = usgsId ? usgsById.get(usgsId) : undefined
+  const cats = d?.flood?.categories
+  return {
+    id: g.lid,
+    lid: g.lid,
+    usgsId,
+    name: g.name,
+    lngLat: { lng: g.longitude, lat: g.latitude },
+    floodCategory: obs?.floodCategory ?? 'unknown',
+    stage: obs && nwpsValid(obs.primary) ? { value: obs.primary, unit: obs.primaryUnit, time: Date.parse(obs.validTime) } : u?.stage,
+    flow: u?.flow ?? (obs && nwpsValid(obs.secondary) ? { value: obs.secondary * 1000, unit: 'ft^3/s', time: Date.parse(obs.validTime) } : undefined),
+    categories: cats
+      ? {
+          action: nwpsValid(cats.action?.stage) ? cats.action.stage : undefined,
+          minor: nwpsValid(cats.minor?.stage) ? cats.minor.stage : undefined,
+          moderate: nwpsValid(cats.moderate?.stage) ? cats.moderate.stage : undefined,
+          major: nwpsValid(cats.major?.stage) ? cats.major.stage : undefined,
+          unit: d?.flood?.stageUnits ?? 'ft',
+        }
+      : undefined,
+    forecast:
+      g.status?.forecast && nwpsValid(g.status.forecast.primary)
+        ? { value: g.status.forecast.primary, unit: g.status.forecast.primaryUnit, time: Date.parse(g.status.forecast.validTime), floodCategory: g.status.forecast.floodCategory }
+        : undefined,
+    riskLevel: 'unknown',
+    sources: ['NOAA NWPS', ...(u ? ['USGS'] : [])],
+  }
+}
+function classifyRisk(g: RiverGauge) {
+  const c = g.floodCategory
+  if (c === 'major' || c === 'moderate' || c === 'minor') g.riskLevel = 'flooding'
+  else if (c === 'action') g.riskLevel = 'high'
+  else if (g.categories?.minor && g.stage && g.stage.value >= g.categories.minor * 0.75) g.riskLevel = 'elevated'
+  else if (g.flowRatio != null) g.riskLevel = g.flowRatio >= 3 ? 'high' : g.flowRatio >= 1.75 ? 'elevated' : 'normal'
+  else if (c === 'no_flooding') g.riskLevel = 'normal'
+  // Stale readings shouldn't claim "normal".
+  const t = g.stage?.time ?? g.flow?.time
+  if (t && Date.now() - t > 12 * 3600_000 && g.riskLevel === 'normal') g.riskLevel = 'unknown'
+}
+const nearestNwps = (at: LngLat, nwps: NwpsGaugeSummary[]) =>
+  nwps
+    .map((g) => ({ g, d: haversine(at, { lng: g.longitude, lat: g.latitude }) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, NWPS_NEAREST)
+    .map((x) => x.g)
+/** Loads one tier for a place; `nwpsList` reuses the summary tier's list when upgrading to full. */
+async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSummary[]): Promise<{ resource: Resource<RiverGauge[]>; nwps: NwpsGaugeSummary[] }> {
+  const bbox = bboxAround(at, RIVER_RADIUS_M)
+  const byDistance = (gs: Iterable<RiverGauge>) => [...gs].sort((a, b) => haversine(at, a.lngLat) - haversine(at, b.lngLat))
+  if (tier === 'summary') {
+    const nwps = nwpsList ?? (await fetchNwpsGauges(bbox))
+    const gauges = nearestNwps(at, nwps).map((g) => nwpsGauge(g, undefined, new Map()))
+    gauges.forEach(classifyRisk)
+    return { resource: ready(byDistance(gauges), 'NOAA NWPS', NWPS_URL), nwps }
+  }
+  const [nwpsRes, usgsRes] = await Promise.allSettled([nwpsList ? Promise.resolve(nwpsList) : fetchNwpsGauges(bbox), fetchUsgsLatest(bbox)])
+  if (nwpsRes.status === 'rejected' && usgsRes.status === 'rejected') throw nwpsRes.reason
+  const nwps = nwpsRes.status === 'fulfilled' ? nwpsRes.value : []
+  const usgs = usgsRes.status === 'fulfilled' ? usgsRes.value : []
+  // One source down is still a usable (but partial) list — say so in the source line
+  // instead of presenting it as the full USGS + NWPS picture.
+  const sourceLabel =
+    nwpsRes.status === 'rejected'
+      ? `USGS Water Data only (NOAA NWPS unavailable: ${describeError(nwpsRes.reason)})`
+      : usgsRes.status === 'rejected'
+        ? `NOAA NWPS only (USGS Water Data unavailable: ${describeError(usgsRes.reason)})`
+        : 'USGS Water Data + NOAA NWPS'
+  // Nearest 20 NWPS gauges get full detail (flood categories + USGS id).
+  const near = nearestNwps(at, nwps)
+  const details = await fetchNwpsDetails(near.map((g) => g.lid))
+  const gauges = new Map<string, RiverGauge>()
+  const usgsById = new Map(usgs.map((u) => [u.usgsId, u]))
+  for (const g of near) {
+    const rg = nwpsGauge(g, details.get(g.lid), usgsById)
+    gauges.set(rg.id, rg)
+    if (rg.usgsId) usgsById.delete(rg.usgsId)
+  }
+  // USGS-only sites (no NOAA forecast point): nearest 25.
+  const names = await fetchUsgsNames(bbox).catch(() => new Map<string, { name: string; type: string }>())
+  const usgsOnly = [...usgsById.values()]
+    .filter((u) => u.flow || u.stage)
+    .map((u) => ({ u, d: haversine(at, u.lngLat) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 25)
+  const medians = await fetchUsgsRecentMedianFlow(bbox, usgsOnly.filter((x) => x.u.flow).map((x) => x.u.usgsId), 10).catch(() => new Map<string, number>())
+  for (const { u } of usgsOnly) {
+    const med = medians.get(u.usgsId)
+    gauges.set(u.usgsId, {
+      id: u.usgsId,
+      usgsId: u.usgsId,
+      name: names.get(u.usgsId)?.name ?? u.usgsId,
+      lngLat: u.lngLat,
+      stage: u.stage,
+      flow: u.flow,
+      floodCategory: 'not_defined',
+      flowRatio: med && u.flow ? u.flow.value / Math.max(med, 0.01) : undefined,
+      riskLevel: 'unknown',
+      sources: ['USGS'],
+    })
+  }
+  for (const g of gauges.values()) classifyRisk(g)
+  return { resource: ready(byDistance(gauges.values()), sourceLabel, `${USGS_OGC} · ${NWPS_URL}`), nwps }
 }
 
 /** Headless component: owns every fetch, cadence and worker job. */
@@ -619,129 +737,56 @@ export function DataController() {
     return () => clearInterval(t)
   }, [])
 
-  // ---- Rivers: NOAA NWPS + USGS ----
+  // ---- Rivers: loaded only while something shows gauges, cached per place ----
+  // Full tier on the Rivers page; summary tier while the Now tile is on screen or the map's rivers
+  // layer is visible; nothing otherwise — a place change by itself costs no gauge request.
+  const screen = useApp((s) => s.screen)
+  const morePage = useApp((s) => s.morePage)
+  const riversTileVisible = useApp((s) => s.riversTileVisible)
+  const wide = useWide()
+  const riversNeed: RiversTier | null =
+    screen === 'more' && morePage === 'rivers' ? 'full' : (screen === 'now' && riversTileVisible) || ((screen === 'map' || wide) && layers.rivers) ? 'summary' : null
+  const riversCache = useRef(new Map<string, { tier: RiversTier; at: number; resource: Resource<RiverGauge[]>; nwps: NwpsGaugeSummary[] }>())
+  const riversNonce = useRef(nonce)
+  // A new place shows what is cached for it (or nothing) until something asks for gauges.
+  useEffect(() => {
+    const c = riversCache.current.get(placeKey)
+    store.set({ rivers: c?.resource ?? emptyResource(), riversTier: c?.tier ?? null })
+  }, [placeKey])
   usePolling(
     async () => {
       const at = place?.lngLat
-      if (!at) return
+      const need = riversNeed
+      if (!at || !need) return
+      if (riversNonce.current !== nonce) {
+        riversNonce.current = nonce
+        riversCache.current.clear()
+      }
+      const cached = riversCache.current.get(placeKey)
+      const fresh = cached && Date.now() - cached.at < REFRESH.rivers
+      if (fresh && (cached.tier === 'full' || need === 'summary')) {
+        store.set({ rivers: cached.resource, riversTier: cached.tier })
+        return
+      }
       const prev = store.get().rivers
       setResource('rivers', loading(prev))
-      const bbox = bboxAround(at, RIVER_RADIUS_M)
-      const us = likelyUS(at)
-      if (!us) {
-        setResource('rivers', {
-          ...ready([] as RiverGauge[], 'USGS / NOAA NWPS', NWPS_URL),
-          error: 'River gauges (USGS/NOAA) are only available in the US',
-        })
+      if (!likelyUS(at)) {
+        const resource = { ...ready([] as RiverGauge[], 'USGS / NOAA NWPS', NWPS_URL), error: 'River gauges (USGS/NOAA) are only available in the US' }
+        riversCache.current.set(placeKey, { tier: 'full', at: Date.now(), resource, nwps: [] })
+        store.set({ rivers: resource, riversTier: 'full' })
         return
       }
       try {
-        const [nwpsRes, usgsRes] = await Promise.allSettled([fetchNwpsGauges(bbox), fetchUsgsLatest(bbox)])
-        if (nwpsRes.status === 'rejected' && usgsRes.status === 'rejected') throw nwpsRes.reason
-        const nwps = nwpsRes.status === 'fulfilled' ? nwpsRes.value : []
-        const usgs = usgsRes.status === 'fulfilled' ? usgsRes.value : []
-        // One source down is still a usable (but partial) list — say so in the source line
-        // instead of presenting it as the full USGS + NWPS picture.
-        const sourceLabel =
-          nwpsRes.status === 'rejected'
-            ? `USGS Water Data only (NOAA NWPS unavailable: ${describeError(nwpsRes.reason)})`
-            : usgsRes.status === 'rejected'
-              ? `NOAA NWPS only (USGS Water Data unavailable: ${describeError(usgsRes.reason)})`
-              : 'USGS Water Data + NOAA NWPS'
-
-        // Nearest 20 NWPS gauges get full detail (flood categories + USGS id).
-        const near = nwps
-          .map((g) => ({ g, d: haversine(at, { lng: g.longitude, lat: g.latitude }) }))
-          .sort((a, b) => a.d - b.d)
-          .slice(0, 20)
-        const details = await fetchNwpsDetails(near.map((n) => n.g.lid))
-        const gauges = new Map<string, RiverGauge>()
-        const usgsById = new Map(usgs.map((u) => [u.usgsId, u]))
-
-        for (const { g } of near) {
-          const d = details.get(g.lid)
-          const obs = g.status?.observed
-          const cat = obs?.floodCategory ?? 'unknown'
-          const usgsId = d?.usgsId ? `USGS-${d.usgsId}` : undefined
-          const u = usgsId ? usgsById.get(usgsId) : undefined
-          const cats = d?.flood?.categories
-          const rg: RiverGauge = {
-            id: g.lid,
-            lid: g.lid,
-            usgsId,
-            name: g.name,
-            lngLat: { lng: g.longitude, lat: g.latitude },
-            floodCategory: cat,
-            stage: obs && nwpsValid(obs.primary) ? { value: obs.primary, unit: obs.primaryUnit, time: Date.parse(obs.validTime) } : u?.stage,
-            flow: u?.flow ?? (obs && nwpsValid(obs.secondary) ? { value: obs.secondary * 1000, unit: 'ft^3/s', time: Date.parse(obs.validTime) } : undefined),
-            categories: cats
-              ? {
-                  action: nwpsValid(cats.action?.stage) ? cats.action.stage : undefined,
-                  minor: nwpsValid(cats.minor?.stage) ? cats.minor.stage : undefined,
-                  moderate: nwpsValid(cats.moderate?.stage) ? cats.moderate.stage : undefined,
-                  major: nwpsValid(cats.major?.stage) ? cats.major.stage : undefined,
-                  unit: d?.flood?.stageUnits ?? 'ft',
-                }
-              : undefined,
-            forecast:
-              g.status?.forecast && nwpsValid(g.status.forecast.primary)
-                ? {
-                    value: g.status.forecast.primary,
-                    unit: g.status.forecast.primaryUnit,
-                    time: Date.parse(g.status.forecast.validTime),
-                    floodCategory: g.status.forecast.floodCategory,
-                  }
-                : undefined,
-            riskLevel: 'unknown',
-            sources: ['NOAA NWPS', ...(u ? ['USGS'] : [])],
-          }
-          gauges.set(rg.id, rg)
-          if (usgsId) usgsById.delete(usgsId)
-        }
-        // USGS-only sites (no NOAA forecast point): nearest 25.
-        const names = await fetchUsgsNames(bbox).catch(() => new Map<string, { name: string; type: string }>())
-        const usgsOnly = [...usgsById.values()]
-          .filter((u) => u.flow || u.stage)
-          .map((u) => ({ u, d: haversine(at, u.lngLat) }))
-          .sort((a, b) => a.d - b.d)
-          .slice(0, 25)
-        const medians = await fetchUsgsRecentMedianFlow(bbox, usgsOnly.filter((x) => x.u.flow).map((x) => x.u.usgsId), 10).catch(() => new Map<string, number>())
-        for (const { u } of usgsOnly) {
-          const med = medians.get(u.usgsId)
-          gauges.set(u.usgsId, {
-            id: u.usgsId,
-            usgsId: u.usgsId,
-            name: names.get(u.usgsId)?.name ?? u.usgsId,
-            lngLat: u.lngLat,
-            stage: u.stage,
-            flow: u.flow,
-            floodCategory: 'not_defined',
-            flowRatio: med && u.flow ? u.flow.value / Math.max(med, 0.01) : undefined,
-            riskLevel: 'unknown',
-            sources: ['USGS'],
-          })
-        }
-        // Risk classification.
-        for (const g of gauges.values()) {
-          const c = g.floodCategory
-          if (c === 'major' || c === 'moderate' || c === 'minor') g.riskLevel = 'flooding'
-          else if (c === 'action') g.riskLevel = 'high'
-          else if (g.categories?.minor && g.stage && g.stage.value >= g.categories.minor * 0.75) g.riskLevel = 'elevated'
-          else if (g.flowRatio != null) g.riskLevel = g.flowRatio >= 3 ? 'high' : g.flowRatio >= 1.75 ? 'elevated' : 'normal'
-          else if (c === 'no_flooding') g.riskLevel = 'normal'
-          // Stale readings shouldn't claim "normal".
-          const t = g.stage?.time ?? g.flow?.time
-          if (t && Date.now() - t > 12 * 3600_000 && g.riskLevel === 'normal') g.riskLevel = 'unknown'
-        }
-        const list = [...gauges.values()].sort((a, b) => haversine(at, a.lngLat) - haversine(at, b.lngLat))
-        setResource('rivers', ready(list, sourceLabel, `${USGS_OGC} · ${NWPS_URL}`))
+        const { resource, nwps } = await loadRivers(at, need, fresh ? cached.nwps : undefined)
+        riversCache.current.set(placeKey, { tier: need, at: Date.now(), resource, nwps })
+        if (store.get().place?.lngLat === at) store.set({ rivers: resource, riversTier: need })
       } catch (e) {
         setResource('rivers', failed(prev, e))
       }
     },
     REFRESH.rivers,
-    !!place,
-    [placeKey, nonce],
+    !!place && !!riversNeed,
+    [placeKey, riversNeed, nonce],
   )
 
   // ---- Station observations ----

@@ -28,6 +28,18 @@ export function useOnline(): boolean {
   )
 }
 
+/** ≥ 768 px: left rail + content column + always-visible map. */
+export function useWide(): boolean {
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 768px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const on = () => setWide(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return wide
+}
+
 /** Ticks every `ms` so "updated X ago" labels stay honest. */
 export function useNow(ms = 15_000): number {
   const [now, setNow] = useState(Date.now())

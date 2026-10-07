@@ -267,15 +267,40 @@ function MapWindow() {
 
 function Tiles() {
   const rivers = useApp((s) => s.rivers)
+  const tier = useApp((s) => s.riversTier)
   const station = useApp((s) => s.station)
   const units = useApp((s) => s.units)
   const now = useNow()
+  // Gauges are fetched only while this tile is on screen (or the Rivers page / map layer shows them).
+  const riversTile = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    const el = riversTile.current
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      store.set({ riversTileVisible: true })
+      return () => store.set({ riversTileVisible: false })
+    }
+    const io = new IntersectionObserver(([e]) => store.set({ riversTileVisible: e.isIntersecting }), { threshold: 0.5 })
+    io.observe(el)
+    return () => {
+      io.disconnect()
+      store.set({ riversTileVisible: false })
+    }
+  }, [])
   const high = rivers.data?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
-  const riversLine = rivers.data ? (rivers.data.length ? (high ? `${high} of ${rivers.data.length} gauges high` : `${rivers.data.length} gauges, none high`) : rivers.error ?? 'no gauges nearby') : rivers.state === 'loading' ? 'loading…' : rivers.error ?? 'not loaded'
+  const what = tier === 'full' ? 'gauges' : 'NOAA gauges'
+  const riversLine = rivers.data
+    ? rivers.data.length
+      ? high
+        ? `${high} of ${rivers.data.length} ${what} high`
+        : `${rivers.data.length} ${what}, none high`
+      : (rivers.error ?? 'no gauges nearby')
+    : rivers.state === 'loading'
+      ? 'loading…'
+      : (rivers.error ?? 'nearby gauges ›')
   const o = station.data
   return (
     <div className="tiles">
-      <button className="card tile" onClick={() => go('more', 'rivers')}>
+      <button className="card tile" ref={riversTile} onClick={() => go('more', 'rivers')}>
         <small>📈 Rivers</small>
         <span className={high ? 'warn-text' : ''}>{riversLine}</span>
       </button>

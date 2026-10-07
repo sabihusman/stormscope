@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { MapView } from './map/MapView'
 import { RadarLayer } from './map/RadarLayer'
@@ -15,6 +15,7 @@ const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ defaul
 import { DataController } from './state/DataController'
 import { endPickOnMap, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
 import { useGeolocation } from './hooks/useGeolocation'
+import { useWide } from './hooks/useMisc'
 import { haversine } from './lib/geo'
 import { WARM_CACHE_NO_REFETCH } from './lib/perfFlags'
 import { LocationPrompt } from './components/LocationPrompt'
@@ -37,18 +38,6 @@ function LayerGuard({ name, layer, children }: { name: string; layer: LayerId; c
       {children}
     </ErrorBoundary>
   )
-}
-
-/** ≥ 768 px: left rail + content column + always-visible map. */
-function useWide() {
-  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 768px)').matches)
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)')
-    const on = () => setWide(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [])
-  return wide
 }
 
 export default function App() {
