@@ -139,6 +139,8 @@ export interface AppState {
 
   /** Which animated layer the shared timeline controls. */
   animLayer: AnimLayer
+  /** Playback clock (ms epoch) shared by radar / satellite and the active forecast overlay; null = live ("Now"). */
+  playTime: number | null
   radarFrame: number
   rainFrame: number
   nowcastFrame: number
@@ -231,6 +233,7 @@ export const store = createStore<AppState>({
   blockLevel: 1,
   nowcastT0: 0,
   animLayer: 'radar',
+  playTime: null,
   radarFrame: 0,
   rainFrame: 0,
   nowcastFrame: 0,
@@ -385,9 +388,21 @@ export function setJourneyTo(to: Place) {
   store.set((s) => ({ journey: { ...s.journey, to, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0 }, screen: 'trip', selection: null }))
 }
 
-/** Navigate. `more` pages take the current place as their input. */
+/** Navigate. `more` pages take the current place as their input. Playback keeps its state (the bar is always on screen on wide layouts). */
 export function go(screen: Screen, morePage: MorePage | null = null) {
-  store.set((s) => ({ screen, morePage: screen === 'more' ? morePage : s.morePage, pickerOpen: false, selection: screen === 'map' ? s.selection : null, playing: screen === 'map' ? s.playing : false }))
+  store.set((s) => ({ screen, morePage: screen === 'more' ? morePage : s.morePage, pickerOpen: false, selection: screen === 'map' ? s.selection : null }))
+}
+
+/**
+ * Who needs the place's flood screening right now (the Flood page, the Now tile while it is on screen).
+ * `floodFor` is the block the controller fetches and screens; it is set while anyone wants it.
+ */
+const floodWants = new Map<string, string>()
+export function wantFlood(who: string, key: string | null) {
+  if (key) floodWants.set(who, key)
+  else floodWants.delete(who)
+  const next = floodWants.size ? [...floodWants.values()].at(-1)! : null
+  if (store.get().floodFor !== next) store.set({ floodFor: next })
 }
 
 /** Set the place from any picker path and remember it in recents (search/map picks only). */

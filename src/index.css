@@ -58,8 +58,10 @@ small {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  /* Height currently taken by the bottom sheet; floating controls sit above it. */
-  --sheet-h: var(--sheet-peek);
+  /* Height taken by the details sheet (0 unless one is open) and by the docked playback bar (set by the bar); floating controls sit above both. */
+  --sheet-h: 0px;
+  --playbar-h: 0px;
+  --dock-h: max(var(--sheet-h), var(--playbar-h));
 }
 .app.sheet-half {
   --sheet-h: min(46vh, 420px);
@@ -83,11 +85,11 @@ small {
   right: calc(var(--sar) + 8px) !important;
 }
 .maplibregl-ctrl-bottom-left {
-  bottom: calc(var(--sab) + var(--sheet-peek) + 4px) !important;
+  bottom: calc(var(--sab) + var(--playbar-h) + 6px) !important;
   left: calc(var(--sal) + 6px) !important;
 }
 .maplibregl-ctrl-bottom-right {
-  bottom: calc(var(--sab) + var(--sheet-peek) + 4px) !important;
+  bottom: calc(var(--sab) + var(--playbar-h) + 6px) !important;
 }
 .maplibregl-ctrl-group button {
   width: 36px;
@@ -275,7 +277,7 @@ small {
 .fab-stack {
   position: absolute;
   right: calc(var(--sar) + 12px);
-  bottom: calc(var(--sab) + var(--sheet-h) + 14px);
+  bottom: calc(var(--sab) + var(--dock-h) + 14px);
   transition: bottom 0.25s ease;
   z-index: 25;
   display: flex;
@@ -303,7 +305,7 @@ small {
   border-radius: 16px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
-  max-height: calc(100vh - var(--sheet-h) - 180px);
+  max-height: calc(100vh - var(--dock-h) - 180px);
   overflow: auto;
 }
 .fab-item {
@@ -344,7 +346,7 @@ small {
   width: min(240px, calc(100vw - 80px));
   padding: 8px 10px;
   font-size: 12px;
-  max-height: calc(100vh - var(--sheet-h) - 160px);
+  max-height: calc(100vh - var(--dock-h) - 160px);
   overflow: auto;
 }
 .legend-head {
@@ -805,7 +807,7 @@ small {
   z-index: 50;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(var(--sab) + var(--sheet-h) + 16px);
+  bottom: calc(var(--sab) + var(--dock-h) + 16px);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -847,9 +849,8 @@ small {
   .app.sheet-full {
     --sheet-h: 0px;
   }
-  .fab-stack {
-    right: calc(var(--sar) + 424px);
-    bottom: calc(var(--sab) + 16px);
+  .sheet {
+    bottom: calc(var(--sab) + var(--playbar-h) + 12px);
   }
   .app.sheet-full .fab-stack,
   .app.sheet-full .legend,
@@ -865,7 +866,7 @@ small {
     display: block;
   }
   .maplibregl-ctrl-bottom-left {
-    bottom: 6px !important;
+    bottom: calc(var(--sab) + var(--playbar-h) + 6px) !important;
   }
   .maplibregl-ctrl-bottom-right {
     bottom: 6px !important;
@@ -1012,7 +1013,7 @@ small {
 }
 .app.fab-tl .fab-stack .fab-menu,
 .app.fab-tr .fab-stack .fab-menu {
-  max-height: calc(100vh - var(--sheet-h) - 200px);
+  max-height: calc(100vh - var(--dock-h) - 200px);
 }
 /* Keep the legend / map controls out from under the button. */
 .app.fab-tl .legend,
@@ -1023,10 +1024,10 @@ small {
   top: calc(var(--sat) + 132px) !important;
 }
 .app.fab-bl .maplibregl-ctrl-bottom-left {
-  bottom: calc(var(--sab) + var(--sheet-h) + 78px) !important;
+  bottom: calc(var(--sab) + var(--dock-h) + 78px) !important;
 }
 .app.fab-bl .toast {
-  bottom: calc(var(--sab) + var(--sheet-h) + 80px);
+  bottom: calc(var(--sab) + var(--dock-h) + 80px);
 }
 @media (min-width: 720px) {
   .app.fab-bl .fab-stack {
@@ -1040,7 +1041,7 @@ small {
     top: calc(var(--sat) + 64px) !important;
   }
   .app.fab-bl .maplibregl-ctrl-bottom-left {
-    bottom: 6px !important;
+    bottom: calc(var(--sab) + var(--playbar-h) + 6px) !important;
     left: 84px !important;
   }
 }
@@ -1357,14 +1358,18 @@ small {
 }
 .app.narrow.screen-map.fab-br .fab-stack,
 .app.narrow.screen-map.fab-bl .fab-stack {
-  bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-h) + 14px);
+  bottom: calc(var(--nav-h) + var(--sab) + var(--dock-h) + 14px);
 }
 .app.narrow.screen-map .maplibregl-ctrl-bottom-left,
 .app.narrow.screen-map .maplibregl-ctrl-bottom-right {
-  bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-peek) + 4px) !important;
+  bottom: calc(var(--nav-h) + var(--sab) + var(--playbar-h) + 6px) !important;
 }
 .app.narrow.screen-map .toast {
-  bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-h) + 16px);
+  bottom: calc(var(--nav-h) + var(--sab) + var(--dock-h) + 16px);
+}
+.app.narrow.screen-map .playbar {
+  bottom: calc(var(--nav-h) + var(--sab));
+  padding-bottom: 6px;
 }
 
 /* Screens (Now / Trip / More) cover the map on a phone. */
@@ -1825,10 +1830,20 @@ small {
   left: calc(var(--rail-w) + 10px);
 }
 .app.wide .sheet {
-  left: auto;
-  right: 12px;
-  bottom: 12px;
+  left: calc(var(--rail-w) + var(--col-w) + 12px);
+  right: auto;
+  bottom: calc(var(--sab) + var(--playbar-h) + 12px);
   width: 400px;
+}
+.app.wide.screen-map .sheet {
+  left: calc(var(--rail-w) + 12px);
+}
+.app.wide .playbar {
+  left: calc(var(--rail-w) + var(--col-w));
+  right: 0;
+}
+.app.wide.screen-map .playbar {
+  left: var(--rail-w);
 }
 .app.wide .pick-actions {
   left: calc(var(--rail-w) + 12px);
@@ -1852,7 +1867,7 @@ small {
   position: absolute;
   left: calc(var(--sal) + 12px);
   right: calc(var(--sar) + 12px);
-  bottom: calc(var(--sab) + var(--sheet-h) + 12px);
+  bottom: calc(var(--sab) + var(--dock-h) + 40px);
   z-index: 26;
   display: flex;
   align-items: center;
@@ -1864,13 +1879,13 @@ small {
   box-shadow: var(--shadow);
 }
 .app.narrow.screen-map .point-chip {
-  bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-h) + 12px);
+  bottom: calc(var(--nav-h) + var(--sab) + var(--dock-h) + 40px);
 }
 .app.wide .point-chip {
-  left: auto;
-  right: 12px;
+  left: calc(var(--rail-w) + 12px);
+  right: auto;
   width: 400px;
-  bottom: calc(var(--sab) + 110px);
+  bottom: calc(var(--sab) + var(--dock-h) + 40px);
 }
 .chip-ico {
   font-size: 22px;
@@ -1961,4 +1976,80 @@ small {
   cursor: pointer;
   font-size: 13px;
   color: var(--accent);
+}
+
+/* ---- Playback bar: docked along the bottom edge of the map, full map width ---- */
+.playbar {
+  position: absolute;
+  z-index: 24;
+  left: var(--sal);
+  right: var(--sar);
+  bottom: 0;
+  padding: 6px 10px calc(var(--sab) + 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel-solid);
+  border-top: 1px solid var(--line);
+}
+.playbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.playbar .play {
+  flex: none;
+}
+.playbar-time {
+  flex: none;
+  min-width: 64px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.playbar .scrubber {
+  flex: 1;
+  min-width: 80px;
+  height: 36px;
+}
+.playbar .horizon {
+  flex: none;
+}
+.playbar .horizon button {
+  min-width: 40px;
+  padding: 0 6px;
+}
+.playbar-status {
+  padding: 0;
+  flex-wrap: wrap;
+  overflow: visible;
+  white-space: normal;
+}
+.playbar-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+@media (max-width: 420px) {
+  .playbar-row {
+    gap: 6px;
+  }
+  .playbar-time {
+    min-width: 48px;
+    font-size: 13px;
+  }
+  .playbar .horizon button {
+    min-width: 30px;
+    padding: 0 3px;
+    font-size: 12px;
+  }
+  .playbar .play {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
 }

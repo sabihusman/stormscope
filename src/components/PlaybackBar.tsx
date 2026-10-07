@@ -1,0 +1,226 @@
+import { useEffect, useMemo, useRef } from 'react'
+import { useNow, useOnline, useReducedMotion } from '../hooks/useMisc'
+import { haversine } from '../lib/geo'
+import { clock, HOUR, MIN, relOffset, timeAgo } from '../lib/time'
+import { aggregate, nearestFrame, setLayer, store, useApp, useVisibleBlocks } from '../state/store'
+import { NOWCAST_FRAME_MIN, NOWCAST_FRAMES } from '../workers/client'
+import type { RainHorizon } from '../types'
+
+/** Tick cadence while playing (ms per step; radar frames are 10 min apart, forecast hours step hourly). */
+const STEP_MS = 450
+/** Radar frames further than this from the clock are hidden (the clock has moved past the last nowcast frame). */
+const RADAR_TOLERANCE = 12 * MIN
+
+/**
+ * One playback clock for the map: radar (or satellite) plus the active forecast overlay move together.
+ * Docked along the bottom edge of the map: ▶/❚❚ · time ("Now", "+1 h", "3:40 PM") · scrubber · how far
+ * ahead (6/12/24/48 h). The data status chips sit above the row and wrap instead of scrolling off.
+ */
+export function PlaybackBar() {
+  const layers = useApp((s) => s.layers)
+  const playing = useApp((s) => s.playing)
+  const playTime = useApp((s) => s.playTime)
+  const radar = useApp((s) => s.radar.data)
+  const satellite = useApp((s) => s.satellite.data)
+  const nowcastT0 = useApp((s) => s.nowcastT0)
+  const horizon = useApp((s) => s.rainHorizon)
+  const place = useApp((s) => s.place)
+  const label = useApp((s) => s.placeLabel)
+  const imageryLag = useApp((s) => s.imageryLag)
+  const blocks = useVisibleBlocks()
+  const reduced = useReducedMotion()
+  const now = useNow(30_000)
+
+  const overlay = layers.rainfall ? 'rainfall' : layers.nowcast ? 'nowcast' : null
+  const imagery = layers.radar ? 'radar' : layers.satellite ? 'satellite' : null
+  const overlayAgg = aggregate(blocks, (b) => (overlay === 'rainfall' ? b.rainCells : b.nowcast))
+  const overlayReady = !!overlay && overlayAgg.ready > 0
+  const noBlocks = !!overlay && blocks.length === 0
+
+  // The time axis: every imagery frame time plus every forecast frame time, sorted.
+  const ticks = useMemo(() => {
+    const t = new Set<number>()
+    if (imagery === 'radar') for (const f of radar?.frames ?? []) t.add(f.time * 1000)
+    if (imagery === 'satellite') for (const x of satellite?.times ?? []) t.add(x)
+    if (overlayReady && overlay === 'rainfall') {
+      const h0 = Math.floor(now / HOUR) * HOUR
+      for (let i = 0; i <= horizon; i++) t.add(h0 + i * HOUR)
+    }
+    if (overlayReady && overlay === 'nowcast' && nowcastT0) for (let i = 0; i < NOWCAST_FRAMES; i++) t.add(nowcastT0 + i * NOWCAST_FRAME_MIN * MIN)
+    return [...t].sort((a, b) => a - b)
+  }, [imagery, radar, satellite, overlay, overlayReady, horizon, nowcastT0, now])
+
+  const nowIdx = ticks.length ? nearestFrame(ticks, now)! : 0
+  const shown = playTime ?? now
+  const idx = ticks.length ? nearestFrame(ticks, shown)! : 0
+
+  // Clock → each layer's frame. Live (null) leaves the imagery on its newest observed frame (the controller lands there).
+  useEffect(() => {
+    const s = store.get()
+    const patch: Partial<typeof s> = {}
+    if (playTime != null) {
+      if (s.radar.data?.frames.length) {
+        const times = s.radar.data.frames.map((f) => f.time * 1000)
+        const i = nearestFrame(times, playTime)!
+        patch.radarFrame = Math.abs(times[i] - playTime) <= RADAR_TOLERANCE ? i : -1
+      }
+      if (s.satellite.data?.times.length) {
+        // GOES lands ~1 h behind real time: the frame nearest the clock, or the newest when nothing is
+        // within 10 min (the controller's carry-over adds the lag note in that case); never hidden.
+        const times = s.satellite.data.times
+        const i = nearestFrame(times, playTime)!
+        patch.satFrame = Math.abs(times[i] - playTime) <= 10 * MIN ? i : times.length - 1
+      }
+      patch.rainFrame = Math.max(0, Math.min(s.rainHorizon, Math.round((playTime - Math.floor(Date.now() / HOUR) * HOUR) / HOUR)))
+      if (s.nowcastT0) patch.nowcastFrame = Math.max(0, Math.min(NOWCAST_FRAMES - 1, Math.round((playTime - s.nowcastT0) / (NOWCAST_FRAME_MIN * MIN))))
+    } else {
+      patch.rainFrame = 0
+      patch.nowcastFrame = 0
+      if (s.radar.data?.frames.length) {
+        const lastPast = Math.max(0, s.radar.data.frames.filter((f) => f.kind === 'past').length - 1)
+        if (s.radarFrame < 0 || s.radarFrame >= s.radar.data.frames.length) patch.radarFrame = lastPast
+      }
+    }
+    store.set(patch)
+  }, [playTime, radar, satellite, nowcastT0, horizon])
+
+  // Playback loop: step to the next tick, wrap to the first.
+  useEffect(() => {
+    if (!playing || ticks.length < 2) return
+    const t = setInterval(() => {
+      const cur = store.get().playTime ?? Date.now()
+      const i = nearestFrame(ticks, cur)!
+      store.set({ playTime: ticks[(i + 1) % ticks.length] })
+    }, STEP_MS * (reduced ? 2 : 1))
+    return () => clearInterval(t)
+  }, [playing, ticks, reduced])
+
+  const timeLabel = (t: number) => {
+    const d = t - now
+    if (Math.abs(d) < 5 * MIN) return 'Now'
+    return d > 0 ? relOffset(now, t) : clock(t)
+  }
+  const name = (label ?? place?.name ?? 'my place').split(',')[0]
+  const zoomToPlace = () => {
+    if (!place) return
+    const m = (window as unknown as { __map?: { easeTo: (o: object) => void } }).__map
+    m?.easeTo({ center: [place.lngLat.lng, place.lngLat.lat], zoom: 9, duration: 700 })
+  }
+  const pickHorizon = (h: RainHorizon) => {
+    store.set({ rainHorizon: h })
+    if (!layers.rainfall) setLayer('rainfall', true)
+  }
+  const nothingOn = !imagery && !overlay
+
+  // Floating controls (layer button, zoom, legend, chip, toasts) stack above the bar via --playbar-h on .app.
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    const app = el?.closest('.app') as HTMLElement | null
+    if (!el || !app) return
+    const apply = () => app.style.setProperty('--playbar-h', `${el.offsetHeight}px`)
+    apply()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
+    ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      app.style.setProperty('--playbar-h', '0px')
+    }
+  }, [])
+
+  return (
+    <section className="playbar" aria-label="Playback" ref={ref}>
+      <StatusStrip />
+      <div className="playbar-row">
+        <button
+          className="icon-btn round big play"
+          onClick={() => store.set({ playing: !playing })}
+          aria-label={playing ? 'Pause' : 'Play'}
+          aria-pressed={playing}
+          disabled={ticks.length < 2}
+        >
+          {playing ? '❚❚' : '▶'}
+        </button>
+        <strong className="playbar-time" aria-live="polite">
+          {ticks.length ? timeLabel(ticks[idx]) : '—'}
+        </strong>
+        <input
+          className="scrubber"
+          type="range"
+          min={0}
+          max={Math.max(0, ticks.length - 1)}
+          value={idx}
+          disabled={ticks.length < 2}
+          onChange={(e) => store.set({ playing: false, playTime: ticks[+e.target.value] ?? null, imageryLag: null })}
+          aria-label="Playback time"
+          aria-valuetext={ticks.length ? timeLabel(ticks[idx]) : 'no frames'}
+          style={{ ['--now-pct' as string]: `${(nowIdx / Math.max(1, ticks.length - 1)) * 100}%` }}
+        />
+        <div className="segmented small horizon" role="radiogroup" aria-label="How far ahead">
+          {([6, 12, 24, 48] as RainHorizon[]).map((h) => (
+            <button key={h} role="radio" aria-checked={layers.rainfall && horizon === h} className={layers.rainfall && horizon === h ? 'on' : ''} onClick={() => pickHorizon(h)}>
+              {h} h
+            </button>
+          ))}
+        </div>
+      </div>
+      {noBlocks && (
+        <div className="playbar-note" role="status">
+          <span>Zoom in to see the forecast</span>
+          {place && (
+            <button className="btn small" onClick={zoomToPlace}>
+              Zoom to {name}
+            </button>
+          )}
+        </div>
+      )}
+      {nothingOn && (
+        <div className="playbar-note" role="status">
+          <span>No radar or forecast layer is on.</span>
+          <button className="btn small" onClick={() => setLayer('radar', true)}>
+            Turn on radar
+          </button>
+        </div>
+      )}
+      {imageryLag && (
+        <small className="playbar-note lag-note" role="status">
+          {imageryLag.layer === 'satellite' ? 'Satellite' : 'Radar'}: {clock(imageryLag.landed)} — {Math.round(Math.abs(imageryLag.viewed - imageryLag.landed) / MIN)} min{' '}
+          {imageryLag.landed < imageryLag.viewed ? 'earlier' : 'later'} than the {imageryLag.layer === 'satellite' ? 'radar' : 'satellite'} time you were on ({clock(imageryLag.viewed)}).
+          {imageryLag.layer === 'satellite' ? ' GIBS publishes GOES ~1 h behind real time.' : ''}
+        </small>
+      )}
+    </section>
+  )
+}
+
+/** Data status chips: offline, "showing map area", and one per layer with its age. They wrap; nothing scrolls off. */
+function StatusStrip() {
+  const online = useOnline()
+  const s = useApp((x) => x)
+  const blocks = useVisibleBlocks()
+  const now = useNow()
+  const following = !!s.focus && (!s.place || haversine(s.focus, s.place.lngLat) > 1000)
+  const g = aggregate(blocks, (b) => b.grid)
+  const rain = { state: g.state, stale: g.stale, error: g.error, freshness: g.fetchedAt ? { fetchedAt: g.fetchedAt } : null }
+  const items = [
+    { k: 'Radar', r: s.radar, on: s.layers.radar },
+    { k: 'Satellite', r: s.satellite, on: s.layers.satellite },
+    { k: `Rain ${g.ready}/${g.total}`, r: rain, on: s.layers.rainfall || s.layers.flood || s.layers.nowcast },
+  ].filter((i) => i.on)
+  if (online && !following && !items.length) return null
+  return (
+    <div className="status-strip playbar-status" aria-live="polite">
+      {!online && <span className="pill offline">Offline</span>}
+      {following && (
+        <button className="pill follow" onClick={() => store.set((x) => ({ recenterNonce: x.recenterNonce + 1 }))} disabled={!s.place} title={s.place ? 'Back to my place' : undefined}>
+          Showing map area{s.place ? ' · back to my place' : ''}
+        </button>
+      )}
+      {items.map((i) => (
+        <span key={i.k} className={`pill ${i.r.state === 'error' ? 'err' : i.r.stale ? 'warn' : i.r.state === 'loading' ? 'load' : 'ok'}`} title={i.r.error ?? undefined}>
+          {i.k} {i.r.freshness ? timeAgo(i.r.freshness.fetchedAt, now) : i.r.state === 'loading' ? '…' : i.r.error ? '!' : '—'}
+        </span>
+      ))}
+    </div>
+  )
+}

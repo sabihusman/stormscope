@@ -23,6 +23,7 @@ import { SearchBar } from './components/SearchBar'
 import { LayerFab } from './components/LayerFab'
 import { Legend } from './components/Legend'
 import { BottomSheet } from './components/BottomSheet'
+import { PlaybackBar } from './components/PlaybackBar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Nav } from './components/Nav'
 import { NowScreen } from './components/NowScreen'
@@ -45,6 +46,7 @@ export default function App() {
   const t = useApp((s) => s.toast)
   const place = useApp((s) => s.place)
   const sheet = useApp((s) => s.sheet)
+  const hasSelection = useApp((s) => !!s.selection)
   const fabCorner = useApp((s) => s.fabCorner)
   const journeyTo = useApp((s) => !!s.journey.to)
   const screen = useApp((s) => s.screen)
@@ -101,7 +103,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app screen-${screen} sheet-${sheet} fab-${fabCorner} ${wide ? 'wide' : 'narrow'} ${pickMode ? 'picking' : ''}`}>
+    <div className={`app screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} ${wide ? 'wide' : 'narrow'} ${pickMode ? 'picking' : ''}`}>
       <MapView>
         {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
         <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
@@ -129,12 +131,13 @@ export default function App() {
           </ErrorBoundary>
           <ErrorBoundary kind="panel" name="Legend"><Legend /></ErrorBoundary>
           <ErrorBoundary kind="panel" name="Layer menu"><LayerFab /></ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Playback"><PlaybackBar /></ErrorBoundary>
         </>
       )}
       {screen === 'map' && !pickMode && (
         <>
           <ErrorBoundary kind="panel" name="Point"><PointChip /></ErrorBoundary>
-          <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>
+          {hasSelection && sheet !== 'peek' && <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>}
         </>
       )}
       {pickMode && (

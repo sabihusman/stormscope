@@ -1,9 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useNow, useOnline } from '../hooks/useMisc'
-import { timeAgo } from '../lib/time'
-import { haversine } from '../lib/geo'
-import { aggregate, store, useApp, useVisibleBlocks, type SheetMode } from '../state/store'
-import { Timeline } from './Timeline'
+import { store, useApp, type SheetMode } from '../state/store'
 import { PointDetails } from './PointChip'
 import { ErrorBoundary } from './ErrorBoundary'
 
@@ -11,16 +7,14 @@ const ORDER: SheetMode[] = ['peek', 'half', 'full']
 const step = (m: SheetMode, d: 1 | -1): SheetMode => ORDER[Math.max(0, Math.min(ORDER.length - 1, ORDER.indexOf(m) + d))]
 
 /**
- * The Map screen's sheet: the timeline control for the animated layer, with the map's data
- * status strip. The map stays visible and interactive above it in every mode. Collapsing works
- * four ways on a phone: drag the handle down, tap the handle, tap the ▼ button, or — when the
- * content is scrolled to its top — drag the content itself down. Expanding also pushes a
+ * The Map screen's details sheet for a tapped point or object (opened by the chip's Details button;
+ * playback lives in the docked bar instead). The map stays visible and interactive above it.
+ * Collapsing works four ways on a phone: drag the handle down, tap the handle, tap the ▼ button, or —
+ * when the content is scrolled to its top — drag the content itself down. Expanding also pushes a
  * history entry so the browser/Android back gesture collapses the sheet instead of leaving.
  */
 export function BottomSheet() {
   const mode = useApp((s) => s.sheet)
-  const hasSelection = useApp((s) => !!s.selection)
-  const online = useOnline()
   const drag = useRef<{ id: number; y: number; t: number } | null>(null)
   const bodyTouch = useRef<{ y: number; x: number; top: number; done: boolean } | null>(null)
   const pushed = useRef(false)
@@ -113,14 +107,14 @@ export function BottomSheet() {
   }, [mode])
 
   return (
-    <section className={`sheet ${mode}`} aria-label={hasSelection ? 'Point details' : 'Timeline panel'}>
+    <section className={`sheet ${mode}`} aria-label="Point details">
       <div
         className="sheet-handle"
         onPointerDown={onPointerDown}
         role="button"
         tabIndex={0}
         aria-label="Resize panel"
-        aria-expanded={mode !== 'peek'}
+        aria-expanded={mode === 'full'}
         onKeyDown={(e) => {
           if (e.key === 'ArrowUp') setMode(step(mode, 1))
           if (e.key === 'ArrowDown' || e.key === 'Escape') setMode(step(mode, -1))
@@ -130,66 +124,33 @@ export function BottomSheet() {
         <span className="grabber" />
       </div>
       <nav className="tabs">
-        {hasSelection && mode !== 'peek' ? (
-          <div className="tablist details-head">
-            <button className="btn small ghost" onClick={() => store.set({ selection: null })}>
-              ‹ Timeline
-            </button>
-            <strong>Details</strong>
-          </div>
-        ) : (
-          <StatusStrip online={online} />
-        )}
+        <div className="tablist details-head">
+          <button className="btn small ghost" onClick={() => store.set({ selection: null, sheet: 'peek' })}>
+            ‹ Close
+          </button>
+          <strong>Details</strong>
+        </div>
         <button
           className="icon-btn sheet-toggle"
           onPointerUp={(e) => {
             if (e.pointerType === 'mouse') return
             toggledAt.current = performance.now()
-            setMode(store.get().sheet === 'peek' ? 'half' : 'peek')
+            setMode('peek')
           }}
           onClick={() => {
             if (performance.now() - toggledAt.current < 600) return
-            setMode(store.get().sheet === 'peek' ? 'half' : 'peek')
+            setMode('peek')
           }}
-          aria-label={mode === 'peek' ? 'Expand panel' : 'Collapse panel'}
+          aria-label="Collapse panel"
         >
-          {mode === 'peek' ? '▲' : '▼'}
+          ▼
         </button>
       </nav>
-      <div className="sheet-body" hidden={mode === 'peek'} onTouchStart={onBodyTouchStart} onTouchMove={onBodyTouchMove} onTouchEnd={onBodyTouchEnd} onTouchCancel={onBodyTouchEnd}>
-        <ErrorBoundary kind="panel" name={hasSelection ? 'Details' : 'Timeline'}>
-          {hasSelection ? <PointDetails /> : <Timeline />}
+      <div className="sheet-body" onTouchStart={onBodyTouchStart} onTouchMove={onBodyTouchMove} onTouchEnd={onBodyTouchEnd} onTouchCancel={onBodyTouchEnd}>
+        <ErrorBoundary kind="panel" name="Details">
+          <PointDetails />
         </ErrorBoundary>
       </div>
     </section>
-  )
-}
-
-function StatusStrip({ online }: { online: boolean }) {
-  const s = useApp((x) => x)
-  const blocks = useVisibleBlocks()
-  const now = useNow()
-  const following = !!s.focus && (!s.place || haversine(s.focus, s.place.lngLat) > 1000)
-  const g = aggregate(blocks, (b) => b.grid)
-  const rain = { state: g.state, stale: g.stale, error: g.error, freshness: g.fetchedAt ? { fetchedAt: g.fetchedAt } : null }
-  const items = [
-    { k: 'Radar', r: s.radar, on: s.layers.radar },
-    { k: 'Satellite', r: s.satellite, on: s.layers.satellite },
-    { k: `Rain ${g.ready}/${g.total}`, r: rain, on: s.layers.rainfall || s.layers.flood || s.layers.nowcast },
-  ].filter((i) => i.on)
-  return (
-    <div className="status-strip tablist" aria-live="polite">
-      {!online && <span className="pill offline">Offline</span>}
-      {following && (
-        <button className="pill follow" onClick={() => store.set((x) => ({ recenterNonce: x.recenterNonce + 1 }))} disabled={!s.place} title={s.place ? 'Back to my place' : undefined}>
-          Showing map area{s.place ? ' · back to my place' : ''}
-        </button>
-      )}
-      {items.map((i) => (
-        <span key={i.k} className={`pill ${i.r.state === 'error' ? 'err' : i.r.stale ? 'warn' : i.r.state === 'loading' ? 'load' : 'ok'}`} title={i.r.error ?? undefined}>
-          {i.k} {i.r.freshness ? timeAgo(i.r.freshness.fetchedAt, now) : i.r.state === 'loading' ? '…' : i.r.error ? '!' : '—'}
-        </span>
-      ))}
-    </div>
   )
 }

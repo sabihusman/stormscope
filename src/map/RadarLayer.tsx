@@ -15,7 +15,8 @@ export function RadarLayer() {
   const enabled = useApp((s) => s.layers.radar)
   const radar = useApp((s) => s.radar.data)
   const frame = useApp((s) => s.radarFrame)
-  const playing = useApp((s) => s.playing && s.animLayer === 'radar')
+  // One playback clock drives radar and the forecast overlay together.
+  const playing = useApp((s) => s.playing)
   const added = useRef<string[]>([])
 
   useEffect(() => {
