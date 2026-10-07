@@ -13,7 +13,7 @@ export function timeAgo(ts: number | null | undefined, now = Date.now()): string
 
 /** Short clock string in the user's locale, e.g. "14:35". */
 export function clock(ts: number): string {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
 /** "Tue 14:00" style label for hourly frames. */
