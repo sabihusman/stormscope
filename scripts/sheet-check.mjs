@@ -1,4 +1,4 @@
-// The Map screen's sheet (timeline, or point details after a tap): once expanded it must collapse again —
+// The Map screen's details sheet (opened by the point chip's Details button; playback lives in the docked bar): once expanded it must collapse again —
 // by dragging the handle down, by tapping the handle, by the ▼ button (which must be on screen), by dragging
 // scrolled-to-top content down, and by the browser back gesture — for both contents.
 // Real touch input (CDP touch events), phone viewport with touch + mobile emulation.
@@ -41,17 +41,19 @@ await page.waitForTimeout(3000)
 await openMap(page)
 await page.waitForTimeout(600)
 
+// No sheet is rendered while collapsed (peek) — the chip stays, the bar stays; height is then 0.
 const st = () =>
   page.evaluate(() => {
-    const sheet = document.querySelector('.sheet').getBoundingClientRect()
+    const el = document.querySelector('.sheet')
+    const sheet = el?.getBoundingClientRect()
     const body = document.querySelector('.sheet-body')
     const btn = document.querySelector('.sheet-toggle')?.getBoundingClientRect()
-    const handle = document.querySelector('.sheet-handle').getBoundingClientRect()
+    const handle = document.querySelector('.sheet-handle')?.getBoundingClientRect()
     return {
       mode: window.__store.get().sheet,
-      content: window.__store.get().selection ? 'details' : 'timeline',
-      height: Math.round(sheet.height),
-      handleOnScreen: handle.y >= 0 && handle.bottom <= innerHeight && handle.height >= 24,
+      content: window.__store.get().selection ? 'details' : 'none',
+      height: sheet ? Math.round(sheet.height) : 0,
+      handleOnScreen: !!handle && handle.y >= 0 && handle.bottom <= innerHeight && handle.height >= 24,
       btnOnScreen: !!btn && btn.x >= 0 && btn.right <= innerWidth && btn.y >= 0 && btn.bottom <= innerHeight,
       scrollTop: body?.scrollTop ?? 0,
       scrollable: body ? body.scrollHeight > body.clientHeight + 4 : false,
@@ -61,18 +63,14 @@ const st = () =>
 const handle = () => centre(page.locator('.sheet-handle'))
 const settle = () => page.waitForTimeout(450)
 const start = await st()
-check('Starts collapsed (peek)', start.mode === 'peek', `height ${start.height}`)
+check('Starts collapsed (peek): no sheet on screen until a point is tapped', start.mode === 'peek' && start.height === 0 && (await page.locator('.playbar').count()) === 1, `height ${start.height}`)
 const H0 = start.height
 
-/** Put the wanted content in the sheet (timeline = no selection; details = a map tap), expand to full, scroll if it can. */
-const select = async (content) => {
-  if (content === 'details') {
-    if (!(await st()).content.startsWith('details')) { await touchTap(page, { x: 195, y: 300 }); await settle() }
-    const d = page.getByRole('button', { name: 'Details' })
-    if (await d.count()) await touchTap(page, await centre(d))
-  } else {
-    await page.evaluate(() => window.__store.set({ selection: null, sheet: 'half' }))
-  }
+/** Open the details sheet (a map tap, then the chip's Details button), expand to full, scroll if it can. */
+const select = async () => {
+  if (!(await st()).content.startsWith('details')) { await touchTap(page, { x: 195, y: 300 }); await settle() }
+  const d = page.getByRole('button', { name: 'Details' })
+  if (await d.count()) await touchTap(page, await centre(d))
   await settle()
 }
 const expandAndScroll = async (content) => {
@@ -92,7 +90,7 @@ const expandAndScroll = async (content) => {
   return s
 }
 
-for (const t of ['timeline', 'details']) {
+for (const t of ['details']) {
   // (a) drag the handle down, twice (full → half → peek)
   let s = await expandAndScroll(t)
   check(`[${t}] expanded to full with content${s.scrollable ? ' scrolled' : ' (not scrollable)'}; handle and ▼ on screen`, s.mode === 'full' && s.handleOnScreen && s.btnOnScreen, `${s.mode}, scrollTop ${s.scrollTop}`)
@@ -136,19 +134,17 @@ for (const t of ['timeline', 'details']) {
 }
 
 // (e) browser / Android back gesture collapses instead of leaving the app
-let s = await expandAndScroll('timeline')
+let s = await expandAndScroll('details')
 await page.goBack()
 await settle()
 s = await st()
-check('Back gesture collapses the sheet and stays in the app', s.mode === 'peek' && s.height === H0 && /^\/(\?.*)?$/.test(s.url) && (await page.locator('.sheet').count()) === 1, `${s.mode} ${s.height}px url ${s.url}`)
-// Content switch while expanded keeps it usable: details → back to timeline, then collapse by handle tap.
+check('Back gesture collapses the sheet and stays in the app', s.mode === 'peek' && s.height === H0 && /^\/(\?.*)?$/.test(s.url) && (await page.locator('.sheet').count()) === 0, `${s.mode} ${s.height}px url ${s.url}`)
+// Close from inside the expanded sheet: the selection and the chip go, the bar stays.
 s = await expandAndScroll('details')
-await touchTap(page, await centre(page.getByRole('button', { name: '‹ Timeline' })))
-await settle()
-await touchTap(page, await handle())
+await touchTap(page, await centre(page.getByRole('button', { name: '‹ Close' })))
 await settle()
 s = await st()
-check('After switching content while open, a handle tap still collapses', s.mode === 'peek' && s.content === 'timeline' && s.height === H0, `${s.mode} ${s.content} ${s.height}px`)
+check('‹ Close clears the selection, removes the sheet and the chip, keeps the playback bar', s.mode === 'peek' && s.content === 'none' && s.height === H0 && (await page.locator('.point-chip').count()) === 0 && (await page.locator('.playbar').count()) === 1, `${s.mode} ${s.content} ${s.height}px`)
 await page.screenshot({ path: `${OUT}/sheet-final.png` })
 check('No page errors', errs.length === 0, errs[0])
 __recordBudget()

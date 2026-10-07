@@ -116,9 +116,14 @@ await setUnits(page, 'Metric')
 await openRivers(page)
 check('Rivers stage converts to m (metric)', /Stage [\d.]+ m\b/.test(await pageText(page)))
 
-// Map screen: sheet modes & FAB reachability
+// Map screen: details sheet modes & FAB reachability (the sheet opens from the point chip's Details button)
 await openMap(page)
-await setSheet(page, 'half')
+await page.evaluate(() => { window.__store.set({ selection: null, sheet: 'peek' }); window.__map.jumpTo({ center: [-93.6, 41.6], zoom: 10 }) })
+await settle(page, 800)
+await page.mouse.click(195, 300)
+await settle(page, 600)
+await page.getByRole('button', { name: 'Details' }).click()
+await settle(page)
 const fabBox = async () => page.getByRole('button', { name: /layer menu/ }).boundingBox()
 const sheetTop = async () => (await page.locator('.sheet').boundingBox()).y
 check('Half sheet: FAB sits above the sheet', (await fabBox()).y + (await fabBox()).height < (await sheetTop()), `fab bottom ${Math.round((await fabBox()).y + (await fabBox()).height)} < sheet top ${Math.round(await sheetTop())}`)
@@ -129,7 +134,7 @@ check('Full sheet: map strip still visible at top', (await sheetTop()) > 40, `sh
 check('Full sheet: FAB hidden (not blocking)', !(await page.getByRole('button', { name: /layer menu/ }).isVisible()))
 await page.getByRole('button', { name: 'Collapse panel' }).click()
 await settle(page)
-check('Collapse → peek mode', (await page.locator('.sheet').getAttribute('class'))?.includes('peek'))
+check('Collapse → peek mode (sheet gone, chip stays)', (await page.evaluate(() => window.__store.get().sheet)) === 'peek' && (await page.locator('.sheet').count()) === 0 && (await page.locator('.point-chip').count()) === 1)
 check('Peek: FAB visible again', await page.getByRole('button', { name: /layer menu/ }).isVisible())
 
 // Legend chip → open → hide
@@ -141,30 +146,38 @@ check('Legend hides back to a small chip', await page.getByRole('button', { name
 // Map tap → chip (never a dialog), at 4 corners + centre, chip on-screen
 const W = 390
 const H = 844
+// Bottom corners: just above the docked playback bar and the ☰ button (nav 58 + bar ~94 + button 70).
 const corners = [
   [6, 100],
   [W - 6, 100],
-  [6, H - 170],
-  [W - 6, H - 170],
+  [6, H - 240],
+  [W - 6, H - 240],
   [W / 2, H / 2],
 ]
 let allInside = true
 let anyDialog = false
+const cornerLog = []
+// A tap while a chip is showing dismisses it first; start each corner from a clean map.
+await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
+await settle(page, 300)
 for (const [x, y] of corners) {
+  const under = await page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y); return `${el?.tagName?.toLowerCase()}.${String(el?.className).split(' ')[0]}` }, [x, y])
   await page.mouse.click(x, y)
   await settle(page, 500)
   const box = await page.locator('.point-chip').boundingBox().catch(() => null)
   if (!box) {
     allInside = false
+    cornerLog.push(`${x},${y}: no chip (tapped ${under})`)
     continue
   }
   if ((await page.locator('[role=dialog]').count()) > 0) anyDialog = true
   const inside = box.x >= 0 && box.y >= 0 && box.x + box.width <= W && box.y + box.height <= H
   if (!inside) allInside = false
+  cornerLog.push(`${x},${y}: chip ${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}×${Math.round(box.height)}${inside ? '' : ' OFF-SCREEN'}`)
   await page.getByRole('button', { name: 'Dismiss' }).click()
   await settle(page, 200)
 }
-check('Map tap shows a point chip (no dialog) that stays on-screen at every corner', allInside && !anyDialog)
+check('Map tap shows a point chip (no dialog) that stays on-screen at every corner', allInside && !anyDialog, cornerLog.join(' | '))
 await page.mouse.click(W / 2, H / 2)
 await settle(page, 2500)
 const chipText = await page.locator('.point-chip').innerText().catch(() => '')
@@ -176,7 +189,9 @@ check('Details sheet: point conditions, 24 h strip, actions', /This point/.test(
 await page.screenshot({ path: `${OUT}/point-details.png` })
 await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
 
-// Gauge chip + details content
+// Gauge chip + details content (back over the place, where the gauges are)
+await page.evaluate(() => { const p = window.__store.get().place.lngLat; window.__map.jumpTo({ center: [p.lng, p.lat], zoom: 9.5 }) })
+await settle(page, 1200)
 const g = await page.evaluate(() => {
   const m = window.__map
   for (const f of m.queryRenderedFeatures({ layers: ['river-gauges'] })) {
@@ -208,25 +223,28 @@ check('Forecast overlays are mutually exclusive (flood on turns rain off)', laye
 await page.getByRole('radio', { name: 'Next 2 h wind & cloud' }).click()
 await page.getByRole('button', { name: 'Close layer menu' }).click()
 await settle(page, 12000)
-await setSheet(page, 'half')
-await page.getByRole('tab', { name: 'Radar' }).click()
-const readout = () => page.locator('.timeline-readout strong').innerText()
+await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
+const readout = () => page.locator('.playbar-time').innerText()
 const r0 = await readout()
-await page.getByRole('button', { name: 'Next frame' }).click()
+const clock0 = await page.evaluate(() => window.__store.get().playTime)
+await page.getByRole('slider', { name: 'Playback time' }).focus()
+await page.keyboard.press('ArrowLeft')
+await settle(page, 300)
 const r1 = await readout()
-check('Timeline step changes the frame', r0 !== r1, `${r0} → ${r1}`)
+const clock1 = await page.evaluate(() => window.__store.get().playTime)
+// One step back is the previous frame; within 5 min of now the label still reads "Now", so the clock is the evidence.
+check('Playback step (slider) moves the clock one frame back', clock1 != null && clock1 !== clock0 && clock1 < Date.now(), `${r0} → ${r1} (clock ${clock0 ? new Date(clock0).toISOString().slice(11, 16) : 'live'} → ${new Date(clock1 ?? 0).toISOString().slice(11, 16)}Z)`)
 await page.getByRole('button', { name: 'Play' }).click()
 await settle(page, 1500)
 const r2 = await readout()
 await page.getByRole('button', { name: 'Pause' }).click()
-check('Timeline play advances frames', r2 !== r1, `${r1} → ${r2}`)
+check('Playback play advances the time', r2 !== r1, `${r1} → ${r2}`)
 const slider = page.getByRole('slider')
 await slider.focus()
 await page.keyboard.press('Home')
 check('Scrubber to start pauses & shows first frame', /0/.test(await slider.getAttribute('value')))
 
-// Frame-rate with nowcast playing
-await page.getByRole('tab', { name: 'Nowcast' }).click()
+// Frame-rate with the nowcast overlay playing (the one clock drives radar and the overlay together)
 await page.getByRole('button', { name: 'Play' }).click()
 const fps = await page.evaluate(
   () =>

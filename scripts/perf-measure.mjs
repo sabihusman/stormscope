@@ -168,7 +168,6 @@ await page.evaluate(() => { window.__labelTimes = [{ label: 'first-load', t: 0 }
 const label = (l) => page.evaluate((l) => { window.__perfLabel = l; window.__labelTimes.push({ label: l, t: performance.now() }) }, l)
 await label('nav-switch')
 for (const t of [/^More/, 'Trip', /^Now/, 'Map']) { await touchTap(page, await centre(page.getByRole('button', { name: t, exact: typeof t === 'string' }))); await page.waitForTimeout(900) }
-await setSheet(page, 'half')
 await label('pan')
 for (let i = 0; i < 3; i++) { await touchDrag(page, { x: 195, y: 300 }, { x: 95, y: 220 }, { steps: 10, settleMs: 60 }); await page.waitForTimeout(900) }
 await label('zoom-jump')
@@ -197,10 +196,7 @@ await touchTap(page, await centre(page.getByRole('radio', { name: 'Next 2 h wind
 await page.waitForTimeout(300)
 await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
 await page.waitForTimeout(20000) // blocks load + nowcast
-await setSheet(page, 'half')
 await page.waitForTimeout(500)
-const nowTab = page.getByRole('tab', { name: 'Nowcast' })
-if (await nowTab.count()) { await touchTap(page, await centre(nowTab)); await page.waitForTimeout(400) }
 await touchTap(page, await centre(page.getByRole('button', { name: 'Play' })))
 await page.waitForTimeout(4000)
 await touchTap(page, await centre(page.getByRole('button', { name: 'Pause' })))

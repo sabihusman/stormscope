@@ -82,8 +82,7 @@ let s = await waitFor((x) => x.radarFrames > 0)
 check('Default: radar on, satellite off, map has radar frames', s.layers.radar && !s.layers.satellite && s.mapRadar === s.radarFrames && s.mapSat === 0, `${s.mapRadar} radar layers`)
 
 // Scrub radar back to its oldest past frame (~2 h ago) so the carry-over has a satellite match.
-await setSheet(page, 'half')
-await page.getByRole('slider').focus()
+await page.getByRole('slider', { name: 'Playback time' }).focus()
 await page.keyboard.press('Home')
 s = await st()
 const viewedRadar = s.radarTime
@@ -99,13 +98,13 @@ s = await waitFor((x) => x.satN > 0 && !x.carry, 90000)
 check('(a) Enabling satellite disables radar (store + map)', s.layers.satellite && !s.layers.radar && s.mapRadar === 0 && s.mapSat === s.satN, `${s.mapSat} satellite layers, ${s.mapRadar} radar layers`)
 s = await waitFor((x) => x.mapStation, 60000) // its data may still be loading right after start-up
 check('(b) Unrelated layers are untouched by the switch (station stays on, rivers stay off)', s.layers.station && s.mapStation && !s.layers.rivers, JSON.stringify({ rivers: s.layers.rivers, station: s.layers.station, mapStation: s.mapStation }))
-check('Timeline follows the active layer (satellite)', s.anim === 'satellite')
+check('Playback follows the active layer (satellite)', s.anim === 'satellite')
 const delta1 = Math.abs(s.satTime - viewedRadar) / 60000
 check('(c) Time carried over: satellite frame within 10 min of the radar time', delta1 <= 10 && !s.lag, `radar ${new Date(viewedRadar).toISOString().slice(11, 16)}Z → satellite ${new Date(s.satTime).toISOString().slice(11, 16)}Z (Δ ${delta1.toFixed(0)} min)`)
 check('GIBS frames listed (10-min cadence, last ~3 h)', s.satN >= 10 && s.satN <= 20, `${s.satN} frames, ${s.satLayer}`)
 await page.waitForTimeout(4000)
 check('GOES tiles fetched OK', tiles.filter((t) => t === 200).length >= 4, `${tiles.filter((t) => t === 200).length} tiles 200`)
-let tl = await page.locator('.timeline').innerText()
+let tl = await page.locator('.playbar').innerText()
 check('No lag label when the time carried over', !/earlier than the radar time/.test(tl))
 await page.screenshot({ path: `${OUT}/satellite-carried.png` })
 
@@ -134,12 +133,13 @@ const gap = (newestRadar - s.satTime) / 60000
 if (gap > 10) {
   if (!(s.satFrame === s.satN - 1 && !!s.lag)) console.log('trace:', logs.slice(-4).join(' || '))
   check('(d) Satellite lands on its newest frame when nothing is within 10 min', s.satFrame === s.satN - 1 && !!s.lag, `gap ${gap.toFixed(0)} min, lag note ${JSON.stringify(s.lag && { viewed: new Date(s.lag.viewed).toISOString().slice(11, 16), landed: new Date(s.lag.landed).toISOString().slice(11, 16) })}`)
-  tl = await page.locator('.timeline').innerText()
+  tl = await page.locator('.playbar').innerText()
   const m = tl.match(/Satellite: (\d{1,2}:\d{2}[^—]*) — (\d+) min earlier than the radar time you were on/)
   check('(d) Lag label "Satellite: HH:MM — X min earlier than the radar time you were on"', !!m && Math.abs(Number(m[2]) - gap) <= 10, m?.[0] ?? tl.split('\n').slice(0, 4).join(' | '))
   await page.screenshot({ path: `${OUT}/satellite-lag.png` })
   // Scrubbing clears the note.
-  await page.getByRole('button', { name: 'Previous frame' }).click()
+  await page.getByRole('slider', { name: 'Playback time' }).focus()
+  await page.keyboard.press('ArrowLeft')
   s = await st()
   check('Moving the playhead clears the lag note', !s.lag)
 } else {

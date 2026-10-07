@@ -52,6 +52,7 @@ const SUITES = [
   { name: 'pwa', script: 'pwa-check.mjs' },
   { name: 'flows', script: 'flows-check.mjs' },
   { name: 'units', script: 'units-check.mjs' },
+  { name: 'playbar', script: 'playbar-check.mjs' },
   { name: 'qa', script: 'qa.mjs' },
   { name: 'satellite-desktop', script: 'satellite-check.mjs' },
   { name: 'satellite-phone', script: 'satellite-check.mjs', env: { VIEWPORT: 'mobile' } },

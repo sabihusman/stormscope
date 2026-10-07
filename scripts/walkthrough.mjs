@@ -139,7 +139,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   await page.waitForTimeout(800)
 
   // ---------------- radar play / pause / scrub
-  await feature('radar play', async () => { await setSheet(page, 'half'); await page.waitForTimeout(400); await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => window.__store.get().playing))
+  await feature('radar play', async () => { await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => window.__store.get().playing))
   await feature('radar pause + scrub', async () => { await tap(page.getByRole('button', { name: 'Pause' })); await page.getByRole('slider').focus(); await page.keyboard.press('Home'); await page.waitForTimeout(500); await page.keyboard.press('End'); await page.waitForTimeout(500) }, () => st(() => !window.__store.get().playing))
 
   // ---------------- satellite GeoColor / IR + switch with time carry
@@ -149,7 +149,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 
   // ---------------- rainfall, flood, nowcast + particles, 3D
   await feature('rain overlay then flood overlay (one at a time)', async () => { await openMenu(); await tap(page.getByRole('radio', { name: 'Rain next 24 h' })); await page.waitForTimeout(300); await tap(page.getByRole('radio', { name: 'Flood risk' })); await page.waitForTimeout(300); await openMenu() }, () => st(() => { const s = window.__store.get(); const v = s.visibleBlocks; return v.length > 0 && v.every((k) => s.blocks[k]?.rainCells.data && s.blocks[k]?.flood.data) }), { timeoutMs: 60000 })
-  await feature('nowcast + wind particles playing', async () => { await openMenu(); await tap(page.getByRole('radio', { name: 'Next 2 h wind & cloud' })); await page.waitForTimeout(300); await openMenu(); await setSheet(page, 'half'); await page.waitForTimeout(300); const nt = page.getByRole('tab', { name: 'Nowcast' }); if (await nt.count()) await tap(nt); await page.waitForTimeout(300); await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => { const s = window.__store.get(); return s.visibleBlocks.every((k) => s.blocks[k]?.nowcast.data) && s.playing }), { timeoutMs: 60000 })
+  await feature('nowcast + wind particles playing', async () => { await openMenu(); await tap(page.getByRole('radio', { name: 'Next 2 h wind & cloud' })); await page.waitForTimeout(300); await openMenu(); await page.waitForTimeout(300); await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => { const s = window.__store.get(); return s.visibleBlocks.every((k) => s.blocks[k]?.nowcast.data) && s.playing }), { timeoutMs: 60000 })
   await feature('nowcast pause', async () => { await tap(page.getByRole('button', { name: 'Pause' })) }, () => st(() => !window.__store.get().playing))
   await feature('3D terrain on', async () => { await openMenu(); await tap(page.getByRole('button', { name: /3D terrain/ })); await page.waitForTimeout(300); await openMenu(); await page.waitForTimeout(1500) }, () => st(() => window.__map.getPitch() > 50 && !window.__map.isMoving()), { timeoutMs: 15000 })
   await feature('3D terrain off', async () => { await openMenu(); await tap(page.getByRole('button', { name: /3D terrain/ })); await page.waitForTimeout(300); await openMenu(); await page.waitForTimeout(1200) }, () => st(() => window.__map.getPitch() === 0))
@@ -169,9 +169,9 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   await feature('move layer button to top-left', async () => { const fab = await centre(page.getByRole('button', { name: /layer menu/ })); await drag(fab, { x: 40, y: 120 }); await page.waitForTimeout(600) }, () => st(() => window.__store.get().fabCorner === 'tl'))
   await feature('move layer button back', async () => { const fab = await centre(page.getByRole('button', { name: /layer menu/ })); await drag(fab, { x: vp.width - 40, y: vp.height - 120 }); await page.waitForTimeout(600) }, () => st(() => window.__store.get().fabCorner === 'br'))
 
-  // ---------------- map sheet: timeline and details; collapse by drag, tap, ▼, swipe, back
-  const showContent = async (t) => { if (t === 'details') { await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' })); await tap(page.locator('.map-container')); await page.waitForTimeout(300); const d = page.getByRole('button', { name: 'Details' }); if (await d.count()) await tap(d) } else await page.evaluate(() => window.__store.set({ selection: null, sheet: 'half' })) }
-  for (const t of ['timeline', 'details']) {
+  // ---------------- map sheet: point details; collapse by drag, tap, ▼, swipe, back
+  const showContent = async () => { await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' })); await tap(page.locator('.map-container')); await page.waitForTimeout(300); const d = page.getByRole('button', { name: 'Details' }); if (await d.count()) await tap(d) }
+  for (const t of ['details']) {
     await feature(`sheet ${t}: open full + collapse (drag/tap/▼/swipe/back)`, async () => {
       await showContent(t)
       await page.waitForTimeout(400)
