@@ -196,24 +196,28 @@ export function PlaybackBar() {
 /** Data status chips: offline, "showing map area", and one per layer with its age. They wrap; nothing scrolls off. */
 function StatusStrip() {
   const online = useOnline()
-  const s = useApp((x) => x)
+  // Narrow subscriptions: the bar is always mounted, so it must not re-render on every frame tick or block update.
+  const radar = useApp((s) => s.radar)
+  const satellite = useApp((s) => s.satellite)
+  const layers = useApp((s) => s.layers)
+  const hasPlace = useApp((s) => !!s.place)
+  const following = useApp((s) => !!s.focus && (!s.place || haversine(s.focus, s.place.lngLat) > 1000))
   const blocks = useVisibleBlocks()
   const now = useNow()
-  const following = !!s.focus && (!s.place || haversine(s.focus, s.place.lngLat) > 1000)
   const g = aggregate(blocks, (b) => b.grid)
   const rain = { state: g.state, stale: g.stale, error: g.error, freshness: g.fetchedAt ? { fetchedAt: g.fetchedAt } : null }
   const items = [
-    { k: 'Radar', r: s.radar, on: s.layers.radar },
-    { k: 'Satellite', r: s.satellite, on: s.layers.satellite },
-    { k: `Rain ${g.ready}/${g.total}`, r: rain, on: s.layers.rainfall || s.layers.flood || s.layers.nowcast },
+    { k: 'Radar', r: radar, on: layers.radar },
+    { k: 'Satellite', r: satellite, on: layers.satellite },
+    { k: `Rain ${g.ready}/${g.total}`, r: rain, on: layers.rainfall || layers.flood || layers.nowcast },
   ].filter((i) => i.on)
   if (online && !following && !items.length) return null
   return (
     <div className="status-strip playbar-status" aria-live="polite">
       {!online && <span className="pill offline">Offline</span>}
       {following && (
-        <button className="pill follow" onClick={() => store.set((x) => ({ recenterNonce: x.recenterNonce + 1 }))} disabled={!s.place} title={s.place ? 'Back to my place' : undefined}>
-          Showing map area{s.place ? ' · back to my place' : ''}
+        <button className="pill follow" onClick={() => store.set((x) => ({ recenterNonce: x.recenterNonce + 1 }))} disabled={!hasPlace} title={hasPlace ? 'Back to my place' : undefined}>
+          Showing map area{hasPlace ? ' · back to my place' : ''}
         </button>
       )}
       {items.map((i) => (
