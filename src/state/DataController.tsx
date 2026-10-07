@@ -324,9 +324,11 @@ export function DataController() {
   const quotaBackoffUntil = useRef(0)
   const reconcile = async () => {
     const s = store.get()
-    const need = s.layers.rainfall || s.layers.flood || s.layers.nowcast || !!s.floodFor
-    // The Flood page's block for the place is computed whatever the map shows.
-    const want = s.floodFor && !s.visibleBlocks.includes(s.floodFor) ? [...s.visibleBlocks, s.floodFor] : s.visibleBlocks
+    const overlayOn = s.layers.rainfall || s.layers.flood || s.layers.nowcast
+    const need = overlayOn || !!s.floodFor
+    // The Flood page's block for the place is computed whatever the map shows. With no overlay on, that
+    // block is the ONLY one fetched (the visible blocks would cost 49 locations each for nothing).
+    const want = !overlayOn ? (s.floodFor ? [s.floodFor] : []) : s.floodFor && !s.visibleBlocks.includes(s.floodFor) ? [...s.visibleBlocks, s.floodFor] : s.visibleBlocks
     // Nothing is fetched while the tab is hidden: the 30-min refresh only counts visible time.
     if (!need || !want.length || document.hidden) return
     if (Date.now() < quotaBackoffUntil.current) return

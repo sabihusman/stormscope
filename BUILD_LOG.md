@@ -1,5 +1,15 @@
 # Build log
 
+## Oct 7 — live pass attempt on the redesign preview: stopped at the NWPS cap; two traffic defects found and fixed
+
+- **All 17 suites mocked on the final build** (zero live calls): pwa 8/8, flows 25/25, units 12/12, qa 32/34 (long-task 216/327 ms under SwiftShader + 3 sprite 404s from the mock, since fixed), satellite 17/17 ×2, blocks 13/13, zoom 1/1, fab 10/10, sheet 16/16, boundary 14/14, follow 8/8, rivers 4/4 (3 live-only checks skipped), journey Iowa 16/16 (Philadelphia has no mocked bodies), hazards 25/25, road 21/21 (live sections skipped).
+- **Live pass on preview 950qtv9r8 (bundle Cpw2jdOG), 14:48 UTC:** pwa 8/8, flows 24/24 — then `api.water.noaa.gov` hit its 160/day cap inside flows (16 requests blocked) and the pass was stopped at once so the other caps were not spent on a pass that could not go green. Earlier start the same minute aborted at 40 s: pwa/satellite/rivers still declared "zero Open-Meteo calls", which the Now screen's conditions call now violates (fixed bc16b3c). Bypass secret generated and revoked both times (0 entries).
+- **Why NWPS blew the cap:** the Rivers page is place-bound, so every place change is a gauge load (21 requests); flows changes the place six times. Cap re-sized to 750 for ~33 loads across the pass (our own test cap).
+- **Traffic defect found by the ledger:** flows pulled 301 Open-Meteo locations. With the Flood page open and no map overlay on, reconcile fetched the grid for *every visible map block* (49 locations each) instead of only the place's block. Fixed in DataController (`want` = the place block alone when no overlay is on); verified mocked: one 49-location request after opening Flood at zoom 10.
+- **Units:** `units-check.mjs` 12/12 — temperature, wind, gusts, rain, distance, pressure and stage follow the Settings choice on Now, the map chip/details, Trip and More; Trip screenshots in both systems in `e2e-shots/mock/units/`.
+- **qa long-task check on this build with live data:** not yet measured — qa did not run before the stop. Owed with the next pass.
+- Ledger Oct 7 after the stop: Open-Meteo 312/3000, NWPS 160/160 (cap). Next single pass after 00:00 UTC Oct 8 on a preview that contains the grid fix, on the user's message. No promotion.
+
 ## UX redesign — Phase 2 implemented on a preview (Oct 7)
 
 Conditions-first shell built as approved (answers: alerts refresh every 3 min + outside-US state; headline from the model with an observed line only when a station reading is < 30 min old and < 10 mi away; Timeline a Map control; one forecast overlay at a time; replays drive the Trip page). One change per commit:

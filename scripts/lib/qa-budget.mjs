@@ -33,7 +33,7 @@ export const HOST_CAPS = {
   'historical-forecast-api.open-meteo.com': 5,
   'geocoding-api.open-meteo.com': 10,
   'api.waterdata.usgs.gov': 50, // rivers-check 27 + ~18 app gauge loads
-  'api.water.noaa.gov': 160, // 21 per gauge load (list + 20 details): qa, follow, rivers, perf
+  'api.water.noaa.gov': 750, // 21 per gauge load (list + 20 details). Oct 7: the Rivers page is place-bound, so every place change in a suite is a load — ~33 loads across the 17 suites + walkthrough + perf
   'api.weather.gov': 180,
   'alerts.weather.gov': 10,
   'mapservices.weather.noaa.gov': 50,
