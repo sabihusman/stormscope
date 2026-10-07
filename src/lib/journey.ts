@@ -88,11 +88,11 @@ export function classify(code: number | null, precipMmH: number | null, snowCmH:
   if (p > 0.2 && freezing) return { code: 'ice', label: 'Precipitation near freezing — possible ice', severity: 3 }
   if (s >= 3 || (code != null && [75, 86].includes(code))) return { code: 'heavy-snow', label: 'Heavy snow', severity: 3 }
   if (p >= 10) return { code: 'heavy-rain', label: 'Very heavy rain', severity: 3 }
-  if (gustKmh != null && gustKmh >= 70) return { code: 'wind', label: `Damaging gusts ${Math.round(gustKmh)} km/h`, severity: 2 }
+  if (gustKmh != null && gustKmh >= 70) return { code: 'wind', label: 'Damaging gusts', severity: 2 }
   if (visM != null && visM < 1000) return { code: 'fog', label: 'Low visibility', severity: 2 }
   if (s > 0.5 || (code != null && [71, 73, 77, 85].includes(code))) return { code: 'snow', label: 'Snow', severity: 2 }
   if (p >= 4) return { code: 'heavy-rain', label: 'Heavy rain', severity: 2 }
-  if (gustKmh != null && gustKmh >= 50) return { code: 'wind', label: `Gusty ${Math.round(gustKmh)} km/h`, severity: 1 }
+  if (gustKmh != null && gustKmh >= 50) return { code: 'wind', label: 'Gusty', severity: 1 }
   if (p > 0.2 || (code != null && code >= 51 && code <= 65)) return { code: 'rain', label: 'Rain', severity: 1 }
   if (code != null && [45, 48].includes(code)) return { code: 'fog', label: 'Fog', severity: 1 }
   return { code: 'clear', label: 'Fair', severity: 0 }

@@ -1912,3 +1912,25 @@ small {
 .fab-group-label + .segmented {
   margin-top: 2px;
 }
+
+/* Trip page */
+.trip-from {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+.trip-from strong {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.journey-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.screen.trip .panel {
+  padding: 0;
+}

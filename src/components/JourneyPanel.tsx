@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import { searchPlaces, type GeoResult } from '../api/geocode'
-import { useDebouncedValue, useNow } from '../hooks/useMisc'
+import { useRef, useState } from 'react'
+import { useNow } from '../hooks/useMisc'
 import { clock, dayClock, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
 import { SEVERITY_COLORS, type JourneySample } from '../lib/journey'
 import { clearJourney, selectRoute, setDeparture, setJourneyTo, store, useApp } from '../state/store'
 import { summarize, type HazardHit, type HazardReport, type SourceStatus } from '../lib/hazardEngine'
-import { effectiveCondition, type RoadReport, type RoadSample } from '../lib/roadIce'
+import { condText, effectiveCondition, type RoadReport, type RoadSample } from '../lib/roadIce'
+import { PlaceSearch } from './PlaceSearch'
+import { startPickOnMap } from '../state/store'
 
 const ICON: Record<string, string> = { clear: '☀️', rain: '🌧', 'heavy-rain': '⛈', snow: '🌨', 'heavy-snow': '❄️', ice: '🧊', fog: '🌫', wind: '💨', storm: '⛈' }
 
@@ -16,26 +17,8 @@ export function JourneyPanel() {
   const place = useApp((s) => s.place)
   const units = useApp((s) => s.units)
   const now = useNow()
-  const [q, setQ] = useState('')
-  const dq = useDebouncedValue(q, 300)
-  const [results, setResults] = useState<GeoResult[]>([])
-  const [busy, setBusy] = useState(false)
   const [custom, setCustom] = useState(false)
   const customRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (dq.trim().length < 2) {
-      setResults([])
-      return
-    }
-    const ctrl = new AbortController()
-    setBusy(true)
-    searchPlaces(dq, ctrl.signal)
-      .then(setResults)
-      .catch(() => setResults([]))
-      .finally(() => setBusy(false))
-    return () => ctrl.abort()
-  }, [dq])
 
   const chips: { label: string; ms: () => number }[] = [
     { label: 'Now', ms: () => Date.now() },
@@ -72,42 +55,27 @@ export function JourneyPanel() {
           <small>Hazards come from archived NWS/SPC products; weather is ERA5 reanalysis, not a forecast.</small>
         </div>
       )}
-      <div className="panel-title">
-        <strong>Journey weather</strong>
-        <small className="muted">From {store.get().placeLabel ?? 'your location'} · departure {dayClock(j.departure)}</small>
+      <div className="trip-from">
+        <small className="muted">From</small>
+        <strong>{store.get().placeLabel ?? place.name}</strong>
+        <button className="btn small ghost" onClick={() => store.set({ pickerOpen: true })}>
+          Change
+        </button>
       </div>
 
       {/* Destination */}
       {!j.to ? (
         <div className="journey-search">
-          <input
-            className="text-input"
-            type="search"
-            placeholder="Destination: city, postcode or place"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            aria-label="Destination"
-            autoComplete="off"
-          />
-          {(busy || results.length > 0) && (
-            <ul className="search-results inline" role="listbox">
-              {busy && <li className="muted">Searching…</li>}
-              {results.map((r, i) => (
-                <li key={i} role="option" aria-selected={false}>
-                  <button type="button" onClick={() => setJourneyTo({ name: [r.name, r.detail].filter(Boolean).join(', '), lngLat: r.lngLat, source: 'search' })}>
-                    <span>{r.name}</span>
-                    <small>{r.detail}</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <small className="muted">Or tap anywhere on the map and choose “Set as destination”.</small>
+          <small className="muted">To</small>
+          <PlaceSearch placeholder="Destination" autoFocus={false} onPick={(r) => setJourneyTo({ name: r.name, lngLat: r.lngLat, source: 'search' })} />
+          <button className="btn small" onClick={startPickOnMap}>
+            🗺 Pick the destination on the map
+          </button>
         </div>
       ) : (
         <div className="journey-dest">
           <span>
-            → <strong>{j.to.name}</strong>
+            <small className="muted">To</small> <strong>{j.to.name}</strong>
           </span>
           <button className="btn small" onClick={clearJourney}>
             Change
@@ -196,6 +164,7 @@ export function JourneyPanel() {
           {route && j.weather.error && !w && <p className="err-text">Forecast unavailable: {j.weather.error}</p>}
           {w && route && arrival && (
             <>
+              <HazardsSection r={j.hazards} units={units} />
               <div className={`arrival-card sev-${cond(w.samples[w.samples.length - 1]).severity}`}>
                 <small>Arrive {j.to.name.split(',')[0]}</small>
                 <strong>{dayClock(arrival)}</strong>
@@ -231,7 +200,6 @@ export function JourneyPanel() {
               <small className="muted">
                 {w.provider} · fetched {timeAgo(w.fetchedAt, now)} ({w.calls} points){w.historical ? '' : ' · 15-minutely where HRRR / ICON-D2 / AROME cover'}
               </small>
-              <HazardsSection r={j.hazards} units={units} />
               <RoadSection r={j.road} replay={!!replay} />
             </>
           )}
@@ -354,7 +322,7 @@ function RoadSection({ r, replay }: { r: ReturnType<typeof store.get>['journey']
                   <span>
                     {st.obsTime == null
                       ? 'no observation'
-                      : `pavement ${st.pavementF != null ? Math.round(st.pavementF) + ' °F' : '—'}, ${st.condition ?? 'no reading'} — ${replay ? `obs ${clock(st.obsTime)}` : st.ageMin! < 1 ? 'just now' : `${st.ageMin} min ago`}`}
+                      : `pavement ${st.pavementF != null ? Math.round(st.pavementF) + ' °F' : '—'}, ${condText(st.condition)} — ${replay ? `obs ${clock(st.obsTime)}` : st.ageMin! < 1 ? 'just now' : `${st.ageMin} min ago`}`}
                     {st.stale ? ' · stale/unknown' : ''}
                     {st.confirmsIce
                       ? ' · confirms ICY on this trip'
@@ -388,7 +356,7 @@ export function sampleSelection(s: JourneySample, units: ReturnType<typeof store
     lngLat: s.lngLat,
     title: `${clock(s.eta)} · ${c.label}`,
     lines: [
-      ...(road?.station ? [`RWIS ${road.station.name}: ${road.station.condition ?? 'no reading'}${road.station.pavementF != null ? `, pavement ${Math.round(road.station.pavementF)} °F` : ''} at ${clock(road.station.obsTime)} (${U.distance(road.station.distM, units)} from route)`] : []),
+      ...(road?.station ? [`RWIS ${road.station.name}: ${condText(road.station.condition)}${road.station.pavementF != null ? `, pavement ${Math.round(road.station.pavementF)} °F` : ''} at ${clock(road.station.obsTime)} (${U.distance(road.station.distM, units)} from route)`] : []),
       `${U.distance(s.distM, units)} into the trip · ETA ${dayClock(s.eta)}`,
       `${U.temp(s.tempC, units)} · precip ${s.precipMm != null ? U.precip(s.precipMm, units) + '/h' : '—'}${s.snowCm ? ` · snow ${s.snowCm.toFixed(1)} cm/h` : ''}`,
       `Gusts ${U.speed(s.gustKmh != null ? s.gustKmh / 3.6 : null, units)} · visibility ${U.distance(s.visibilityM, units)} · cloud ${s.cloudPct ?? '—'} %`,

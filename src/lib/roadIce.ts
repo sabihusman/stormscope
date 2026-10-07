@@ -125,6 +125,11 @@ export function evaluateRoadIce(samples: JourneySample[], stations: RwisStation[
 }
 
 /** Forecast condition merged with the road report for display/colouring. */
+/** Sensor condition text for display: feed placeholders ("NA", "N/A", blank) become "no reading". */
+export function condText(c: string | null | undefined): string {
+  return c && !/^\s*(n\/?a|null|none|-+)?\s*$/i.test(c) ? c : 'no reading'
+}
+
 export function effectiveCondition(sample: JourneySample, road?: RoadSample): Condition {
   const c = sample.condition
   const stn = road?.station ? road.station.name.replace(/\s*\(.*\)$/, '') : ''
@@ -134,10 +139,10 @@ export function effectiveCondition(sample: JourneySample, road?: RoadSample): Co
   }
   // An Ice/Snow Watch is moisture at or below freezing, not a frozen film: "possible ice" whatever the forecast says.
   if (road?.status === 'ice-watch' && road.station) {
-    return { code: 'ice', label: `Possible ice — ${stn} reports ${road.station.condition ?? 'Ice Watch'}${pav}`, severity: 3 }
+    return { code: 'ice', label: `Possible ice — ${stn} reports ${condText(road.station.condition ?? 'Ice Watch')}${pav}`, severity: 3 }
   }
   if (c.code === 'ice') {
-    if (road?.status === 'no-ice-observed' && road.station) return { code: 'ice', label: `Possible ice (forecast) — ${road.station.name.replace(/\s*\(.*\)$/, '')} reports ${road.station.condition ?? 'no ice'}`, severity: 3 }
+    if (road?.status === 'no-ice-observed' && road.station) return { code: 'ice', label: `Possible ice (forecast) — ${road.station.name.replace(/\s*\(.*\)$/, '')} reports ${condText(road.station.condition ?? 'no ice')}`, severity: 3 }
     return { code: 'ice', label: 'Possible ice (forecast)', severity: 3 }
   }
   return c
