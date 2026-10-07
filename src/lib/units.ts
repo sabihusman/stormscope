@@ -12,8 +12,8 @@ export const defaultUnits = (): Units => {
   } catch {
     /* ignore */
   }
-  const lang = typeof navigator !== 'undefined' ? navigator.language : ''
-  return /-(US|LR|MM)$/i.test(lang) ? 'imperial' : 'metric'
+  // US-only data sources (NWS, NWPS/USGS, RWIS): °F, mph, in, mi by default; a Settings choice (above) wins once made.
+  return 'imperial'
 }
 
 const fmt = (v: number, digits: number) => v.toFixed(digits)
