@@ -32,8 +32,10 @@ const pageErrors = []
 page.on('pageerror', (e) => pageErrors.push(e.message))
 await page.goto(BASE, { waitUntil: 'load' })
 await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
-for (let i = 0; i < 40; i++) { await page.waitForTimeout(500); if (await page.evaluate(() => !!window.__map?.loaded() && window.__store?.get().rivers.state === 'ready')) break }
+for (let i = 0; i < 40; i++) { await page.waitForTimeout(500); if (await page.evaluate(() => !!window.__map?.loaded())) break }
 await openMap(page)
+// Gauges load only while something shows them (the map's rivers layer here); the injected-failure checks below need a list.
+for (let i = 0; i < 40; i++) { await page.waitForTimeout(500); if (await page.evaluate(() => window.__store?.get().rivers.state === 'ready')) break }
 const st = () => page.evaluate(() => { const s = window.__store.get(); return { layers: s.layers, errors: s.layerErrors, sheet: s.sheet, screen: s.screen, morePage: s.morePage, toast: s.toast?.text ?? null } })
 
 // ---- 1. A map layer throws inside its effect: MapLibre rejects the rainfall source.

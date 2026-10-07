@@ -117,7 +117,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 
   // ---------------- first load, offline reload
   await feature('first load', async () => { await page.goto(BASE, { waitUntil: 'load' }); await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {}) }, () => st(() => !!window.__map?.loaded() && !!window.__store?.get().radar.data))
-  await feature('now: conditions + alerts + station + rivers', async () => {}, () => st(() => { const s = window.__store.get(); return s.conditions.state === 'ready' && s.alerts.state === 'ready' && s.station.state === 'ready' && s.rivers.state === 'ready' && !!document.querySelector('.cond-temp') }))
+  await feature('now: conditions + alerts + station', async () => {}, () => st(() => { const s = window.__store.get(); return s.conditions.state === 'ready' && s.alerts.state === 'ready' && s.station.state === 'ready' && !!document.querySelector('.cond-temp') }))
   await page.waitForTimeout(6000) // let the service worker take control and warm its cache
   await feature('offline reload', async () => { await ctx.setOffline(true); await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {}) }, () => st(() => !!document.querySelector('.maplibregl-canvas') && document.body.innerText.includes('Offline')), { timeoutMs: 20000 })
   await ctx.setOffline(false)
@@ -242,8 +242,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     await p2.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
     const t0 = Date.now()
     let text = ''
-    while (Date.now() - t0 < 30000) { await p2.waitForTimeout(1000); const s = await p2.evaluate(() => window.__store.get()); if (s.rivers.state === 'error' || s.rivers.error) break }
     await openMore(p2, 'Rivers & gauges')
+    while (Date.now() - t0 < 30000) { await p2.waitForTimeout(1000); const s = await p2.evaluate(() => window.__store.get()); if (s.rivers.state === 'error' || s.rivers.error) break }
     await p2.waitForTimeout(500)
     text = await p2.locator('.screen.more').innerText()
     const pills = await p2.evaluate(() => [...document.querySelectorAll('.now-card.err, .err-text')].map((p) => p.textContent))

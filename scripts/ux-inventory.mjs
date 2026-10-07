@@ -140,7 +140,7 @@ try {
   const { ctx, page, done } = await newCtx()
   await page.goto(BASE, { waitUntil: 'load' })
   await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
-  await waitFor(page, () => window.__store?.get().radar.state === 'ready' && window.__store.get().station.state === 'ready' && window.__store.get().rivers.state === 'ready')
+  await waitFor(page, () => window.__store?.get().radar.state === 'ready' && window.__store.get().station.state === 'ready')
   await settle(page, 1500)
   await shot(page, 'home-after-grant', 'Home after location grant: full-screen radar map, collapsed sheet with status pills — no temperature, no conditions, no warnings', 'grant location, wait for data')
   await ctx.setOffline(true); await settle(page, 800)

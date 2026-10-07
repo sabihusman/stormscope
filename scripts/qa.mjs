@@ -2,7 +2,7 @@
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
-import { openMap, openMore, pageText, setSheet, setUnits, sheetText, searchPlace } from './lib/ui.mjs'
+import { openMap, openMore, openRivers, pageText, setSheet, setUnits, sheetText, searchPlace } from './lib/ui.mjs'
 // --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
 const MOCK = process.argv.includes('--mock')
 assertBudget(MOCK ? 'qa.mjs (mock)' : 'qa.mjs', { openMeteo: !MOCK })
@@ -109,13 +109,11 @@ check(
 await page.screenshot({ path: `${OUT}/station-imperial.png` })
 
 // Rivers in imperial: ft & ft³/s
-await openMore(page, 'Rivers & gauges')
-await settle(page, 4000)
+await openRivers(page)
 const rivers = await pageText(page)
 check('Rivers list populated with stage in ft (imperial)', /Stage [\d.]+ ft/.test(rivers), rivers.split('\n').slice(0, 6).join(' | '))
 await setUnits(page, 'Metric')
-await openMore(page, 'Rivers & gauges')
-await settle(page)
+await openRivers(page)
 check('Rivers stage converts to m (metric)', /Stage [\d.]+ m\b/.test(await pageText(page)))
 
 // Map screen: sheet modes & FAB reachability
@@ -276,7 +274,7 @@ check('Non-US: Now says alerts are unavailable outside the US', /Alerts unavaila
 await openMore(page, 'Station observations')
 await settle(page, 1500)
 check('Non-US: Open-Meteo fallback labelled honestly', /Open-Meteo/.test(await pageText(page)))
-await openMore(page, 'Rivers & gauges')
+await openRivers(page)
 check('Non-US: rivers page explains US-only coverage', /only available in the US/.test(await pageText(page)))
 await openMore(page, 'Flood risk')
 // Blocks + flood worker jobs take a while (and the Open-Meteo budget may be cooling down); poll up to 90 s.

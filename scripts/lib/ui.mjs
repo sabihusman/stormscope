@@ -18,6 +18,17 @@ export const openMore = async (page, title) => {
     await settle(page, 500)
   }
 }
+/** More → Rivers & gauges, then wait for the full tier (thresholds + USGS sites) — gauges load only when something shows them. */
+export const openRivers = async (page, timeout = 30000) => {
+  await openMore(page, 'Rivers & gauges')
+  const t0 = Date.now()
+  while (Date.now() - t0 < timeout) {
+    const ok = await page.evaluate(() => { const s = window.__store.get(); return (s.rivers.state === 'ready' && s.riversTier === 'full') || s.rivers.state === 'error' || !!s.rivers.error }).catch(() => false)
+    if (ok) break
+    await page.waitForTimeout(250)
+  }
+  await settle(page, 300)
+}
 export const pageText = (page) => page.locator('.page-body').innerText()
 export const tripText = (page) => page.locator('.screen.trip').innerText()
 export const sheetText = (page) => page.locator('.sheet-body').innerText()

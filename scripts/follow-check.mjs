@@ -7,7 +7,7 @@ import { installMocks } from './lib/mock-server.mjs'
 const MOCK = process.argv.includes('--mock')
 assertBudget(MOCK ? 'follow-check.mjs (mock)' : 'follow-check.mjs', { openMeteo: !MOCK })
 import { mkdirSync } from 'node:fs'
-import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
+import { allowLocation, openMap, openMore, openRivers, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:5173/'
 const OUT = process.argv[3] || 'e2e-shots/follow'
@@ -25,8 +25,7 @@ if (MOCK) await installMocks(ctx, { focus: { lat: 39.9526, lng: -75.1652 } })
 await page.goto(BASE, { waitUntil: 'load' })
 await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(7000)
-await openMore(page, 'Rivers & gauges')
-await page.waitForTimeout(1500)
+await openRivers(page)
 const before = await page.locator('.gauge-list li').first().innerText().catch(() => '')
 check('Rivers loaded for the user location', MOCK ? before.length > 0 : /Schuylkill|Delaware|Creek|River/.test(before), before.split('\n')[0])
 
@@ -36,8 +35,7 @@ await page.evaluate(() => window.__map.jumpTo({ center: [-76.6122, 39.2904], zoo
 await page.waitForTimeout(9000)
 const pill = await page.getByRole('button', { name: /Showing map area/ }).isVisible()
 check('Follow chip appears on the map after panning away', pill)
-await openMore(page, 'Rivers & gauges')
-await page.waitForTimeout(800)
+await openRivers(page)
 const after = await page.locator('.gauge-list li').first().innerText().catch(() => '')
 check('River gauges stay bound to the place (not the map centre)', after && after === before, after.split('\n')[0])
 await openMore(page, 'Station observations')

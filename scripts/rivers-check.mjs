@@ -123,7 +123,7 @@ if (record) {
 
 const snap = JSON.parse(readFileSync(SNAP, 'utf8'))
 const need = 2 + snap.sites.length + 1
-if (remaining('api.waterdata.usgs.gov') < need) {
+if (!MOCK && remaining('api.waterdata.usgs.gov') < need) {
   console.log(`SKIP  rivers-check.mjs: needs ${need} USGS requests, ${remaining('api.waterdata.usgs.gov')} left in today's cap`)
   process.exit(3)
 }
@@ -163,16 +163,18 @@ const usgsUrls = []
 page.on('request', (r) => /api\.waterdata\.usgs\.gov/.test(r.url()) && usgsUrls.push(r.url()))
 await page.goto(BASE, { waitUntil: 'load' })
 await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
+// Gauges load only while something shows them: the Rivers page asks for the full tier (NWPS details + USGS).
+await openMore(page, 'Rivers & gauges')
 let riv = null
 for (let i = 0; i < 90; i++) {
   await page.waitForTimeout(1000)
   riv = await page.evaluate(() => {
     const r = window.__store.get().rivers
-    return { state: r.state, error: r.error, source: r.freshness?.source, gauges: r.data?.map((g) => ({ id: g.id, lid: g.lid, usgsId: g.usgsId, flow: g.flow?.value, flowRatio: g.flowRatio, risk: g.riskLevel, sources: g.sources })) ?? null }
+    return { state: r.state, tier: window.__store.get().riversTier, error: r.error, source: r.freshness?.source, gauges: r.data?.map((g) => ({ id: g.id, lid: g.lid, usgsId: g.usgsId, flow: g.flow?.value, flowRatio: g.flowRatio, risk: g.riskLevel, sources: g.sources })) ?? null }
   })
-  if (riv.state === 'ready' || riv.state === 'error') break
+  if ((riv.state === 'ready' && riv.tier === 'full') || riv.state === 'error') break
 }
-check('Rivers panel loaded with the layer on', riv.state === 'ready' && (riv.gauges?.length ?? 0) > 0, `${riv.state} · ${riv.gauges?.length ?? 0} gauges · ${riv.source ?? riv.error ?? ''}`)
+check('Rivers page loaded the full tier (NWPS details + USGS sites)', riv.state === 'ready' && riv.tier === 'full' && (riv.gauges?.length ?? 0) > 0, `${riv.state} · ${riv.gauges?.length ?? 0} gauges · ${riv.source ?? riv.error ?? ''}`)
 // One bbox `daily` request per gauge load (a first visit loads twice: once before and once after the service
 // worker takes control), never a per-site query.
 const dailyReqs = usgsUrls.filter((u) => /collections\/daily\//.test(u)).length

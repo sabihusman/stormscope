@@ -6,7 +6,7 @@ import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
-import { openMap, openMore, openNow, openTrip, pageText, setUnits, sheetText, tripText } from './lib/ui.mjs'
+import { openMap, openMore, openNow, openRivers, openTrip, pageText, setUnits, sheetText, tripText } from './lib/ui.mjs'
 
 const argv = process.argv.slice(2)
 const MOCK = argv.includes('--mock')
@@ -27,7 +27,7 @@ const done = trackOpenMeteo(page, `units-check.mjs${MOCK ? ' (mock)' : ''}`)
 if (MOCK) await installMocks(ctx, {})
 await page.goto(BASE, { waitUntil: 'load' })
 const until = async (fn, ms = 60000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(250) } return false }
-await until(() => window.__store?.get().conditions.state === 'ready' && window.__store.get().station.state === 'ready' && window.__store.get().rivers.state === 'ready')
+await until(() => window.__store?.get().conditions.state === 'ready' && window.__store.get().station.state === 'ready')
 
 // Set up a trip once; both unit passes read the same data.
 await openTrip(page)
@@ -70,7 +70,8 @@ for (const [sys, u] of Object.entries(SYSTEMS)) {
   const summary = await page.locator('.route-summary').innerText().catch(() => '')
   const arrival = await page.locator('.arrival-card').innerText().catch(() => '')
   check(`[${sys}] Trip: route distance, strip temperatures/gusts/precip, arrival card in ${sys} units; no km/h or °C mix`, u.dist.test(summary) && u.temp.test(strip) && u.temp.test(arrival) && u.dist.test(strip) && !u.wrong.test(strip) && !u.wrong.test(arrival) && !u.wrong.test(summary), `${summary.split('\n')[0]} · ${arrival.replace(/\n/g, ' | ')} · ${strip.split('\n').slice(0, 2).join(' | ')}`)
-  const gustLines = trip.split('\n').filter((l) => /gusts/i.test(l))
+  // Lines that carry a gust *value*; the unit-free hazard label "Damaging gusts" / "Gusty" has none by design.
+  const gustLines = trip.split('\n').filter((l) => /gusts\s*\d/i.test(l))
   check(`[${sys}] Trip: every gust value uses ${sys} units`, gustLines.length === 0 || gustLines.every((l) => u.speed.test(l) && !u.wrong.test(l)), gustLines.slice(0, 2).join(' | ') || 'no gust lines on this trip')
   await page.locator('.screen.trip').evaluate((el) => el.scrollTo(0, 0))
   await page.screenshot({ path: `${OUT}/trip-${sys.toLowerCase()}.png`, fullPage: false })
@@ -79,8 +80,7 @@ for (const [sys, u] of Object.entries(SYSTEMS)) {
   await page.waitForTimeout(400)
   const station = await pageText(page)
   check(`[${sys}] Station: pressure, temperature, wind and precip totals in ${sys} units`, u.pressure.test(station) && u.temp.test(station) && (u.speed.test(station) || /Calm/.test(station)) && !u.wrong.test(station), station.match(/[\d.]+ (°F|°C|mph|km\/h|inHg|hPa|in|mm)\b/g)?.slice(0, 6).join(' · '))
-  await openMore(page, 'Rivers & gauges')
-  await page.waitForTimeout(400)
+  await openRivers(page)
   const rivers = await pageText(page)
   check(`[${sys}] Rivers: stage and distance in ${sys} units`, u.stage.test(rivers.match(/Stage [\d.]+ \S+/)?.[0] ?? '') && u.dist.test(rivers) && !new RegExp(sys === 'Imperial' ? 'Stage [\\d.]+ m\\b' : 'Stage [\\d.]+ ft').test(rivers), rivers.match(/Stage [^\n]*/)?.[0])
 }
