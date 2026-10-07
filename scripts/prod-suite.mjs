@@ -49,6 +49,7 @@ if (!only && ledger.used + NEED > QA_DAILY_CAP) {
 const SUITES = [
   { name: 'pwa', script: 'pwa-check.mjs' },
   { name: 'flows', script: 'flows-check.mjs' },
+  { name: 'units', script: 'units-check.mjs' },
   { name: 'qa', script: 'qa.mjs' },
   { name: 'satellite-desktop', script: 'satellite-check.mjs' },
   { name: 'satellite-phone', script: 'satellite-check.mjs', env: { VIEWPORT: 'mobile' } },
