@@ -1,5 +1,24 @@
 # Build log
 
+## UX redesign — Phase 2 implemented on a preview (Oct 7)
+
+Conditions-first shell built as approved (answers: alerts refresh every 3 min + outside-US state; headline from the model with an observed line only when a station reading is < 30 min old and < 10 mi away; Timeline a Map control; one forecast overlay at a time; replays drive the Trip page). One change per commit:
+
+| Commit | Change |
+|---|---|
+| c3b65f8 | data layer: place forecast (Open-Meteo current + 48 h hourly, 1 location per place, 10 min) and NWS `alerts/active?point=` (3 min, outside-US coverage state); WMO code labels; mock fields + alerts option |
+| 9680b1d | shell: Now / Map / Trip / More (bottom nav; rail + column + map ≥ 768 px); Now screen; one place picker (location / search with recents / pick on map); Trip and More host the panels; map sheet keeps the timeline |
+| a11e35b | map: point chip (conditions at the tapped point from one cached Open-Meteo location, grid sample meanwhile) + Details in the sheet; layer menu is layers only; rain / flood / nowcast overlays exclusive |
+| c9742ea | trip: From row + shared search / map pick, hazards first; unit-free severity labels; "NA" → "no reading" |
+| b8c922f | more: rivers + station bound to the place, independent of map layers; Flood page computes the place's own block regardless of zoom / layer, leads with the risk at the place |
+| 8136b5a | tests: 15 suites retargeted (shared `scripts/lib/ui.mjs`); new `flows-check.mjs` (the four acceptance flows, mock-capable) in prod-suite; caps sized for the two new calls; toasts drop from the top on content screens; first-run Search opens the picker on its search box; prompt/picker modal |
+
+**Mocked verification on the final build (zero live calls):** flows 25/25 · sheet 16/16 · boundary 14/14 · journey (Iowa) 16/16 · flood-stall settles in 17 s. Mocked timings: current conditions on Now 2.6–3.5 s after navigation (SwiftShader), 0.8 s after choosing an address; the point chip fills in ≤ 5 ms when the grid is already loaded.
+
+**Harness lessons:** Playwright's `getByRole(...).first()` picked the Now screen's own picker card / the Trip page's destination search behind the modal; the suites now scope first-run and picker interactions to `getByRole('dialog')`. A bottom toast covered "Plan a trip" (the "offline support" toast under mocks) — real UX defect, fixed by moving content-screen toasts to the top.
+
+**Not yet run:** the live suites on the preview (after the Oct 7 cap reset, on your go), the live walkthrough / perf measurement (perf now also reports `timeToFirstConditionsMs`), WebKit and the device. Known gaps carried to the next round: Now's map window is a positioned view of the one live map (tablet/desktop show the map beside the column instead); `ux-inventory.mjs` still captures the Phase 1 UI (historical); `e2e.mjs` and `_journey-inp.mjs` are not retargeted (not in the suite).
+
 ## UX redesign — Phase 1 deliverable (no code), Oct 6
 
 Decision taken: **conditions-first**. Deliverable for approval in `docs/ux/` — open `docs/ux/phase1-report.html`.

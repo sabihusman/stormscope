@@ -1,6 +1,6 @@
 # StormScope
 
-Mobile-first, installable (PWA) weather map: live radar or satellite, expected rainfall, flood-risk screening, river gauges, nearest-station observations, a short-range nowcast, and **journey weather** — the forecast, official hazards and pavement-sensor ice reports along a route at the time you will actually be there. Everything is drawn on a MapLibre map with optional 3D terrain.
+Mobile-first, installable (PWA) **conditions-first** weather app: the home screen answers "what's the weather here, now and in the next few hours" (active NWS alerts, current conditions, the next 12 hours) for your place; the map (live radar or satellite, expected rainfall, flood-risk screening, river gauges, station observations, a short-range nowcast, optional 3D terrain) is one tap away; **Trip** gives the forecast, official hazards and pavement-sensor ice reports along a route at the time you will actually be there.
 
 Every data point in the app is real, shows its source, and carries an "updated X ago" timestamp. There is no mock or demo data; replays use archived products from the dates they describe.
 
@@ -21,6 +21,19 @@ npm run preview      # serve dist/ at http://localhost:4173 (needed to test the 
 Other scripts: `npm run typecheck`, `npm run lint`, `npm run icons` (regenerates `public/icons/*.png`), and the test suites described in [Testing](#testing-headless-suites).
 
 No API keys or environment variables are required: every service used is public and keyless.
+
+## Screens
+
+Four destinations (bottom nav on a phone; a left rail with a content column beside an always-visible map from 768 px):
+
+| Screen | What it answers | Notes |
+|---|---|---|
+| **Now** (home) | the place name · active **NWS alerts** for that point (or an explicit "no active alerts" / "unavailable outside the US" line) · current conditions (Open-Meteo model headline; an "Observed X° at <station>, N min ago" line only when a real station reading is under 30 min old and within 10 miles) · next 12 h strip · "rain next 24 h" link to the timeline · a live window onto the map · **Plan a trip** · tiles for rivers, flood, station, settings | one Open-Meteo location + one NWS alerts request per place change; alerts refresh every 3 min while the app is open |
+| **Map** | the full map with the layer menu (background: radar / satellite / none; **one forecast overlay at a time**: rain next 24 h, flood risk, next 2 h wind & cloud; point layers; 3D) and the timeline sheet. **A tap anywhere shows a chip** with the conditions at that point (one cached Open-Meteo location) and *Details* expands the sheet (24 h strip, actions); gauges, the station and route samples use the same chip. Nothing opens by itself. | the "Showing map area · back to my place" chip means the forecast blocks follow the map; reference data stays bound to the place |
+| **Trip** | from = your place, to = search (with recents) or a point picked on the map; hazards first, then arrival, the along-the-way strip and the road sensors | reachable in one tap from Now |
+| **More** | Flood risk (computed for the place's own block whatever the map shows), Rivers & gauges, Station observations, Sources / freshness / settings (units, motion) | every page starts with the place row |
+
+**One place picker** sits behind every "Change" and every empty state, and is the first-run prompt: *use my location · search (with recents) · pick a point on the map* (a crosshair on the map with a confirm button). After a denial the primary action becomes Search; every path ends with a place, so Now is never empty.
 
 ## Deploying
 
@@ -44,7 +57,7 @@ vercel deploy --prod
 | **Station** | Nearest weather station: pressure (+3 h trend), humidity, wind, gusts, temperature, precipitation | api.weather.gov (US); Open-Meteo elsewhere or when NWS is down | 10 min |
 | **Nowcast** | Next 6 h in 10-min steps: clouds and rain cells advected by the model wind, wind as animated particles whose streak length grows with zoom (static arrows under reduced motion) | Open-Meteo, advected in a web worker | with the block |
 
-**Forecast blocks that tile the map.** Rainfall, flood risk and nowcast are fetched per fixed geographic block (0.5° / 1° / 2° depending on zoom, `src/lib/blocks.ts`), like map tiles. Panning loads only the blocks that are missing; everything already loaded stays where it is and is cached (30 blocks), so panning back costs nothing. Up to 16 blocks cover the viewport; below zoom 5.5 nothing is loaded and the timeline says so. River gauges and the nearest station follow the map centre once you pan more than ~25 km; a "Showing map area · back to my spot" pill returns to your location.
+**Forecast blocks that tile the map.** Rainfall, flood risk and nowcast are fetched per fixed geographic block (0.5° / 1° / 2° depending on zoom, `src/lib/blocks.ts`), like map tiles. Panning loads only the blocks that are missing; everything already loaded stays where it is and is cached (30 blocks), so panning back costs nothing. Up to 16 blocks cover the viewport; below zoom 5.5 nothing is loaded and the timeline says so. River gauges and the nearest station are bound to the **place**; the forecast blocks follow the map centre once you pan more than ~25 km, and a "Showing map area · back to my place" chip on the Map returns to it.
 
 **Flood-risk model.** For each cell: `rain` = bilinearly interpolated precipitation summed over the selected horizon; `low` = how far the cell sits below the mean of its 5×5 neighbourhood (terrain tiles, fallback model elevation); `drain` = 1 − d/600 m where d is the **geodesic** distance to the nearest NHD flowline (3D point-to-great-circle-segment formula, exact at any latitude). Score = 0.45·rain + 0.30·low + 0.25·drain (terrain weight rises to 0.45 without drainage data), gated by rain so dry forecasts never show risk. Classes: elevated ≥ 0.30, high ≥ 0.55, severe ≥ 0.80. It is an indicative screening layer, not an official warning, and the panel says so.
 
@@ -122,19 +135,20 @@ npx vite --port 5174 --strictPort
 
 | Script | Covers |
 |---|---|
-| `qa.mjs` | first-run location prompt and recovery cards, search, layers, units, popups clamped on-screen, legend, bottom sheet, reload persistence, non-US fallbacks, reduced motion, main-thread responsiveness, desktop layout |
+| `flows-check.mjs` | the Phase 2 acceptance flows with real touch input: current conditions on Now within 15 s (10 s mocked) after a location grant and after an address entry; a map tap shows a chip (never a dialog) that fills with conditions, and Details expands the sheet; every place-bound view (Now, Trip, More → Flood / Rivers / Station) opens the same picker with use-my-location / search / pick-on-map, and pick-on-map returns to the page with the place moved; Trip is one tap from Now. `--mock` runs it with zero live calls |
+| `qa.mjs` | first-run prompt and denied recovery, Now (label, conditions within 15 s, alerts line), units via Settings, Station / Rivers pages, map sheet modes and FAB, legend chip, point chip at every corner + details, gauge chip, exclusive overlays, timeline, reload persistence, non-US fallbacks on Now / Station / Rivers / Flood, reduced motion, desktop rail + column + map, main-thread responsiveness, desktop layout |
 | `e2e.mjs` | screenshot walkthrough of every panel (visual review, few assertions) |
 | `pwa-check.mjs` | manifest, service worker, offline shell, cached API data (needs `npm run preview` or production) |
 | `satellite-check.mjs` | radar ⇄ satellite exclusivity, time carry-over, lag note, timeline/legend follow (`VIEWPORT=mobile` for the phone layout) |
 | `blocks-check.mjs` | block tiling: persistence across pans, neighbours only, cache, hidden-tab pause, 49-point tiles, daily counter |
 | `zoom-check.mjs` | block level per zoom, continental zoom loads nothing |
-| `fab-check.mjs` | draggable layer button, corners persist, legend/controls move aside |
-| `follow-check.mjs` | rivers/station follow the map centre, recenter pill |
+| `fab-check.mjs` | draggable layer button (every corner by drag), corners persist, legend chip / controls move aside |
+| `follow-check.mjs` | the map's follow chip appears when panning away while rivers/station stay bound to the place; recenter returns map + data window |
 | `journey-check.mjs` | routing, ETAs, 15-minutely sampling, budget, panel wording, departure change, alternates (`JOURNEY_SCENARIO=0` Philadelphia → Baltimore, `1` Johnston → Iowa City) |
 | `hazards-check.mjs` | Greenfield replays: polygon IDs at ETA, watches excluded, outlooks, negative timing, per-source status, camera fit |
 | `road-check.mjs` | ice-storm replays: Warning vs Watch statuses, 5 km / 90 min rules, stale/unknown, forecast-as-issued variant, live I-80 stations |
 | `rivers-check.mjs` | rivers layer **on** at a fixed Iowa viewport: the one-request bbox query for 10-day discharge medians equals the old per-site queries (live) and, exactly, a snapshot recorded from a fully **approved** USGS window (`scripts/fixtures/rivers-iowa.json`, refresh with `--record`, `SNAP_START`/`SNAP_END`); the app's elevated-flow ratios use those medians |
-| `sheet-check.mjs` | phone bottom sheet with real touch input (CDP touch events, `scripts/lib/touch.mjs`): from every tab, with content scrolled, collapse by handle drag, handle tap, the ▼ button (must be on screen), content swipe-down at scroll top, and the browser back gesture; the sheet must return to its starting height |
+| `sheet-check.mjs` | the Map screen's sheet with real touch input (CDP touch events, `scripts/lib/touch.mjs`): for both contents (timeline, point details), with content scrolled, collapse by handle drag, handle tap, the ▼ button (must be on screen), content swipe-down at scroll top, and the browser back gesture; the sheet must return to its starting height |
 | `record-replays.mjs` | not a test: records each replay's route and raw Open-Meteo response into its fixture folder so replays make no live routing/forecast calls (run against the dev server; `--only=<id>`) |
 
 Run one suite as `node scripts/<name>.mjs <base-url> <screenshot-dir>`, e.g. `node scripts/road-check.mjs http://localhost:5174/ e2e-shots/road`. Screenshots land in the directory you give.
