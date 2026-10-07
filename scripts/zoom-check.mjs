@@ -4,6 +4,7 @@ import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('zoom-check.mjs')
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:5174/'
 const OUT = process.argv[3] || 'e2e-shots/zoom'
@@ -16,12 +17,10 @@ const __recordBudget = trackOpenMeteo(p, 'zoom-check.mjs')
 const om = []
 p.on('response', (r) => /open-meteo\.com\/v1\/forecast/.test(r.url()) && om.push(r.status()))
 await p.goto(BASE, { waitUntil: 'load' })
-await p.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await p.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await p.waitForTimeout(4000)
-await p.getByRole('button', { name: /layer menu/ }).click()
-await p.getByRole('button', { name: 'Rainfall' }).click()
-await p.getByRole('button', { name: 'Flood risk' }).click()
-await p.getByRole('button', { name: /layer menu/ }).click()
+await openMap(p)
+await setLayers(p, { rainfall: true, flood: true })
 await p.evaluate(() => window.__map.jumpTo({ center: [-93.6, 41.6], zoom: 11 }))
 const t0 = Date.now()
 let st = []

@@ -28,7 +28,7 @@ await ctx.addInitScript(() => {
 await installMocks(ctx, {})
 const page = await ctx.newPage()
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 for (let i = 0; i < 40; i++) { await page.waitForTimeout(500); if (await page.evaluate(() => !!window.__map?.loaded() && !!window.__store?.get().radar.data)) break }
 const phase = async (name, fn) => {
   const t0 = await page.evaluate(() => performance.now())
@@ -49,7 +49,7 @@ const phase = async (name, fn) => {
 }
 const menu = async () => touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
 await phase('enable rainfall+flood+nowcast', async () => { await menu(); for (const n of ['Rainfall', 'Flood risk', 'Nowcast']) { await touchTap(page, await centre(page.getByRole('button', { name: n }))); await page.waitForTimeout(300) } await menu(); for (let i = 0; i < 60; i++) { await page.waitForTimeout(1000); if (await page.evaluate(() => { const s = window.__store.get(); return s.visibleBlocks.length > 0 && s.visibleBlocks.every((k) => s.blocks[k]?.nowcast.data) })) break } })
-await phase('nowcast playing (8 s)', async () => { await touchTap(page, await centre(page.getByRole('tab', { name: 'Timeline' }))); await page.waitForTimeout(400); const nt = page.getByRole('tab', { name: 'Nowcast' }); if (await nt.count()) await touchTap(page, await centre(nt)); await page.waitForTimeout(300); await touchTap(page, await centre(page.getByRole('button', { name: 'Play' }))); await page.waitForTimeout(8000) })
+await phase('nowcast playing (8 s)', async () => { await page.getByRole('button', { name: 'Map', exact: true }).click(); await page.waitForTimeout(600); await page.evaluate(() => window.__store.set({ sheet: 'half' })); await page.waitForTimeout(400); const nt = page.getByRole('tab', { name: 'Nowcast' }); if (await nt.count()) await touchTap(page, await centre(nt)); await page.waitForTimeout(300); await touchTap(page, await centre(page.getByRole('button', { name: 'Play' }))); await page.waitForTimeout(8000) })
 await phase('nowcast pause', async () => { await touchTap(page, await centre(page.getByRole('button', { name: 'Pause' }))); await page.waitForTimeout(1200) })
 await phase('3D terrain on', async () => { await menu(); await touchTap(page, await centre(page.getByRole('button', { name: /3D terrain/ }))); await menu(); await page.waitForTimeout(3000) })
 await phase('3D terrain off', async () => { await menu(); await touchTap(page, await centre(page.getByRole('button', { name: /3D terrain/ }))); await menu(); await page.waitForTimeout(2000) })

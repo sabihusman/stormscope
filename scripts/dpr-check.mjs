@@ -19,9 +19,9 @@ for (const engine of ['chromium', 'webkit']) {
   const cdp = engine === 'chromium' ? await ctx.newCDPSession(page) : null
   if (cdp) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
   await page.goto(BASE, { waitUntil: 'load' })
-  await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+  await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
   for (let i = 0; i < 90; i++) { await page.waitForTimeout(1000); if (await page.evaluate(() => { const s = window.__store?.get(); return !!window.__map?.loaded() && !!s && s.visibleBlocks.length > 0 && s.visibleBlocks.every((k) => s.blocks[k]?.nowcast.data && s.blocks[k]?.rainCells.data) })) break }
-  await touchTap(page, await centre(page.getByRole('tab', { name: 'Timeline' })))
+  await page.getByRole('button', { name: 'Map', exact: true }).click(); await page.waitForTimeout(600); await page.evaluate(() => window.__store.set({ sheet: 'half' }))
   await page.waitForTimeout(400)
   const nt = page.getByRole('tab', { name: 'Nowcast' })
   if (await nt.count()) await touchTap(page, await centre(nt))

@@ -12,6 +12,7 @@
 import { chromium } from 'playwright'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { assertBudget, guardedFetch, remaining, trackTraffic } from './lib/qa-budget.mjs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 assertBudget('rivers-check.mjs', { openMeteo: false }) // gauges only: USGS + NWPS, no Open-Meteo
 
 const record = process.argv.includes('--record')
@@ -153,7 +154,7 @@ const __recordBudget = trackTraffic(page, 'rivers-check.mjs')
 const usgsUrls = []
 page.on('request', (r) => /api\.waterdata\.usgs\.gov/.test(r.url()) && usgsUrls.push(r.url()))
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 let riv = null
 for (let i = 0; i < 90; i++) {
   await page.waitForTimeout(1000)
@@ -175,7 +176,7 @@ check('every elevated-flow ratio in the app equals flow ÷ (bbox-path 10-day med
 const lids = (riv.gauges ?? []).filter((g) => g.lid).map((g) => g.lid)
 check('NOAA NWPS gauges match the snapshot (≥ 80 % overlap)', lids.filter((l) => snap.nwpsLids.includes(l)).length >= 0.8 * Math.min(lids.length, snap.nwpsLids.length), `${lids.filter((l) => snap.nwpsLids.includes(l)).length} of ${lids.length} listed`)
 check('Partial-source note only when a source really failed', /USGS Water Data \+ NOAA NWPS/.test(riv.source ?? '') || /unavailable/.test(riv.source ?? ''), riv.source)
-await page.getByRole('tab', { name: 'Rivers' }).click()
+await openMore(page, 'Rivers & gauges')
 await page.waitForTimeout(800)
 await page.screenshot({ path: `${OUT}/rivers-iowa.png` })
 __recordBudget()

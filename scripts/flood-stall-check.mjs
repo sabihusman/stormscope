@@ -17,7 +17,7 @@ await installMocks(ctx, {})
 let stalled = 0
 if (STALL) await ctx.route(/s3\.amazonaws\.com\/elevation-tiles-prod/, () => { stalled++ /* never answered */ })
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(3000)
 await page.evaluate(() => window.__map.jumpTo({ center: [-93.6, 41.6], zoom: 11 }))
 const t0 = Date.now()

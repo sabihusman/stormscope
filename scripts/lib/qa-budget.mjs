@@ -23,16 +23,18 @@ const LEGACY = `${DIR}/.open-meteo-budget.json`
 export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 3000)
 
 /** Requests per UTC day per host. Unlisted hosts get DEFAULT_CAP; our own origins are never counted. */
-// Sized for ONE full pass of the 14 suites + the perf measurement (Oct 5 ledger × ~1.05), no retry
-// allowance: a second run of anything that day is refused by design.
+// Sized for ONE full pass of the 16 suites + the perf measurement (Oct 5 ledger × ~1.05), no retry
+// allowance: a second run of anything that day is refused by design. Oct 7 (conditions-first UI): every
+// place change now costs one Open-Meteo request (current + hourly) and one NWS alerts request, and the
+// alerts refresh every 3 min while a page is open, so those two hosts are sized up for the new flows.
 export const HOST_CAPS = {
-  'api.open-meteo.com': 70,
+  'api.open-meteo.com': 130,
   'archive-api.open-meteo.com': 5, // replays are cached; only re-recording calls this
   'historical-forecast-api.open-meteo.com': 5,
   'geocoding-api.open-meteo.com': 10,
   'api.waterdata.usgs.gov': 50, // rivers-check 27 + ~18 app gauge loads
   'api.water.noaa.gov': 160, // 21 per gauge load (list + 20 details): qa, follow, rivers, perf
-  'api.weather.gov': 100,
+  'api.weather.gov': 180,
   'alerts.weather.gov': 10,
   'mapservices.weather.noaa.gov': 50,
   'mesonet.agron.iastate.edu': 40,

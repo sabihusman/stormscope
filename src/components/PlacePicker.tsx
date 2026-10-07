@@ -13,14 +13,16 @@ interface Props {
  */
 export function PlacePicker({ onLocate, locating }: Props) {
   const open = useApp((s) => s.pickerOpen)
-  const [searching, setSearching] = useState(false)
+  const mode = useApp((s) => s.pickerMode)
+  const [searchingLocal, setSearching] = useState(false)
+  const searching = searchingLocal || mode === 'search'
   if (!open) return null
   const close = () => {
     setSearching(false)
-    store.set({ pickerOpen: false })
+    store.set({ pickerOpen: false, pickerMode: 'menu' })
   }
   return (
-    <div className="overlay-center picker-overlay" role="dialog" aria-labelledby="picker-title" onClick={(e) => e.target === e.currentTarget && close()}>
+    <div className="overlay-center picker-overlay" role="dialog" aria-modal="true" aria-labelledby="picker-title" onClick={(e) => e.target === e.currentTarget && close()}>
       <div className="card picker-card">
         <div className="picker-head">
           <h2 id="picker-title">Pick a place</h2>

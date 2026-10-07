@@ -58,7 +58,7 @@ export function JourneyPanel() {
       <div className="trip-from">
         <small className="muted">From</small>
         <strong>{store.get().placeLabel ?? place.name}</strong>
-        <button className="btn small ghost" onClick={() => store.set({ pickerOpen: true })}>
+        <button className="btn small ghost" onClick={() => store.set({ pickerOpen: true })} aria-label="Change place">
           Change
         </button>
       </div>

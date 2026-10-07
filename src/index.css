@@ -1827,9 +1827,10 @@ small {
   left: calc(var(--rail-w) + 12px);
 }
 
-/* Toasts sit above the nav on the content screens; the FAB hugs the map's own edge on wide layouts. */
+/* Toasts never cover the primary actions at the bottom of a content screen: they drop in from the top there. */
 .app.narrow:not(.screen-map) .toast {
-  bottom: calc(var(--nav-h) + var(--sab) + 16px);
+  top: calc(var(--sat) + 10px);
+  bottom: auto;
 }
 .app.wide:not(.screen-map) .fab-stack {
   right: calc(var(--sar) + 12px);

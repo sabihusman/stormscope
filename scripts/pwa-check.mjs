@@ -6,6 +6,7 @@ import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('pwa-check.mjs', { openMeteo: false }) // shell + radar only: no Open-Meteo calls
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:4173/'
 const OUT = process.argv[3] || 'e2e-shots'
@@ -41,7 +42,7 @@ const manifest = await page.evaluate(async () => {
 })
 check('Web manifest served with name, display mode and icons', manifest?.status === 200 && !!manifest.body?.name && !!manifest.body?.display && (manifest.body?.icons?.length ?? 0) >= 2, `${manifest?.status} ${manifest?.body?.name} ${manifest?.body?.display} ${manifest?.body?.icons?.length} icons`)
 
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(6000)
 
 const sw = await page.evaluate(async () => {
@@ -70,12 +71,12 @@ await page.waitForTimeout(5000)
 const offline = await page.evaluate(() => ({
   title: document.title,
   hasMap: !!document.querySelector('.maplibregl-canvas'),
-  pills: [...document.querySelectorAll('.pill')].map((p) => p.textContent),
-  banner: document.body.innerText.includes('offline') || document.body.innerText.includes('Offline'),
+  pills: [...document.querySelectorAll('.now-card')].map((p) => p.className.split(' ').slice(-1)[0]),
+  banner: !!document.querySelector('.banner.offline') || document.body.innerText.includes('Offline'),
   online: navigator.onLine,
 }))
 check('Offline reload renders the app shell from the precache', !reloadErr && offline.hasMap && !offline.online, reloadErr ?? `${offline.title}, map canvas ${offline.hasMap}`)
-check('Offline: the app says so (banner) and still shows its status pills', offline.banner && offline.pills.length > 0, offline.pills.join(' | '))
+check('Offline: the Now screen says so (banner) and still renders its cards', offline.banner && offline.pills.length > 0, offline.pills.join(' | '))
 await page.screenshot({ path: `${OUT}/pwa-offline.png` })
 await ctx.setOffline(false)
 
@@ -85,12 +86,12 @@ await deskCtx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.
 const desk = await deskCtx.newPage()
 const __recordDesk = trackOpenMeteo(desk, 'pwa-check.mjs (desktop)')
 await desk.goto(BASE, { waitUntil: 'networkidle' })
-await desk.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await desk.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await desk.waitForTimeout(7000)
-await desk.getByRole('tab', { name: 'Station' }).click()
+await openMore(desk, 'Station observations')
 await desk.waitForTimeout(1000)
-const side = await desk.evaluate(() => { const s = document.querySelector('.sheet'); return s ? s.getBoundingClientRect().width < window.innerWidth * 0.6 : false })
-check('Desktop: bottom sheet docks as a side card', side)
+const side = await desk.evaluate(() => { const s = document.querySelector('.screen'); const m = document.querySelector('.map-root'); return !!s && !!m && s.getBoundingClientRect().width < window.innerWidth * 0.6 && m.getBoundingClientRect().left >= s.getBoundingClientRect().right - 2 })
+check('Desktop: content column beside an always-visible map (rail + column + map)', side)
 await desk.screenshot({ path: `${OUT}/desktop.png` })
 
 // Network failures while offline are expected; anything else is a bug.

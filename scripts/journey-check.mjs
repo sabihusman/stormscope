@@ -5,6 +5,7 @@ import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 const argv = process.argv.slice(2)
 // --mock: every API answered locally (zero live calls); only the Iowa scenario has saved bodies (JOURNEY_SCENARIO=1).
 const MOCK = argv.includes('--mock')
@@ -35,10 +36,10 @@ if (MOCK) await installMocks(ctx, {})
 const routing = []
 page.on('response', (r) => /valhalla1\.openstreetmap\.de|router\.project-osrm\.org/.test(r.url()) && routing.push(`${new URL(r.url()).host} ${r.status()}`))
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(5000)
 
-await page.getByRole('tab', { name: 'Journey' }).click()
+await openTrip(page)
 await page.waitForTimeout(500)
 await page.getByRole('searchbox', { name: 'Destination' }).fill(scenario.dest)
 await page.waitForTimeout(2500)
@@ -90,11 +91,11 @@ check('First 6 h sampled at ≤ ~5-min spacing', detail.maxGapMin <= 6.5, `max g
 check('15-minutely (HRRR) resolution used for near-term samples', detail.minutely > 0, `${detail.minutely}/${detail.total} samples minutely`)
 check('Budget: one request, ≤ 120 locations', detail.calls <= 120, `${detail.calls} locations`)
 
-const text = await page.locator('.sheet-body').innerText()
+const text = await tripText(page)
 check(
   'Arrival card + worst-along-the-way shown',
   scenario.arrive.test(text) && /Worst along the way/.test(text),
-  `${text.match(/→ [^\n]*/)?.[0] ?? ''} | ${text.match(/Arrive [^\n]*\n[^\n]*/)?.[0]?.replace('\n', ' ') ?? 'no arrival card'}`,
+  `${text.match(/To [^\n]*/)?.[0] ?? ''} | ${text.match(/Arrive [^\n]*\n[^\n]*/)?.[0]?.replace('\n', ' ') ?? 'no arrival card'}`,
 )
 check('Panel has a hazards section with per-source status (no false all-clear)', /Hazards on this route/.test(text))
 check('ETA uncertainty stated', /±/.test(text))
@@ -106,13 +107,13 @@ const mapState = await page.evaluate(() => {
   return { line: !!m.getLayer('journey-line'), feats: m.querySourceFeatures('journey-line').length, alt: m.querySourceFeatures('journey-alt').length, dest: m.querySourceFeatures('journey-dest').length }
 })
 check('Route line, alternates and destination drawn on the map', mapState.line && mapState.feats > 0 && mapState.dest >= 1, JSON.stringify(mapState) + ' (querySourceFeatures counts per tile)')
-await page.getByRole('button', { name: 'Collapse panel' }).click()
+await openMap(page)
 await page.waitForTimeout(1500)
 await page.screenshot({ path: `${OUT}/journey-map.png` })
+await openTrip(page)
 
 // Departure change → weather recomputed (debounced) without a new routing call.
 const nRouting = routing.length
-await page.getByRole('button', { name: 'Expand panel' }).click()
 const fetchedBefore = await page.evaluate(() => window.__store.get().journey.weather.data?.fetchedAt ?? 0)
 await page.getByRole('radio', { name: '+2 h' }).click()
 // Wait for a *new* forecast (fetchedAt changes), not the stale one.

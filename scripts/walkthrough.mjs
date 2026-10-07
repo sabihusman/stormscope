@@ -10,6 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
 import { installMocks } from './lib/mock-server.mjs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const args = process.argv.slice(2)
 const MOCK = args.includes('--mock')
@@ -115,14 +116,15 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   const sheetMode = () => st(() => window.__store.get().sheet)
 
   // ---------------- first load, offline reload
-  await feature('first load', async () => { await page.goto(BASE, { waitUntil: 'load' }); await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {}) }, () => st(() => !!window.__map?.loaded() && !!window.__store?.get().radar.data))
-  await feature('station + rivers data', async () => {}, () => st(() => window.__store.get().station.state === 'ready' && window.__store.get().rivers.state === 'ready'))
+  await feature('first load', async () => { await page.goto(BASE, { waitUntil: 'load' }); await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {}) }, () => st(() => !!window.__map?.loaded() && !!window.__store?.get().radar.data))
+  await feature('now: conditions + alerts + station + rivers', async () => {}, () => st(() => { const s = window.__store.get(); return s.conditions.state === 'ready' && s.alerts.state === 'ready' && s.station.state === 'ready' && s.rivers.state === 'ready' && !!document.querySelector('.cond-temp') }))
   await page.waitForTimeout(6000) // let the service worker take control and warm its cache
   await feature('offline reload', async () => { await ctx.setOffline(true); await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {}) }, () => st(() => !!document.querySelector('.maplibregl-canvas') && document.body.innerText.includes('Offline')), { timeoutMs: 20000 })
   await ctx.setOffline(false)
-  await feature('back online', async () => { await page.reload({ waitUntil: 'load' }); await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 3000 }).catch(() => {}) }, () => st(() => !!window.__map?.loaded() && !!window.__store?.get().radar.data))
+  await feature('back online', async () => { await page.reload({ waitUntil: 'load' }); await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 3000 }).catch(() => {}) }, () => st(() => !!window.__map?.loaded() && !!window.__store?.get().radar.data))
 
-  // ---------------- pan / zoom across tile levels
+  // ---------------- pan / zoom across tile levels (on the Map screen)
+  await feature('open map', async () => { await openMap(page) }, () => st(() => window.__store.get().screen === 'map' && !!document.querySelector('.fab-main')))
   for (const z of [3, 5, 8, 11, 14]) {
     await feature(`zoom ${z} + pan`, async () => {
       await page.evaluate((z) => { window.__map.jumpTo({ zoom: z, center: [-93.698, 41.673] }) }, z) // return nothing (serializing the Map costs ~0.7 s)
@@ -137,7 +139,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   await page.waitForTimeout(800)
 
   // ---------------- radar play / pause / scrub
-  await feature('radar play', async () => { await tap(page.getByRole('tab', { name: 'Timeline' })); await page.waitForTimeout(400); await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => window.__store.get().playing))
+  await feature('radar play', async () => { await setSheet(page, 'half'); await page.waitForTimeout(400); await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => window.__store.get().playing))
   await feature('radar pause + scrub', async () => { await tap(page.getByRole('button', { name: 'Pause' })); await page.getByRole('slider').focus(); await page.keyboard.press('Home'); await page.waitForTimeout(500); await page.keyboard.press('End'); await page.waitForTimeout(500) }, () => st(() => !window.__store.get().playing))
 
   // ---------------- satellite GeoColor / IR + switch with time carry
@@ -146,27 +148,32 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   await feature('satellite → radar (time carry)', async () => { await openMenu(); await tap(page.getByRole('radio', { name: /Radar/ })); await page.waitForTimeout(300); await openMenu() }, () => st(() => window.__store.get().layers.radar && !window.__store.get().layers.satellite && !window.__store.get().imageryCarry), { timeoutMs: 30000 })
 
   // ---------------- rainfall, flood, nowcast + particles, 3D
-  await feature('rainfall + flood layers', async () => { await openMenu(); await tap(page.getByRole('button', { name: 'Rainfall' })); await tap(page.getByRole('button', { name: 'Flood risk' })); await page.waitForTimeout(300); await openMenu() }, () => st(() => { const s = window.__store.get(); const v = s.visibleBlocks; return v.length > 0 && v.every((k) => s.blocks[k]?.rainCells.data && s.blocks[k]?.flood.data) }), { timeoutMs: 60000 })
-  await feature('nowcast + wind particles playing', async () => { await openMenu(); await tap(page.getByRole('button', { name: 'Nowcast' })); await page.waitForTimeout(300); await openMenu(); await tap(page.getByRole('tab', { name: 'Timeline' })); await page.waitForTimeout(300); const nt = page.getByRole('tab', { name: 'Nowcast' }); if (await nt.count()) await tap(nt); await page.waitForTimeout(300); await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => { const s = window.__store.get(); return s.visibleBlocks.every((k) => s.blocks[k]?.nowcast.data) && s.playing }), { timeoutMs: 60000 })
+  await feature('rain overlay then flood overlay (one at a time)', async () => { await openMenu(); await tap(page.getByRole('radio', { name: 'Rain next 24 h' })); await page.waitForTimeout(300); await tap(page.getByRole('radio', { name: 'Flood risk' })); await page.waitForTimeout(300); await openMenu() }, () => st(() => { const s = window.__store.get(); const v = s.visibleBlocks; return v.length > 0 && v.every((k) => s.blocks[k]?.rainCells.data && s.blocks[k]?.flood.data) }), { timeoutMs: 60000 })
+  await feature('nowcast + wind particles playing', async () => { await openMenu(); await tap(page.getByRole('radio', { name: 'Next 2 h wind & cloud' })); await page.waitForTimeout(300); await openMenu(); await setSheet(page, 'half'); await page.waitForTimeout(300); const nt = page.getByRole('tab', { name: 'Nowcast' }); if (await nt.count()) await tap(nt); await page.waitForTimeout(300); await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => { const s = window.__store.get(); return s.visibleBlocks.every((k) => s.blocks[k]?.nowcast.data) && s.playing }), { timeoutMs: 60000 })
   await feature('nowcast pause', async () => { await tap(page.getByRole('button', { name: 'Pause' })) }, () => st(() => !window.__store.get().playing))
   await feature('3D terrain on', async () => { await openMenu(); await tap(page.getByRole('button', { name: /3D terrain/ })); await page.waitForTimeout(300); await openMenu(); await page.waitForTimeout(1500) }, () => st(() => window.__map.getPitch() > 50 && !window.__map.isMoving()), { timeoutMs: 15000 })
   await feature('3D terrain off', async () => { await openMenu(); await tap(page.getByRole('button', { name: /3D terrain/ })); await page.waitForTimeout(300); await openMenu(); await page.waitForTimeout(1200) }, () => st(() => window.__map.getPitch() === 0))
-  await feature('layers off again', async () => { await openMenu(); for (const n of ['Rainfall', 'Flood risk', 'Nowcast']) await tap(page.getByRole('button', { name: n })); await page.waitForTimeout(300); await openMenu() }, () => st(() => { const s = window.__store.get().layers; return !s.rainfall && !s.flood && !s.nowcast }))
+  await feature('overlay off again', async () => { await openMenu(); await tap(page.getByRole('radio', { name: 'Next 2 h wind & cloud' })); await page.waitForTimeout(300); await openMenu() }, () => st(() => { const s = window.__store.get().layers; return !s.rainfall && !s.flood && !s.nowcast }))
 
-  // ---------------- rivers / station panels
-  await feature('rivers panel', async () => { await tap(page.getByRole('tab', { name: 'Rivers' })) }, () => st(() => (window.__store.get().rivers.data?.length ?? 0) > 0 && document.querySelector('.gauge-list') != null))
-  await feature('gauge popup', async () => { const g = page.locator('.gauge-row').first(); if (await g.count()) await tap(g) }, () => st(() => !!window.__store.get().selection))
-  await feature('station panel', async () => { await tap(page.getByRole('tab', { name: 'Station' })) }, () => st(() => window.__store.get().station.state === 'ready' && document.querySelector('.stat-grid') != null))
+  // ---------------- map tap → chip → details; More pages
+  await feature('map tap → point chip', async () => { await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' })); await tap(page.locator('.map-container')) }, () => st(() => !!window.__store.get().selection && !!document.querySelector('.point-chip') && !document.querySelector('[role=dialog]')))
+  await feature('point details', async () => { await tap(page.getByRole('button', { name: 'Details' })) }, () => st(() => window.__store.get().sheet !== 'peek' && !!document.querySelector('.point-details')))
+  await feature('details → dismiss', async () => { await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' })) }, () => st(() => !window.__store.get().selection))
+  await feature('more: rivers page', async () => { await openMore(page, 'Rivers & gauges') }, () => st(() => (window.__store.get().rivers.data?.length ?? 0) > 0 && document.querySelector('.gauge-list') != null))
+  await feature('more: station page', async () => { await openMore(page, 'Station observations') }, () => st(() => window.__store.get().station.state === 'ready' && document.querySelector('.stat-grid') != null))
+  await feature('more: flood page (for the place)', async () => { await openMore(page, 'Flood risk') }, () => st(() => !!document.querySelector('.flood-here')), { timeoutMs: 60000 })
+  await feature('back to map', async () => { await openMap(page) }, () => st(() => window.__store.get().screen === 'map'))
 
   // ---------------- layer menu + movable button
   await feature('layer menu open/close', async () => { await openMenu(); await page.waitForTimeout(400); await openMenu() }, null)
   await feature('move layer button to top-left', async () => { const fab = await centre(page.getByRole('button', { name: /layer menu/ })); await drag(fab, { x: 40, y: 120 }); await page.waitForTimeout(600) }, () => st(() => window.__store.get().fabCorner === 'tl'))
   await feature('move layer button back', async () => { const fab = await centre(page.getByRole('button', { name: /layer menu/ })); await drag(fab, { x: vp.width - 40, y: vp.height - 120 }); await page.waitForTimeout(600) }, () => st(() => window.__store.get().fabCorner === 'br'))
 
-  // ---------------- bottom sheet: every tab; collapse by drag, tap, ▼, swipe, back
-  for (const t of ['Timeline', 'Journey', 'Station', 'Rivers', 'Flood', 'Sources']) {
+  // ---------------- map sheet: timeline and details; collapse by drag, tap, ▼, swipe, back
+  const showContent = async (t) => { if (t === 'details') { await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' })); await tap(page.locator('.map-container')); await page.waitForTimeout(300); const d = page.getByRole('button', { name: 'Details' }); if (await d.count()) await tap(d) } else await page.evaluate(() => window.__store.set({ selection: null, sheet: 'half' })) }
+  for (const t of ['timeline', 'details']) {
     await feature(`sheet ${t}: open full + collapse (drag/tap/▼/swipe/back)`, async () => {
-      await tap(page.getByRole('tab', { name: t }))
+      await showContent(t)
       await page.waitForTimeout(400)
       const h = await centre(page.locator('.sheet-handle'))
       await drag(h, { x: h.x, y: h.y - 240 })
@@ -182,17 +189,17 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
       await drag(h2, { x: h2.x, y: h2.y + 200 })
       await page.waitForTimeout(400)
       const m1 = await sheetMode()
-      await tap(page.getByRole('tab', { name: t }))
+      await showContent(t)
       await page.waitForTimeout(300)
       await tap(page.locator('.sheet-handle'))
       await page.waitForTimeout(300)
       const m2 = await sheetMode()
-      await tap(page.getByRole('tab', { name: t }))
+      await showContent(t)
       await page.waitForTimeout(300)
       await tap(page.getByRole('button', { name: 'Collapse panel' }))
       await page.waitForTimeout(300)
       const m3 = await sheetMode()
-      await tap(page.getByRole('tab', { name: t }))
+      await showContent(t)
       await page.waitForTimeout(300)
       await page.evaluate(() => { const b = document.querySelector('.sheet-body'); if (b) b.scrollTop = 0 }) // swipe-down collapses only from the top of the content
       const b2 = await centre(page.locator('.sheet-body'))
@@ -210,13 +217,13 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   }
 
   // ---------------- journey
-  await feature('journey: search + route + forecast', async () => { await tap(page.getByRole('tab', { name: 'Journey' })); await page.waitForTimeout(500); await page.getByRole('searchbox', { name: 'Destination' }).fill('Iowa City'); await page.waitForTimeout(1500); await tap(page.getByRole('option').first()) }, () => st(() => window.__store.get().journey.weather.state === 'ready' && window.__store.get().journey.road.state === 'ready'), { timeoutMs: 90000 })
-  await feature('journey: departure chip +2 h', async () => { await tap(page.getByRole('radio', { name: '+2 h' })) }, () => st(() => window.__store.get().journey.weather.state === 'ready' && window.__store.get().journey.departure > Date.now() + 100 * 60000), { timeoutMs: 60000 })
-  await feature('journey: date picker', async () => { await tap(page.getByRole('radio', { name: /Pick/ })); await page.waitForTimeout(400) }, () => st(() => !!document.querySelector('input[type=datetime-local]')), { timeoutMs: 5000 })
-  await feature('journey: alternate route', async () => { const alt = page.getByRole('radio', { name: /Alt 1/ }); if (await alt.count()) await tap(alt) }, () => st(() => window.__store.get().journey.selected === 1 && window.__store.get().journey.weather.state === 'ready'), { timeoutMs: 60000 })
-  await feature('journey: strip sample tap', async () => { const s = page.locator('li[class^="sev-"]').first(); if (await s.count()) await tap(s) }, () => st(() => window.__store.get().selection?.kind === 'journey'), { timeoutMs: 5000 })
-  await feature('journey: hazards + road chips rendered', async () => { await tap(page.getByRole('tab', { name: 'Journey' })) }, () => st(() => /Hazards on this route/.test(document.body.innerText) && /Road conditions/.test(document.body.innerText)))
-  await feature('journey: clear', async () => { await tap(page.getByRole('button', { name: 'Change', exact: true })) }, () => st(() => !window.__store.get().journey.to))
+  await feature('trip: search + route + forecast', async () => { await openTrip(page); await page.waitForTimeout(500); await page.getByRole('searchbox', { name: 'Destination' }).fill('Iowa City'); await page.waitForTimeout(1500); await tap(page.getByRole('option').first()) }, () => st(() => window.__store.get().journey.weather.state === 'ready' && window.__store.get().journey.road.state === 'ready'), { timeoutMs: 90000 })
+  await feature('trip: departure chip +2 h', async () => { await tap(page.getByRole('radio', { name: '+2 h' })) }, () => st(() => window.__store.get().journey.weather.state === 'ready' && window.__store.get().journey.departure > Date.now() + 100 * 60000), { timeoutMs: 60000 })
+  await feature('trip: date picker', async () => { await tap(page.getByRole('radio', { name: /Pick/ })); await page.waitForTimeout(400) }, () => st(() => !!document.querySelector('input[type=datetime-local]')), { timeoutMs: 5000 })
+  await feature('trip: alternate route', async () => { const alt = page.getByRole('radio', { name: /Alt 1/ }); if (await alt.count()) await tap(alt) }, () => st(() => window.__store.get().journey.selected === 1 && window.__store.get().journey.weather.state === 'ready'), { timeoutMs: 60000 })
+  await feature('trip: strip sample tap', async () => { const s = page.locator('li[class^="sev-"]').first(); if (await s.count()) await tap(s) }, () => st(() => window.__store.get().selection?.kind === 'journey'), { timeoutMs: 5000 })
+  await feature('trip: hazards + road chips rendered', async () => { await openTrip(page) }, () => st(() => /Hazards on this route/.test(document.body.innerText) && /Road conditions/.test(document.body.innerText)))
+  await feature('trip: clear', async () => { await tap(page.getByRole('button', { name: 'Change', exact: true })) }, () => st(() => !window.__store.get().journey.to))
 
   // ---------------- replay modes (cached fixtures: zero live calls)
   for (const id of ['greenfield-2020z', 'ice-storm-2024-12-14']) {
@@ -232,14 +239,14 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     const errs2 = []
     p2.on('console', (m) => m.type() === 'error' && errs2.push(m.text().slice(0, 160)))
     await p2.goto(BASE, { waitUntil: 'load' })
-    await p2.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+    await p2.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
     const t0 = Date.now()
     let text = ''
     while (Date.now() - t0 < 30000) { await p2.waitForTimeout(1000); const s = await p2.evaluate(() => window.__store.get()); if (s.rivers.state === 'error' || s.rivers.error) break }
-    await p2.getByRole('tab', { name: 'Rivers' }).click()
+    await openMore(p2, 'Rivers & gauges')
     await p2.waitForTimeout(500)
-    text = await p2.locator('.sheet-body').innerText()
-    const pills = await p2.evaluate(() => [...document.querySelectorAll('.pill')].map((p) => p.textContent))
+    text = await p2.locator('.screen.more').innerText()
+    const pills = await p2.evaluate(() => [...document.querySelectorAll('.now-card.err, .err-text')].map((p) => p.textContent))
     const file = `${dir}/99-rate-limited.png`
     await p2.screenshot({ path: file })
     const rec = { name: 'rate-limited sources (429 from Open-Meteo, NWPS, USGS)', timeToUsableMs: Date.now() - t0, riversText: text.split('\n').slice(0, 3).join(' | '), pills, consoleErrors: errs2.filter((e) => !/429|Failed to load resource/.test(e)), screenshot: file, ok: /rate-limited|unavailable|limit/i.test(text) }

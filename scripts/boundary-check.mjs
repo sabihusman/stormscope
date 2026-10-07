@@ -6,6 +6,7 @@ import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 const argv = process.argv.slice(2)
 const MOCK = argv.includes('--mock')
 // Toggling Rainfall on fetches Open-Meteo for the visible blocks on a live deployment; only the mocked run makes none.
@@ -30,9 +31,10 @@ if (MOCK) await installMocks(ctx, {})
 const pageErrors = []
 page.on('pageerror', (e) => pageErrors.push(e.message))
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 for (let i = 0; i < 40; i++) { await page.waitForTimeout(500); if (await page.evaluate(() => !!window.__map?.loaded() && window.__store?.get().rivers.state === 'ready')) break }
-const st = () => page.evaluate(() => { const s = window.__store.get(); return { layers: s.layers, errors: s.layerErrors, sheet: s.sheet, tab: s.tab, toast: s.toast?.text ?? null } })
+await openMap(page)
+const st = () => page.evaluate(() => { const s = window.__store.get(); return { layers: s.layers, errors: s.layerErrors, sheet: s.sheet, screen: s.screen, morePage: s.morePage, toast: s.toast?.text ?? null } })
 
 // ---- 1. A map layer throws inside its effect: MapLibre rejects the rainfall source.
 await page.evaluate(() => {
@@ -42,19 +44,18 @@ await page.evaluate(() => {
   window.__restoreAddSource = () => { m.addSource = orig }
 })
 await page.getByRole('button', { name: /layer menu/ }).click()
-await page.getByRole('button', { name: 'Rainfall' }).click()
+await page.getByRole('radio', { name: 'Rain next 24 h' }).click()
 await page.waitForTimeout(1500)
 let s = await st()
 check('Throwing layer is switched off and its error recorded', s.layers.rainfall === false && /injected/.test(s.errors?.rainfall ?? ''), JSON.stringify({ rainfall: s.layers.rainfall, error: s.errors?.rainfall }))
-check('Layer menu shows "unavailable — reason" for it', /Rainfall[\s\S]{0,40}unavailable — injected/.test(await page.locator('.fab-menu, .fab-stack').innerText().catch(() => '')) || (await page.getByText(/unavailable — injected/).count()) > 0)
+check('Layer menu shows "unavailable — reason" for it', /Rain next 24 h[\s\S]{0,40}unavailable — injected/.test(await page.locator('.fab-menu, .fab-stack').innerText().catch(() => '')) || (await page.getByText(/unavailable — injected/).count()) > 0)
 check('A toast says the layer was turned off', /Rainfall turned off/.test(s.toast ?? '') || (await page.getByText(/Rainfall turned off/).count()) > 0, s.toast ?? '')
 check('Other layers untouched (radar, rivers, station still on)', s.layers.radar && s.layers.rivers && s.layers.station)
 await page.getByRole('button', { name: /layer menu/ }).click() // close
 check('Layer menu still opens and closes', (await page.getByRole('button', { name: /layer menu/ }).isVisible()))
-await page.getByRole('tab', { name: 'Station' }).click()
-await page.waitForTimeout(400)
+await setSheet(page, 'half')
 s = await st()
-check('Bottom sheet tabs still work after a layer failure', s.tab === 'station' && s.sheet === 'half')
+check('Map sheet still opens after a layer failure', s.sheet === 'half' && (await page.locator('.timeline').count()) === 1)
 await page.getByRole('button', { name: 'Collapse panel' }).click()
 await page.waitForTimeout(400)
 check('Sheet still collapses', (await st()).sheet === 'peek')
@@ -64,7 +65,7 @@ await page.screenshot({ path: `${OUT}/layer-failed.png` })
 // Retry: fix the cause, enable again → works.
 await page.evaluate(() => window.__restoreAddSource())
 await page.getByRole('button', { name: /layer menu/ }).click()
-await page.getByRole('button', { name: 'Rainfall' }).click()
+await page.getByRole('radio', { name: 'Rain next 24 h' }).click()
 await page.getByRole('button', { name: /layer menu/ }).click()
 await page.waitForTimeout(2500)
 s = await st()
@@ -77,18 +78,19 @@ await page.evaluate(() => window.__store.set((x) => {
   Object.defineProperty(g, 'name', { get() { throw new Error('injected: panel-only failure') }, enumerable: true })
   return { rivers: { ...x.rivers, data: [g, ...x.rivers.data.slice(1)] } }
 }))
-await page.getByRole('tab', { name: 'Rivers' }).click()
+await openMore(page, 'Rivers & gauges')
 await page.waitForTimeout(600)
-const body = await page.locator('.sheet-body').innerText()
-check('Throwing panel shows "unavailable — reason" with Retry, instead of unmounting the app', /Rivers unavailable —/.test(body) && (await page.getByRole('button', { name: 'Retry' }).count()) === 1, body.split('\n')[0])
-await page.getByRole('tab', { name: 'Station' }).click()
+const body = await page.locator('.screen.more').innerText()
+check('Throwing panel shows "unavailable — reason" with Retry, instead of unmounting the app', /Rivers & gauges unavailable —/.test(body) && (await page.getByRole('button', { name: 'Retry' }).count()) === 1, body.split('\n').find((l) => /unavailable/.test(l)))
+await openMore(page, 'Station observations')
 await page.waitForTimeout(400)
-check('Other tabs still render after a panel failure', /Station|pressure|Pressure/i.test(await page.locator('.sheet-body').innerText()))
+check('Other pages still render after a panel failure', /Station|pressure|Pressure/i.test(await pageText(page)))
 await page.evaluate(() => window.__store.set((x) => ({ rivers: { ...x.rivers, data: x.rivers.data.slice(1) } })))
-await page.getByRole('tab', { name: 'Rivers' }).click()
+await openMore(page, 'Rivers & gauges')
 await page.waitForTimeout(400)
-check('Panel recovers once its data is sane again', !/unavailable —/.test(await page.locator('.sheet-body').innerText()))
-check('Layer menu, search and legend still present', (await page.getByRole('button', { name: /layer menu/ }).count()) === 1 && (await page.getByRole('button', { name: 'Change location' }).count()) === 1 && (await page.locator('.legend, .legend-chip').count()) >= 1)
+check('Panel recovers once its data is sane again', !/unavailable —/.test(await page.locator('.screen.more').innerText()))
+await openMap(page)
+check('Layer menu, place chip, nav and legend still present', (await page.getByRole('button', { name: /layer menu/ }).count()) === 1 && (await page.getByRole('button', { name: 'Change place' }).count()) >= 1 && (await page.locator('.legend, .legend-chip').count()) >= 1 && (await page.locator('.nav').count()) === 1)
 await page.screenshot({ path: `${OUT}/panel-failed.png` })
 check('No uncaught page errors (everything was contained)', pageErrors.length === 0, pageErrors[0])
 __recordBudget()

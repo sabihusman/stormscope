@@ -183,7 +183,7 @@ export default function App() {
           onAllow={geo.request}
           onSearch={() => {
             geo.dismiss()
-            store.set({ pickerOpen: true })
+            store.set({ pickerOpen: true, pickerMode: 'search' })
           }}
           onPickOnMap={() => {
             geo.dismiss()

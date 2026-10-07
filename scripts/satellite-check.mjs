@@ -4,6 +4,7 @@ import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('satellite-check.mjs', { openMeteo: false }) // imagery + station only: no Open-Meteo calls
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:5174/'
 const OUT = process.argv[3] || 'e2e-shots/satellite'
@@ -32,8 +33,9 @@ const __recordBudget = trackOpenMeteo(page, 'satellite-check.mjs')
 const tiles = []
 page.on('response', (r) => /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/GOES/.test(r.url()) && tiles.push(r.status()))
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(4000)
+await openMap(page)
 await page.evaluate(() => window.__map.jumpTo({ zoom: 6 }))
 
 const st = () =>
@@ -76,7 +78,7 @@ let s = await waitFor((x) => x.radarFrames > 0)
 check('Default: radar on, satellite off, map has radar frames', s.layers.radar && !s.layers.satellite && s.mapRadar === s.radarFrames && s.mapSat === 0, `${s.mapRadar} radar layers`)
 
 // Scrub radar back to its oldest past frame (~2 h ago) so the carry-over has a satellite match.
-await page.getByRole('tab', { name: 'Timeline' }).click()
+await setSheet(page, 'half')
 await page.getByRole('slider').focus()
 await page.keyboard.press('Home')
 s = await st()

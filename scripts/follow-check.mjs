@@ -1,8 +1,10 @@
-// Verifies that the data window follows the map when panning, and snaps back on demand.
+// Verifies the map's follow mode (the forecast window follows the map when panning, with a chip to come
+// back) while the reference views stay bound to the place — rivers and station must NOT change when you pan.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('follow-check.mjs')
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:5173/'
 const OUT = process.argv[3] || 'e2e-shots/follow'
@@ -17,24 +19,28 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, is
 const page = await ctx.newPage()
 const __recordBudget = trackOpenMeteo(page, 'follow-check.mjs')
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(7000)
-await page.getByRole('tab', { name: 'Rivers' }).click()
+await openMore(page, 'Rivers & gauges')
 await page.waitForTimeout(1500)
 const before = await page.locator('.gauge-list li').first().innerText().catch(() => '')
 check('Rivers loaded for the user location', /Schuylkill|Delaware|Creek|River/.test(before), before.split('\n')[0])
 
-// Pan ~150 km south-west to Baltimore.
+// Pan ~150 km south-west to Baltimore on the Map.
+await openMap(page)
 await page.evaluate(() => window.__map.jumpTo({ center: [-76.6122, 39.2904], zoom: 10 }))
 await page.waitForTimeout(9000)
 const pill = await page.getByRole('button', { name: /Showing map area/ }).isVisible()
-check('Follow pill appears after panning away', pill)
+check('Follow chip appears on the map after panning away', pill)
+await openMore(page, 'Rivers & gauges')
+await page.waitForTimeout(800)
 const after = await page.locator('.gauge-list li').first().innerText().catch(() => '')
-check('River gauges refetched for the new area', after && after !== before && !/Schuylkill/.test(after), after.split('\n')[0])
-await page.getByRole('tab', { name: 'Station' }).click()
-await page.waitForTimeout(3000)
-const st = await page.locator('.sheet-body').innerText()
-check('Station now nearest to the map centre (Baltimore)', /Baltimore|BWI|Martin State/.test(st) && /map centre/.test(st), st.split('\n')[0])
+check('River gauges stay bound to the place (not the map centre)', after && after === before, after.split('\n')[0])
+await openMore(page, 'Station observations')
+await page.waitForTimeout(1500)
+const st = await pageText(page)
+check('Station stays the one nearest the place (Philadelphia)', /Philadelphia|PHL|Northeast Philadelphia/.test(st) && /your place/.test(st), st.split('\n')[0])
+await openMap(page)
 await page.screenshot({ path: `${OUT}/followed-baltimore.png` })
 
 // Small pan (< 25 km) must NOT refetch.
@@ -47,22 +53,21 @@ check('Small pan keeps the same data window', key0 === key1)
 // Zoomed out: no refetch.
 await page.evaluate(() => window.__map.jumpTo({ center: [-95, 38], zoom: 4 }))
 await page.waitForTimeout(2500)
-const st2 = await page.locator('.sheet-body').innerText()
-check('Continental zoom does not move the data window', /Baltimore|BWI|Martin State/.test(st2))
+const key2 = await page.evaluate(() => JSON.stringify(Object.values(window.__store?.get?.()?.focus ?? {})))
+check('Continental zoom does not move the data window', key1 === key2)
 
 // Back to my spot.
 await page.getByRole('button', { name: /Showing map area/ }).click()
 await page.waitForTimeout(6000)
-const st3 = await page.locator('.sheet-body').innerText()
 const center = await page.evaluate(() => window.__map.getCenter())
-check('"Back to my spot" recenters map and data', Math.abs(center.lat - 39.9526) < 0.05 && /Philadelphia/.test(st3), `${center.lat.toFixed(3)},${center.lng.toFixed(3)} · ${st3.split('\n')[0]}`)
+const focus = await page.evaluate(() => window.__store.get().focus)
+check('"Back to my place" recenters the map and the data window', Math.abs(center.lat - 39.9526) < 0.05 && Math.abs(focus.lat - 39.9526) < 0.01, `${center.lat.toFixed(3)},${center.lng.toFixed(3)}`)
 check('Follow pill gone after recentering', !(await page.getByRole('button', { name: /Showing map area/ }).isVisible()))
 
 // Wind tails screenshot with nowcast on.
 await page.getByRole('button', { name: 'Open layer menu' }).click()
-await page.getByRole('button', { name: 'Nowcast' }).click()
+await page.getByRole('radio', { name: 'Next 2 h wind & cloud' }).click()
 await page.getByRole('button', { name: 'Close layer menu' }).click()
-await page.getByRole('button', { name: 'Collapse panel' }).click()
 await page.waitForTimeout(14000)
 await page.screenshot({ path: `${OUT}/wind-tails.png` })
 

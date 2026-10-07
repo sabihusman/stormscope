@@ -3,6 +3,7 @@ import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('hazards-check.mjs')
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = (process.argv[2] || 'http://localhost:5174/').replace(/\/$/, '')
 const OUT = process.argv[3] || 'e2e-shots/hazards'
@@ -41,7 +42,7 @@ const report = async (ms = 120000) => {
   }
   return page.evaluate(() => { const j = window.__store.get().journey; return { state: `${j.hazards.state} (to=${j.to?.name ?? "none"} routes=${j.routes.state}${j.routes.error ? " err=" + j.routes.error : ""} weather=${j.weather.state}${j.weather.error ? " err=" + j.weather.error : ""})`, hits: null } })
 }
-const panelText = () => page.locator('.sheet-body').innerText()
+const panelText = () => tripText(page)
 
 // ---------------- 1. Positive: depart 20:20Z
 await page.goto(`${BASE}/?replay=greenfield-2020z`, { waitUntil: 'load' })
@@ -102,9 +103,9 @@ check('Replay provider line says the response is cached', /cached in the fixture
 
 // ---------------- 4. Live: Philadelphia → Baltimore, sources must report status
 await page.goto(`${BASE}/`, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(4000)
-await page.getByRole('tab', { name: 'Journey' }).click()
+await openTrip(page)
 await page.getByRole('searchbox', { name: 'Destination' }).fill('Baltimore')
 await page.waitForTimeout(2500)
 await page.getByRole('option').first().click()

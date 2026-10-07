@@ -147,6 +147,8 @@ export interface AppState {
   morePage: MorePage | null
   /** The shared place picker (use my location / search / pick on map). */
   pickerOpen: boolean
+  /** Open the picker straight on its search box (first-run prompt → Search). */
+  pickerMode: 'menu' | 'search'
   /** Map "pick a point" mode: crosshair + confirm; `pickReturn` is where to go afterwards. */
   pickMode: boolean
   pickReturn: Screen
@@ -231,6 +233,7 @@ export const store = createStore<AppState>({
   screen: 'now',
   morePage: null,
   pickerOpen: false,
+  pickerMode: 'menu',
   pickMode: false,
   pickReturn: 'now',
   recentPlaces: ((): RecentPlace[] => {

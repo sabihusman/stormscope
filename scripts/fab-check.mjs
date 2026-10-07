@@ -1,8 +1,9 @@
-// Verifies the movable layer button (drag to corners, menu move, persistence) and grabs wind-tail shots at two zooms.
+// Verifies the movable layer button (drag to every corner, persistence) and grabs wind-tail shots at two zooms.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('fab-check.mjs')
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:5173/'
 const OUT = process.argv[3] || 'e2e-shots/fab'
@@ -18,8 +19,9 @@ await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.laye
 const page = await ctx.newPage()
 const __recordBudget = trackOpenMeteo(page, 'fab-check.mjs')
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(6000)
+await openMap(page)
 
 const fab = () => page.getByRole('button', { name: /layer menu/ })
 const box = async () => fab().boundingBox()
@@ -37,8 +39,8 @@ await page.waitForTimeout(400)
 const b1 = await box()
 check('Drag snaps the button to the top-left corner', (await corner()) === 'tl' && b1.x < 60 && b1.y < 200, `${await corner()} @ ${Math.round(b1.x)},${Math.round(b1.y)}`)
 check('Drag did not open the menu', !(await page.locator('.fab-menu').isVisible()))
-const legend = await page.locator('.legend').boundingBox()
-check('Legend moved below the button (no overlap)', legend.y >= b1.y + b1.height - 2, `legend y ${Math.round(legend.y)} vs fab bottom ${Math.round(b1.y + b1.height)}`)
+const legend = await page.locator('.legend-chip, .legend').first().boundingBox()
+check('Legend chip moved below the button (no overlap)', legend.y >= b1.y + b1.height - 2, `legend y ${Math.round(legend.y)} vs fab bottom ${Math.round(b1.y + b1.height)}`)
 await page.screenshot({ path: `${OUT}/fab-top-left.png` })
 
 // Tap still opens the menu; the menu opens downward and stays on-screen.
@@ -46,24 +48,26 @@ await fab().click()
 await page.waitForTimeout(300)
 const menu = await page.locator('.fab-menu').boundingBox()
 check('Tap opens the menu below a top-corner button, on-screen', menu && menu.y > b1.y && menu.y + menu.height <= 844, `menu ${Math.round(menu?.y)}–${Math.round(menu?.y + menu?.height)}`)
-await page.getByRole('button', { name: /Move this button/ }).click()
-await page.waitForTimeout(300)
-check('Menu "Move to …" cycles to the next corner', (await corner()) === 'tr', await corner())
-await page.screenshot({ path: `${OUT}/fab-top-right-menu.png` })
+await fab().click() // close the menu
+const dragTo = async (x, y) => { const b = await box(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); for (let i = 1; i <= 10; i++) await page.mouse.move(b.x + (x - b.x) * (i / 10), b.y + (y - b.y) * (i / 10)); await page.mouse.up(); await page.waitForTimeout(400) }
+await dragTo(350, 150)
+check('Drag to the top-right corner', (await corner()) === 'tr', await corner())
+await page.screenshot({ path: `${OUT}/fab-top-right.png` })
 const nav = await page.locator('.maplibregl-ctrl-top-right').boundingBox()
 const b2 = await box()
 check('Zoom controls pushed below a top-right button', nav.y >= b2.y + b2.height - 2, `nav y ${Math.round(nav.y)} vs fab bottom ${Math.round(b2.y + b2.height)}`)
-await page.getByRole('button', { name: /Move this button/ }).click() // → br
-await page.getByRole('button', { name: /Move this button/ }).click() // → bl
-await page.waitForTimeout(300)
-check('Cycle reaches bottom-left', (await corner()) === 'bl')
+await dragTo(350, 700)
+check('Drag to the bottom-right corner', (await corner()) === 'br', await corner())
+await dragTo(40, 700)
+check('Drag to the bottom-left corner', (await corner()) === 'bl', await corner())
 await page.reload({ waitUntil: 'load' })
 await page.waitForTimeout(3000)
+await openMap(page)
 check('Corner persists across reload', (await corner()) === 'bl', await corner())
 
 // Wind tails at two zooms.
 await page.getByRole('button', { name: /layer menu/ }).click()
-await page.getByRole('button', { name: 'Nowcast' }).click()
+await page.getByRole('radio', { name: 'Next 2 h wind & cloud' }).click()
 await page.getByRole('button', { name: /layer menu/ }).click()
 await page.waitForTimeout(12000)
 await page.evaluate(() => window.__map.jumpTo({ zoom: 9 }))

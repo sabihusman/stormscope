@@ -1,12 +1,13 @@
-// Phone bottom sheet: once expanded it must collapse again — by dragging the handle down, by
-// tapping the handle, by the ▼ button (which must be on screen), by dragging scrolled-to-top
-// content down, and by the browser back gesture — from every tab, with the content scrolled.
+// The Map screen's sheet (timeline, or point details after a tap): once expanded it must collapse again —
+// by dragging the handle down, by tapping the handle, by the ▼ button (which must be on screen), by dragging
+// scrolled-to-top content down, and by the browser back gesture — for both contents.
 // Real touch input (CDP touch events), phone viewport with touch + mobile emulation.
 import { chromium, webkit } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
 import { installMocks } from './lib/mock-server.mjs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 assertBudget('sheet-check.mjs', { openMeteo: false }) // radar + station only
 
 // --browser=webkit runs Playwright's WebKit (Safari engine, not iOS Safari); --mock answers every API locally.
@@ -35,8 +36,10 @@ if (MOCK) await installMocks(ctx, {})
 const errs = []
 page.on('pageerror', (e) => errs.push(e.message))
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(3000)
+await openMap(page)
+await page.waitForTimeout(600)
 
 const st = () =>
   page.evaluate(() => {
@@ -46,7 +49,7 @@ const st = () =>
     const handle = document.querySelector('.sheet-handle').getBoundingClientRect()
     return {
       mode: window.__store.get().sheet,
-      tab: window.__store.get().tab,
+      content: window.__store.get().selection ? 'details' : 'timeline',
       height: Math.round(sheet.height),
       handleOnScreen: handle.y >= 0 && handle.bottom <= innerHeight && handle.height >= 24,
       btnOnScreen: !!btn && btn.x >= 0 && btn.right <= innerWidth && btn.y >= 0 && btn.bottom <= innerHeight,
@@ -61,12 +64,21 @@ const start = await st()
 check('Starts collapsed (peek)', start.mode === 'peek', `height ${start.height}`)
 const H0 = start.height
 
-/** Expand to full from peek: tap the tab (→ half), then drag the handle up (→ full); scroll the content if it can. */
-const expandAndScroll = async (tabName) => {
-  const trail = []
-  await touchTap(page, await centre(page.getByRole('tab', { name: tabName })))
+/** Put the wanted content in the sheet (timeline = no selection; details = a map tap), expand to full, scroll if it can. */
+const select = async (content) => {
+  if (content === 'details') {
+    if (!(await st()).content.startsWith('details')) { await touchTap(page, { x: 195, y: 300 }); await settle() }
+    const d = page.getByRole('button', { name: 'Details' })
+    if (await d.count()) await touchTap(page, await centre(d))
+  } else {
+    await page.evaluate(() => window.__store.set({ selection: null, sheet: 'half' }))
+  }
   await settle()
-  trail.push(`tab→${(await st()).mode}`)
+}
+const expandAndScroll = async (content) => {
+  const trail = []
+  await select(content)
+  trail.push(`${content}→${(await st()).mode}`)
   const h = await handle()
   await touchDrag(page, h, { x: h.x, y: h.y - 220 })
   await settle()
@@ -80,7 +92,7 @@ const expandAndScroll = async (tabName) => {
   return s
 }
 
-for (const t of ['Timeline', 'Journey', 'Station', 'Rivers', 'Flood', 'Sources']) {
+for (const t of ['timeline', 'details']) {
   // (a) drag the handle down, twice (full → half → peek)
   let s = await expandAndScroll(t)
   check(`[${t}] expanded to full with content${s.scrollable ? ' scrolled' : ' (not scrollable)'}; handle and ▼ on screen`, s.mode === 'full' && s.handleOnScreen && s.btnOnScreen, `${s.mode}, scrollTop ${s.scrollTop}`)
@@ -124,19 +136,19 @@ for (const t of ['Timeline', 'Journey', 'Station', 'Rivers', 'Flood', 'Sources']
 }
 
 // (e) browser / Android back gesture collapses instead of leaving the app
-let s = await expandAndScroll('Journey')
+let s = await expandAndScroll('timeline')
 await page.goBack()
 await settle()
 s = await st()
 check('Back gesture collapses the sheet and stays in the app', s.mode === 'peek' && s.height === H0 && /^\/(\?.*)?$/.test(s.url) && (await page.locator('.sheet').count()) === 1, `${s.mode} ${s.height}px url ${s.url}`)
-// Tab switch while expanded keeps it usable: switch tabs, then collapse by handle tap.
-s = await expandAndScroll('Station')
-await touchTap(page, await centre(page.getByRole('tab', { name: 'Flood' })))
+// Content switch while expanded keeps it usable: details → back to timeline, then collapse by handle tap.
+s = await expandAndScroll('details')
+await touchTap(page, await centre(page.getByRole('button', { name: '‹ Timeline' })))
 await settle()
 await touchTap(page, await handle())
 await settle()
 s = await st()
-check('After switching tabs while open, a handle tap still collapses', s.mode === 'peek' && s.tab === 'flood' && s.height === H0, `${s.mode} ${s.tab} ${s.height}px`)
+check('After switching content while open, a handle tap still collapses', s.mode === 'peek' && s.content === 'timeline' && s.height === H0, `${s.mode} ${s.content} ${s.height}px`)
 await page.screenshot({ path: `${OUT}/sheet-final.png` })
 check('No page errors', errs.length === 0, errs[0])
 __recordBudget()

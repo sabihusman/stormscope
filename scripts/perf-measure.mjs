@@ -13,6 +13,7 @@ import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const args = process.argv.slice(2)
 const mockArg = args.find((a) => a === '--mock' || a.startsWith('--mock='))
@@ -130,12 +131,13 @@ console.log('environment:', JSON.stringify(out.environment))
 const t0 = Date.now()
 await page.goto(BASE, { waitUntil: 'load' })
 const navToLoad = Date.now() - t0
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 // First load settles: wait for the map + radar, up to 30 s.
-for (let i = 0; i < 60; i++) { await page.waitForTimeout(500); const p = await page.evaluate(() => ({ map: window.__perf.mapLoad, radar: !!window.__store?.get().radar.data })); if (p.map && window_firstRadar) break }
+let firstConditions = null
+for (let i = 0; i < 60; i++) { await page.waitForTimeout(500); const p = await page.evaluate(() => ({ map: window.__perf.mapLoad, radar: !!window.__store?.get().radar.data, cond: window.__store?.get().conditions.state === 'ready' })); if (p.cond && firstConditions == null) firstConditions = Date.now() - t0; if (p.map && window_firstRadar && firstConditions != null) break }
 await page.waitForTimeout(3000)
 const firstLoad = await page.evaluate(() => ({ lcp: window.__perf.lcp, mapLoad: window.__perf.mapLoad, longTasks: window.__perf.longTasks.length }))
-out.firstLoad = { navigationToLoadEventMs: navToLoad, timeToFirstMapMs: firstLoad.mapLoad, timeToFirstRadarFrameMs: window_firstRadar ? window_firstRadar - t0 : null, lcp: firstLoad.lcp }
+out.firstLoad = { navigationToLoadEventMs: navToLoad, timeToFirstConditionsMs: firstConditions, timeToFirstMapMs: firstLoad.mapLoad, timeToFirstRadarFrameMs: window_firstRadar ? window_firstRadar - t0 : null, lcp: firstLoad.lcp }
 const first = [...reqs.values()].filter((r) => r.end)
 const byHost = {}
 for (const r of first) { const h = new URL(r.url).host; byHost[h] ??= { n: 0, kb: 0 }; byHost[h].n++; byHost[h].kb += r.bytes / 1024 }
@@ -164,8 +166,9 @@ await page.evaluate(() => {
 // lumped into "first-load".
 await page.evaluate(() => { window.__labelTimes = [{ label: 'first-load', t: 0 }] })
 const label = (l) => page.evaluate((l) => { window.__perfLabel = l; window.__labelTimes.push({ label: l, t: performance.now() }) }, l)
-await label('tab-switch')
-for (const t of ['Station', 'Sources', 'Timeline']) { await touchTap(page, await centre(page.getByRole('tab', { name: t }))); await page.waitForTimeout(900) }
+await label('nav-switch')
+for (const t of [/^More/, 'Trip', /^Now/, 'Map']) { await touchTap(page, await centre(page.getByRole('button', { name: t, exact: typeof t === 'string' }))); await page.waitForTimeout(900) }
+await setSheet(page, 'half')
 await label('pan')
 for (let i = 0; i < 3; i++) { await touchDrag(page, { x: 195, y: 300 }, { x: 95, y: 220 }, { steps: 10, settleMs: 60 }); await page.waitForTimeout(900) }
 await label('zoom-jump')
@@ -188,22 +191,23 @@ if (LAYERS.radar) {
   await touchTap(page, await centre(page.getByRole('button', { name: 'Pause' })))
   await page.waitForTimeout(500)
 }
-await label('all-layers-nowcast')
+await label('nowcast-overlay')
 await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
-for (const n of ['Rainfall', 'Flood risk', 'Nowcast']) { await touchTap(page, await centre(page.getByRole('button', { name: n }))); await page.waitForTimeout(300) }
+await touchTap(page, await centre(page.getByRole('radio', { name: 'Next 2 h wind & cloud' })))
+await page.waitForTimeout(300)
 await touchTap(page, await centre(page.getByRole('button', { name: /layer menu/ })))
 await page.waitForTimeout(20000) // blocks load + nowcast
-await touchTap(page, await centre(page.getByRole('tab', { name: 'Timeline' })))
+await setSheet(page, 'half')
 await page.waitForTimeout(500)
 const nowTab = page.getByRole('tab', { name: 'Nowcast' })
 if (await nowTab.count()) { await touchTap(page, await centre(nowTab)); await page.waitForTimeout(400) }
 await touchTap(page, await centre(page.getByRole('button', { name: 'Play' })))
 await page.waitForTimeout(4000)
 await touchTap(page, await centre(page.getByRole('button', { name: 'Pause' })))
-await label('idle-all-layers')
+await label('idle-nowcast')
 await page.waitForTimeout(4000)
-await label('journey-open')
-await touchTap(page, await centre(page.getByRole('tab', { name: 'Journey' })))
+await label('trip-open')
+await touchTap(page, await centre(page.getByRole('button', { name: 'Trip', exact: true })))
 await page.waitForTimeout(500)
 await page.getByRole('searchbox', { name: 'Destination' }).fill('Iowa City')
 await page.waitForTimeout(2500)

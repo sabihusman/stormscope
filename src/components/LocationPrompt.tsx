@@ -16,7 +16,7 @@ interface Props {
 export function LocationPrompt({ status, message, onAllow, onSearch, onPickOnMap }: Props) {
   const failed = status === 'denied' || status === 'timeout' || status === 'unavailable'
   return (
-    <div className="overlay-center" role="dialog" aria-labelledby="loc-title">
+    <div className="overlay-center" role="dialog" aria-modal="true" aria-labelledby="loc-title">
       <div className="card prompt-card">
         <div className="prompt-icon" aria-hidden="true">
           📍

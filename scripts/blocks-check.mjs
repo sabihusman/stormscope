@@ -4,6 +4,7 @@ import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('blocks-check.mjs')
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:5174/'
 const OUT = process.argv[3] || 'e2e-shots/blocks'
@@ -23,12 +24,10 @@ page.on('request', (r) => /api\.open-meteo\.com\/v1\/forecast/.test(r.url()) && 
 const errs = []
 page.on('pageerror', (e) => errs.push(e.message))
 await page.goto(BASE, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(5000)
-await page.getByRole('button', { name: /layer menu/ }).click()
-await page.getByRole('button', { name: 'Rainfall' }).click()
-await page.getByRole('button', { name: 'Flood risk' }).click()
-await page.getByRole('button', { name: /layer menu/ }).click()
+await openMap(page)
+await setLayers(page, { rainfall: true, flood: true })
 
 const settle = async (ms = 45000) => {
   const t0 = Date.now()
@@ -89,9 +88,10 @@ check('Close zoom uses the finest block level', st4.level === 0 && st4.loaded >=
 await page.screenshot({ path: `${OUT}/blocks-zoomed.png` })
 
 // ---- Budget-limiter regressions ----
-await page.getByRole('tab', { name: 'Sources' }).click()
+await openMore(page, 'Sources, freshness & settings')
 await page.waitForTimeout(500)
-const src = await page.locator('.sheet-body').innerText()
+const src = await pageText(page)
+await openMap(page)
 const m = src.match(/(\d[\d,]*) \/ 10 000 calls today/)
 check('Sources panel shows the per-browser Open-Meteo daily counter', !!m && Number(m[1].replace(/,/g, '')) >= 49, m?.[0])
 const ptsPerBlock = await page.evaluate(() => { const s = window.__store.get(); const b = s.blocks[s.visibleBlocks[0]]; return b?.grid.data?.spec.points.length })

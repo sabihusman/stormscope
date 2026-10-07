@@ -3,6 +3,7 @@ import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('road-check.mjs')
 import { mkdirSync } from 'node:fs'
+import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = (process.argv[2] || 'http://localhost:5174/').replace(/\/$/, '')
 const OUT = process.argv[3] || 'e2e-shots/road'
@@ -45,7 +46,7 @@ const report = async (ms = 150000) => {
   }
   return page.evaluate(() => { const j = window.__store.get().journey; return { state: `${j.road.state} (to=${j.to?.name ?? "none"} routes=${j.routes.state}${j.routes.error ? " err=" + j.routes.error : ""} weather=${j.weather.state}${j.weather.error ? " err=" + j.weather.error : ""})`, road: null } })
 }
-const panelText = () => page.locator('.sheet-body').innerText()
+const panelText = () => tripText(page)
 const byId = (r, id) => r.stations?.find((s) => s.id === id)
 
 // ---------------- 1. Ice storm, depart 08:00Z: all four sensors icy within window; Grinnell unknown
@@ -106,9 +107,9 @@ if (r.road) {
 
 // ---------------- 4. Live: Johnston → Iowa City (I-80 RWIS stations exist)
 await page.goto(`${BASE}/`, { waitUntil: 'load' })
-await page.getByRole('button', { name: 'Allow location' }).click({ timeout: 4000 }).catch(() => {})
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(4000)
-await page.getByRole('tab', { name: 'Journey' }).click()
+await openTrip(page)
 await page.getByRole('searchbox', { name: 'Destination' }).fill('Iowa City')
 await page.waitForTimeout(2500)
 await page.getByRole('option').first().click()

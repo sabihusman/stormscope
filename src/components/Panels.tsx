@@ -221,7 +221,10 @@ export function FloodPanel() {
                 </span>
               </div>
             </div>
-            <small className="muted cond-foot">Indicative screening, not an official flood warning · computed {timeAgo(d!.computedAt, now)}</small>
+            <small className="muted cond-foot">
+              Indicative screening, not an official flood warning · computed {timeAgo(d!.computedAt, now)}
+              {d!.drainageAvailable ? '' : ' · drainage not available here — terrain + rain only'}
+            </small>
           </div>
           <div className="segmented small" role="radiogroup" aria-label="Rain horizon">
             {([6, 12, 24, 48] as RainHorizon[]).map((h) => (
