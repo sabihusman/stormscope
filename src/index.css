@@ -1837,3 +1837,78 @@ small {
 .app.wide .toast {
   left: calc(var(--rail-w) + var(--col-w) / 2);
 }
+
+/* Point chip (map tap) */
+.point-chip {
+  position: absolute;
+  left: calc(var(--sal) + 12px);
+  right: calc(var(--sar) + 12px);
+  bottom: calc(var(--sab) + var(--sheet-h) + 12px);
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px 8px 12px;
+  border-radius: 14px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.app.narrow.screen-map .point-chip {
+  bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-h) + 12px);
+}
+.app.wide .point-chip {
+  left: auto;
+  right: 12px;
+  width: 400px;
+  bottom: calc(var(--sab) + 110px);
+}
+.chip-ico {
+  font-size: 22px;
+}
+.chip-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 13px;
+}
+.chip-body strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
+}
+.chip-body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.details-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.point-details .strip-title {
+  margin: 10px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hour-strip.rain li {
+  width: 42px;
+}
+.hour-strip.rain li.wet {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.14);
+}
+.hour-strip.rain li:first-child {
+  border-color: var(--line);
+}
+.fab-group-label + .fab-item,
+.fab-group-label + .segmented {
+  margin-top: 2px;
+}

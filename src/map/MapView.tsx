@@ -151,14 +151,8 @@ export function MapView({ children }: { children: ReactNode }) {
         store.set({ selection: null })
         return
       }
-      store.set({
-        selection: {
-          kind: 'point',
-          lngLat: { lng: e.lngLat.lng, lat: e.lngLat.lat },
-          title: 'Map point',
-          lines: [`${e.lngLat.lat.toFixed(4)}, ${e.lngLat.lng.toFixed(4)}`],
-        },
-      })
+      // A point chip: the headline is built from the forecast grid by PointChip; coordinates stay in Details.
+      store.set({ selection: { kind: 'point', lngLat: { lng: e.lngLat.lng, lat: e.lngLat.lat }, title: 'This point', lines: [] } })
     })
     return () => {
       setMap(null)

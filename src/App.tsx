@@ -8,7 +8,7 @@ import { FloodLayer } from './map/FloodLayer'
 import { RiversLayer } from './map/RiversLayer'
 import { StationLayer } from './map/StationLayer'
 import { NowcastLayer, WindParticles } from './map/NowcastLayer'
-import { MapPopup } from './map/MapPopup'
+import { PointChip } from './components/PointChip'
 // Journey overlays: code-split with the journey pipeline and mounted only once a destination exists.
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
@@ -129,7 +129,6 @@ export default function App() {
             <ErrorBoundary kind="layer" name="Route overlay"><RouteLayer /></ErrorBoundary>
           </Suspense>
         )}
-        {screen === 'map' && !pickMode && <ErrorBoundary kind="layer" name="Map popup"><MapPopup /></ErrorBoundary>}
       </MapView>
       <DataController />
 
@@ -144,7 +143,10 @@ export default function App() {
         </>
       )}
       {screen === 'map' && !pickMode && (
-        <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>
+        <>
+          <ErrorBoundary kind="panel" name="Point"><PointChip /></ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>
+        </>
       )}
       {pickMode && (
         <div className="pick-ui" role="group" aria-label="Pick a point on the map">

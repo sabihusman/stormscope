@@ -4,6 +4,7 @@ import { timeAgo } from '../lib/time'
 import { haversine } from '../lib/geo'
 import { aggregate, store, useApp, useVisibleBlocks, type SheetMode } from '../state/store'
 import { Timeline } from './Timeline'
+import { PointDetails } from './PointChip'
 import { ErrorBoundary } from './ErrorBoundary'
 
 const ORDER: SheetMode[] = ['peek', 'half', 'full']
@@ -18,6 +19,7 @@ const step = (m: SheetMode, d: 1 | -1): SheetMode => ORDER[Math.max(0, Math.min(
  */
 export function BottomSheet() {
   const mode = useApp((s) => s.sheet)
+  const hasSelection = useApp((s) => !!s.selection)
   const online = useOnline()
   const drag = useRef<{ id: number; y: number; t: number } | null>(null)
   const bodyTouch = useRef<{ y: number; x: number; top: number; done: boolean } | null>(null)
@@ -111,7 +113,7 @@ export function BottomSheet() {
   }, [mode])
 
   return (
-    <section className={`sheet ${mode}`} aria-label="Timeline panel">
+    <section className={`sheet ${mode}`} aria-label={hasSelection ? 'Point details' : 'Timeline panel'}>
       <div
         className="sheet-handle"
         onPointerDown={onPointerDown}
@@ -128,7 +130,16 @@ export function BottomSheet() {
         <span className="grabber" />
       </div>
       <nav className="tabs">
-        <StatusStrip online={online} />
+        {hasSelection && mode !== 'peek' ? (
+          <div className="tablist details-head">
+            <button className="btn small ghost" onClick={() => store.set({ selection: null })}>
+              ‹ Timeline
+            </button>
+            <strong>Details</strong>
+          </div>
+        ) : (
+          <StatusStrip online={online} />
+        )}
         <button
           className="icon-btn sheet-toggle"
           onPointerUp={(e) => {
@@ -146,8 +157,8 @@ export function BottomSheet() {
         </button>
       </nav>
       <div className="sheet-body" hidden={mode === 'peek'} onTouchStart={onBodyTouchStart} onTouchMove={onBodyTouchMove} onTouchEnd={onBodyTouchEnd} onTouchCancel={onBodyTouchEnd}>
-        <ErrorBoundary kind="panel" name="Timeline">
-          <Timeline />
+        <ErrorBoundary kind="panel" name={hasSelection ? 'Details' : 'Timeline'}>
+          {hasSelection ? <PointDetails /> : <Timeline />}
         </ErrorBoundary>
       </div>
     </section>

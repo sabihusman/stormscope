@@ -357,6 +357,11 @@ export function setLayer(id: LayerId, on: boolean) {
     } catch {
       /* ignore */
     }
+    // Forecast overlays (rain / flood / nowcast) are one at a time: they stack into an unreadable quilt.
+    if (on && (id === 'rainfall' || id === 'flood' || id === 'nowcast')) {
+      for (const other of ['rainfall', 'flood', 'nowcast'] as LayerId[]) if (other !== id) layers[other] = false
+      if (id !== 'flood') extra = { ...extra, animLayer: id }
+    }
     // Keep the timeline pointed at an enabled animated layer.
     let animLayer = (extra.animLayer as AnimLayer | undefined) ?? s.animLayer
     if (!layers[animLayer]) animLayer = (['radar', 'satellite', 'rainfall', 'nowcast'] as AnimLayer[]).find((l) => layers[l]) ?? animLayer
