@@ -292,7 +292,9 @@ const BASEMAP_DIR = 'e2e-shots/perf/basemap'
 const basemapIndex = existsSync(`${BASEMAP_DIR}/index.json`) ? F(`${BASEMAP_DIR}/index.json`) : {}
 function basemap(url) {
   const p = new URL(url).pathname
-  const hit = basemapIndex[p]
+  // The harvested sprite is the @2x variant of one sprite version; serve it for any version/density the style asks for.
+  const spriteKey = /\/sprites\/[^/]+\/ofm(@2x)?\.(json|png)$/.test(p) ? Object.keys(basemapIndex).find((k) => k.endsWith(p.endsWith('.json') ? '.json' : '.png') && k.includes('/sprites/')) : null
+  const hit = basemapIndex[p] ?? (spriteKey ? basemapIndex[spriteKey] : undefined)
   if (hit) return { status: 200, contentType: hit.type || 'application/octet-stream', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=86400' }, body: readFileSync(`${BASEMAP_DIR}/${hit.file}`) }
   if (/\.pbf$/.test(p) && !p.includes('/fonts/')) return { status: 200, contentType: 'application/x-protobuf', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=86400' }, body: Buffer.alloc(0) } // empty vector tile
   if (p.includes('/fonts/')) return { status: 204, headers: { 'access-control-allow-origin': '*' }, body: '' }
