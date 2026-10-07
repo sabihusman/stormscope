@@ -2,7 +2,10 @@
 // Run with VIEWPORT=mobile for a phone-sized check.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('satellite-check.mjs', { openMeteo: false }) // imagery + station only: no Open-Meteo calls
+import { installMocks } from './lib/mock-server.mjs'
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'satellite-check.mjs (mock)' : 'satellite-check.mjs', { openMeteo: false })
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
@@ -29,7 +32,8 @@ const page = await ctx.newPage()
 const logs = []
 page.on('console', (m) => /[imagery]/.test(m.text()) && logs.push(m.text()))
 await page.addInitScript(() => { window.__trace = true })
-const __recordBudget = trackOpenMeteo(page, 'satellite-check.mjs')
+const __recordBudget = trackOpenMeteo(page, MOCK ? 'satellite-check.mjs (mock)' : 'satellite-check.mjs')
+if (MOCK) await installMocks(ctx, { focus: { lat: 41.67, lng: -93.7 } })
 const tiles = []
 page.on('response', (r) => /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/GOES/.test(r.url()) && tiles.push(r.status()))
 await page.goto(BASE, { waitUntil: 'load' })

@@ -1,8 +1,11 @@
 // Scripted QA pass. Each check logs PASS/FAIL with evidence; screenshots go to OUT.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
+import { installMocks } from './lib/mock-server.mjs'
 import { openMap, openMore, pageText, setSheet, setUnits, sheetText, searchPlace } from './lib/ui.mjs'
-assertBudget('qa.mjs')
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'qa.mjs (mock)' : 'qa.mjs', { openMeteo: !MOCK })
 import { mkdirSync } from 'node:fs'
 
 const BASE = process.argv[2] || 'http://localhost:5173/'
@@ -16,6 +19,7 @@ const check = (name, ok, evidence = '') => {
 const GL = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
 const browser = await chromium.launch({ args: GL })
 const PHL = { latitude: 39.9526, longitude: -75.1652 }
+const PHL_FOCUS = { lat: PHL.latitude, lng: PHL.longitude }
 const mobile = (extra = {}) => ({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, ...extra })
 const settle = (p, ms = 800) => p.waitForTimeout(ms)
 const errorsOf = (page) => {
@@ -30,6 +34,7 @@ const errorsOf = (page) => {
   const ctx = await browser.newContext(mobile({ permissions: [] }))
   const page = await ctx.newPage()
   const __recordDenied = trackOpenMeteo(page, 'qa.mjs (denied-location context)') // counts + protected-preview bypass headers
+if (MOCK) await installMocks(ctx, { focus: PHL_FOCUS })
   await page.goto(BASE, { waitUntil: 'networkidle' })
   const dlg = page.getByRole('dialog')
   check('First-run prompt shown before browser dialog', await dlg.getByRole('heading', { name: 'Where are you?' }).isVisible())
@@ -59,7 +64,8 @@ const errorsOf = (page) => {
 // ---------------------------------------------------------------- 2. Main flow (granted)
 const ctx = await browser.newContext(mobile({ geolocation: PHL, permissions: ['geolocation'] }))
 const page = await ctx.newPage()
-const __recordBudget = trackOpenMeteo(page, 'qa.mjs')
+const __recordBudget = trackOpenMeteo(page, MOCK ? 'qa.mjs (mock)' : 'qa.mjs')
+if (MOCK) await installMocks(ctx, { focus: PHL_FOCUS })
 const errs = errorsOf(page)
 const t0 = Date.now()
 await page.goto(BASE, { waitUntil: 'networkidle' })
@@ -256,7 +262,9 @@ await settle(page, 3000)
 check('Reload restores the last place on Now (no prompt)', (await page.locator('.chip-text').first().textContent())?.includes('Philadelphia'), await page.locator('.chip-text').first().textContent())
 check('Reload restores enabled layers', await page.evaluate(() => JSON.parse(localStorage.getItem('stormscope.layers')).nowcast === true))
 
-// Search: postcode + city, choose, non-US states
+// Search: postcode + city, choose, non-US states (live only: the mock geocoder answers every query with Iowa City)
+if (MOCK) console.log('SKIP  (mock) non-US checks: postcode search, alerts/station/rivers/flood outside the US')
+else {
 await searchPlace(page, 'SW1A 1AA')
 await settle(page, 3000)
 const opts = await page.getByRole('dialog').getByRole('option').count()
@@ -280,6 +288,7 @@ for (let i = 0; i < 90; i++) {
 }
 check('Non-US: flood page computes for the place and falls back to terrain + rain', /terrain \+ rain only|not available here/.test(floodText) && /at London|at Westminster|at /.test(floodText), floodText.split('\n').slice(0, 2).join(' | '))
 await page.screenshot({ path: `${OUT}/london-flood.png` })
+}
 
 check('No unexpected console/page errors in main flow', errs.length === 0, errs.slice(0, 3).join(' | '))
 await ctx.close()
@@ -287,6 +296,7 @@ await ctx.close()
 // ---------------------------------------------------------------- 3. Reduced motion
 {
   const c = await browser.newContext(mobile({ geolocation: PHL, permissions: ['geolocation'], reducedMotion: 'reduce' }))
+  if (MOCK) await installMocks(c, { focus: PHL_FOCUS })
   const p = await c.newPage()
   await p.goto(BASE, { waitUntil: 'networkidle' })
   await settle(p, 4000)
@@ -312,6 +322,7 @@ await ctx.close()
 // ---------------------------------------------------------------- 4. Desktop
 {
   const c = await browser.newContext({ viewport: { width: 1280, height: 800 }, geolocation: PHL, permissions: ['geolocation'] })
+  if (MOCK) await installMocks(c, { focus: PHL_FOCUS })
   const p = await c.newPage()
   await p.goto(BASE, { waitUntil: 'networkidle' })
   await settle(p, 4000)

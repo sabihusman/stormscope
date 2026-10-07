@@ -2,7 +2,10 @@
 // and the rendered screenshot is saved for eyeballing.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('zoom-check.mjs')
+import { installMocks } from './lib/mock-server.mjs'
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'zoom-check.mjs (mock)' : 'zoom-check.mjs', { openMeteo: !MOCK })
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
@@ -14,6 +17,7 @@ const c = await b.newContext({ viewport: { width: 1200, height: 800 }, geolocati
 await c.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: false, nowcast: false })) } catch {} })
 const p = await c.newPage()
 const __recordBudget = trackOpenMeteo(p, 'zoom-check.mjs')
+if (MOCK) await installMocks(c, { focus: { lat: 41.67, lng: -93.7 } })
 const om = []
 p.on('response', (r) => /open-meteo\.com\/v1\/forecast/.test(r.url()) && om.push(r.status()))
 await p.goto(BASE, { waitUntil: 'load' })

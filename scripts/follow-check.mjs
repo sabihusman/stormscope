@@ -2,7 +2,10 @@
 // back) while the reference views stay bound to the place — rivers and station must NOT change when you pan.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('follow-check.mjs')
+import { installMocks } from './lib/mock-server.mjs'
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'follow-check.mjs (mock)' : 'follow-check.mjs', { openMeteo: !MOCK })
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
@@ -17,14 +20,15 @@ const check = (name, ok, ev = '') => {
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: 39.9526, longitude: -75.1652 }, permissions: ['geolocation'] })
 const page = await ctx.newPage()
-const __recordBudget = trackOpenMeteo(page, 'follow-check.mjs')
+const __recordBudget = trackOpenMeteo(page, MOCK ? 'follow-check.mjs (mock)' : 'follow-check.mjs')
+if (MOCK) await installMocks(ctx, { focus: { lat: 39.9526, lng: -75.1652 } })
 await page.goto(BASE, { waitUntil: 'load' })
 await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(7000)
 await openMore(page, 'Rivers & gauges')
 await page.waitForTimeout(1500)
 const before = await page.locator('.gauge-list li').first().innerText().catch(() => '')
-check('Rivers loaded for the user location', /Schuylkill|Delaware|Creek|River/.test(before), before.split('\n')[0])
+check('Rivers loaded for the user location', MOCK ? before.length > 0 : /Schuylkill|Delaware|Creek|River/.test(before), before.split('\n')[0])
 
 // Pan ~150 km south-west to Baltimore on the Map.
 await openMap(page)
@@ -39,7 +43,7 @@ check('River gauges stay bound to the place (not the map centre)', after && afte
 await openMore(page, 'Station observations')
 await page.waitForTimeout(1500)
 const st = await pageText(page)
-check('Station stays the one nearest the place (Philadelphia)', /Philadelphia|PHL|Northeast Philadelphia/.test(st) && /your place/.test(st), st.split('\n')[0])
+check('Station stays the one nearest the place (Philadelphia)', (MOCK || /Philadelphia|PHL|Northeast Philadelphia/.test(st)) && /your place/.test(st), st.split('\n')[0])
 await openMap(page)
 await page.screenshot({ path: `${OUT}/followed-baltimore.png` })
 

@@ -1,7 +1,10 @@
 // P3 hazards: replay fixtures (positive, negative-timing, ice) + a live run.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('hazards-check.mjs')
+import { installMocks } from './lib/mock-server.mjs'
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'hazards-check.mjs (mock)' : 'hazards-check.mjs', { openMeteo: !MOCK })
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
@@ -17,7 +20,8 @@ const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=sw
 const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 }, geolocation: { latitude: 39.9526, longitude: -75.1652 }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: false, nowcast: false })) } catch {} })
 const page = await ctx.newPage()
-const __recordBudget = trackOpenMeteo(page, 'hazards-check.mjs')
+const __recordBudget = trackOpenMeteo(page, MOCK ? 'hazards-check.mjs (mock)' : 'hazards-check.mjs')
+if (MOCK) await installMocks(ctx, { focus: { lat: 39.9526, lng: -75.1652 } })
 const errs = []
 page.on('pageerror', (e) => errs.push(e.message))
 // Replays ship their recorded route + Open-Meteo response: none of these may be requested live.
@@ -102,6 +106,8 @@ const cachedProvider = await page.evaluate(() => window.__store.get().journey.we
 check('Replay provider line says the response is cached', /cached in the fixture/.test(cachedProvider), cachedProvider)
 
 // ---------------- 4. Live: Philadelphia → Baltimore, sources must report status
+if (MOCK) console.log('SKIP  (mock) live journey section: needs live NWS/SPC/RWIS')
+else {
 await page.goto(`${BASE}/`, { waitUntil: 'load' })
 await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(4000)
@@ -121,6 +127,7 @@ if (r.hits) {
 }
 check('No page errors', errs.length === 0, errs[0])
 
+}
 __recordBudget()
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)

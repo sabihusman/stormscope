@@ -1,7 +1,10 @@
 // Verifies the movable layer button (drag to every corner, persistence) and grabs wind-tail shots at two zooms.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('fab-check.mjs')
+import { installMocks } from './lib/mock-server.mjs'
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'fab-check.mjs (mock)' : 'fab-check.mjs', { openMeteo: !MOCK })
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
@@ -17,7 +20,8 @@ const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=sw
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: 39.9526, longitude: -75.1652 }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: false, nowcast: false })) } catch {} }) // not under test here: keep gauge/NWS traffic off the shared IP
 const page = await ctx.newPage()
-const __recordBudget = trackOpenMeteo(page, 'fab-check.mjs')
+const __recordBudget = trackOpenMeteo(page, MOCK ? 'fab-check.mjs (mock)' : 'fab-check.mjs')
+if (MOCK) await installMocks(ctx, { focus: { lat: 39.9526, lng: -75.1652 } })
 await page.goto(BASE, { waitUntil: 'load' })
 await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await page.waitForTimeout(6000)

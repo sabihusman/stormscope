@@ -2,7 +2,10 @@
 // the loaded area covers the viewport, and small pans cause no refetch.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('blocks-check.mjs')
+import { installMocks } from './lib/mock-server.mjs'
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'blocks-check.mjs (mock)' : 'blocks-check.mjs', { openMeteo: !MOCK })
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
@@ -18,7 +21,8 @@ const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=sw
 const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 }, geolocation: { latitude: 41.67, longitude: -93.7 }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: false, nowcast: false })) } catch {} })
 const page = await ctx.newPage()
-const __recordBudget = trackOpenMeteo(page, 'blocks-check.mjs')
+const __recordBudget = trackOpenMeteo(page, MOCK ? 'blocks-check.mjs (mock)' : 'blocks-check.mjs')
+if (MOCK) await installMocks(ctx, { focus: { lat: 41.67, lng: -93.7 } })
 const omRequests = []
 page.on('request', (r) => /api\.open-meteo\.com\/v1\/forecast/.test(r.url()) && /hourly=precipitation/.test(r.url()) && omRequests.push(r.url()))
 const errs = []

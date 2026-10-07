@@ -12,8 +12,11 @@
 import { chromium } from 'playwright'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { assertBudget, guardedFetch, remaining, trackTraffic } from './lib/qa-budget.mjs'
+import { installMocks } from './lib/mock-server.mjs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
-assertBudget('rivers-check.mjs', { openMeteo: false }) // gauges only: USGS + NWPS, no Open-Meteo
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'rivers-check.mjs (mock)' : 'rivers-check.mjs', { openMeteo: false })
 
 const record = process.argv.includes('--record')
 const BASE = process.argv.find((a) => /^https?:/.test(a)) || 'http://localhost:5174/'
@@ -131,6 +134,9 @@ if (snap.window.approvalStatus !== 'Approved') {
   console.log('FAIL  snapshot was not recorded from an approved window — re-record with --record')
   process.exit(1)
 }
+let newNow = snap.medians
+if (MOCK) console.log('SKIP  (mock) live USGS comparisons (snapshot reproduction, old-vs-new path, site stability)')
+else {
 const fixedNew = await mediansBbox(snap.sites, snap.window.start, snap.window.end)
 const d1 = same(snap.medians, fixedNew)
 check(`bbox query reproduces the snapshot's per-site medians exactly (approved window ${snap.window.start}..${snap.window.end})`, !d1, d1 || `${Object.keys(fixedNew).length} sites, identical medians and counts`)
@@ -140,17 +146,19 @@ const now = new Date()
 const start = new Date(now.getTime() - 10 * 86_400_000)
 const sitesNow = await sitesWithFlow()
 const oldNow = await mediansPerSite(sitesNow, iso(start), iso(now))
-const newNow = await mediansBbox(sitesNow, iso(start), iso(now))
+newNow = await mediansBbox(sitesNow, iso(start), iso(now))
 const d2 = same(oldNow, newNow)
 check('old per-site path and new bbox path agree for today\'s window', !d2, d2 || `${Object.keys(newNow).length} sites, ${sitesNow.length} with discharge`)
 check('site list is stable against the snapshot (≥ 90 % overlap)', sitesNow.filter((s) => snap.sites.includes(s)).length >= 0.9 * snap.sites.length, `${sitesNow.filter((s) => snap.sites.includes(s)).length}/${snap.sites.length}`)
 
 // 3. The app itself, rivers ON at the same focus: its elevated-flow ratios must come from those medians.
+}
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 }, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { localStorage.setItem('stormscope.layers', JSON.stringify({ radar: false, satellite: false, rainfall: false, flood: false, rivers: true, station: false, nowcast: false })) } catch {} })
 const page = await ctx.newPage()
-const __recordBudget = trackTraffic(page, 'rivers-check.mjs')
+const __recordBudget = trackTraffic(page, MOCK ? 'rivers-check.mjs (mock)' : 'rivers-check.mjs')
+if (MOCK) await installMocks(ctx, { focus: FOCUS })
 const usgsUrls = []
 page.on('request', (r) => /api\.waterdata\.usgs\.gov/.test(r.url()) && usgsUrls.push(r.url()))
 await page.goto(BASE, { waitUntil: 'load' })

@@ -4,7 +4,10 @@
 // on :4173, or the production URL) — the dev server has no service worker.
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('pwa-check.mjs', { openMeteo: false }) // shell + radar only: no Open-Meteo calls
+import { installMocks } from './lib/mock-server.mjs'
+// --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
+const MOCK = process.argv.includes('--mock')
+assertBudget(MOCK ? 'pwa-check.mjs (mock)' : 'pwa-check.mjs', { openMeteo: false })
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
@@ -28,7 +31,8 @@ const ctx = await browser.newContext({
 })
 await ctx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: false, nowcast: false })) } catch {} }) // not under test here: keep gauge/NWS traffic off the shared IP
 const page = await ctx.newPage()
-const __recordBudget = trackOpenMeteo(page, 'pwa-check.mjs')
+const __recordBudget = trackOpenMeteo(page, MOCK ? 'pwa-check.mjs (mock)' : 'pwa-check.mjs')
+if (MOCK) await installMocks(ctx, { focus: { lat: 39.9526, lng: -75.1652 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`))
 page.on('console', (m) => m.type() === 'error' && errors.push(`[console] ${m.text()}`))
@@ -85,6 +89,7 @@ const deskCtx = await browser.newContext({ viewport: { width: 1280, height: 800 
 await deskCtx.addInitScript(() => { try { if (!localStorage.getItem('stormscope.layers')) localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: true, nowcast: false })) } catch {} })
 const desk = await deskCtx.newPage()
 const __recordDesk = trackOpenMeteo(desk, 'pwa-check.mjs (desktop)')
+if (MOCK) await installMocks(deskCtx, { focus: { lat: 39.9526, lng: -75.1652 } })
 await desk.goto(BASE, { waitUntil: 'networkidle' })
 await desk.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
 await desk.waitForTimeout(7000)
