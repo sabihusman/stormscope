@@ -203,6 +203,17 @@ function nws(url, focus, alerts = []) {
 }
 
 // ---------- River gauges from the rivers snapshot (positions laid out around the focus) ----------
+// Geocoder: a few Iowa places so a suite can change place to somewhere *different*; anything else is Iowa City.
+const PLACES = [
+  { re: /ames/i, name: 'Ames', latitude: 42.0308, longitude: -93.6319, admin2: 'Story County' },
+  { re: /cedar/i, name: 'Cedar Rapids', latitude: 41.9779, longitude: -91.6656, admin2: 'Linn County' },
+  { re: /johnston/i, name: 'Johnston', latitude: 41.673, longitude: -93.698, admin2: 'Polk County' },
+  { re: /des moines/i, name: 'Des Moines', latitude: 41.5868, longitude: -93.625, admin2: 'Polk County' },
+]
+function geocode(q) {
+  const p = PLACES.find((x) => x.re.test(q)) ?? { name: 'Iowa City', latitude: 41.6611, longitude: -91.5302, admin2: 'Johnson County' }
+  return { name: p.name, latitude: p.latitude, longitude: p.longitude, country: 'United States', admin1: 'Iowa', admin2: p.admin2 }
+}
 function nwps(url, focus) {
   const u = new URL(url)
   const lids = saved.rivers.nwpsLids
@@ -339,10 +350,11 @@ export async function installMocks(context, { har = null, record = false, focus 
   await context.route(/^https?:\/\/(?!localhost|127\.0\.0\.1|\[::1\])/, async (route, req) => {
     const url = req.url()
     const host = new URL(url).host
+    globalThis.__qaMockedRequest?.(url)
     try {
       if (/open-meteo\.com\/v1\/(forecast|era5)/.test(url)) return route.fulfill(json(openMeteo(url)))
       if (host === 'archive-api.open-meteo.com' || host === 'historical-forecast-api.open-meteo.com') return route.fulfill(json(openMeteo(url)))
-      if (host === 'geocoding-api.open-meteo.com') return route.fulfill(json({ results: [{ name: 'Iowa City', latitude: 41.6611, longitude: -91.5302, country: 'United States', admin1: 'Iowa', admin2: 'Johnson County' }] }))
+      if (host === 'geocoding-api.open-meteo.com') return route.fulfill(json({ results: [geocode(new URL(url).searchParams.get('name') ?? '')] }))
       if (host === 'nominatim.openstreetmap.org') return route.fulfill(json(url.includes('/reverse') ? { name: 'Johnston', display_name: 'Johnston, Polk County, Iowa, United States', address: { city: 'Johnston', state: 'Iowa', country: 'United States' } } : []))
       if (host === 'api.rainviewer.com') return route.fulfill(json(rainviewer()))
       if (host === 'tilecache.rainviewer.com') return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=600' }, body: radarTile() })

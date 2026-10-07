@@ -109,6 +109,24 @@ export function trackTraffic(page, scriptName) {
   const warned = new Set()
   const noOpenMeteo = declaredNoOpenMeteo.has(baseName(scriptName))
   let used = 0
+  // Requests the mock server answered locally (--mock runs): counted per host and printed, never
+  // charged to the ledger — the same app code path makes them live, so they size the caps.
+  const mocked = {}
+  let mockedUsed = 0
+  globalThis.__qaMockedRequest = (url) => {
+    let host
+    try {
+      host = new URL(url).host
+    } catch {
+      return
+    }
+    if (own(host)) return
+    mocked[host] = (mocked[host] ?? 0) + 1
+    if (isOpenMeteoData(url)) {
+      const m = url.match(/[?&]latitude=([^&]*)/)
+      mockedUsed += m ? m[1].split(',').length : 1
+    }
+  }
   page.context().route('**/*', (route, req) => {
     const url = req.url()
     let host
@@ -166,6 +184,13 @@ export function trackTraffic(page, scriptName) {
       .join(', ')
     console.log(`budget: this run used ${used} Open-Meteo locations; ${j.used}/${QA_DAILY_CAP} today`)
     console.log(`traffic: ${top || 'no external requests'}`)
+    if (Object.keys(mocked).length)
+      console.log(
+        `traffic (mocked, answered locally, not charged): ${mockedUsed} Open-Meteo locations; ${Object.entries(mocked)
+          .sort((a, b) => b[1] - a[1])
+          .map(([h, n]) => `${h} ${n}`)
+          .join(', ')}`,
+      )
     if (Object.keys(blocked).length)
       console.log(
         `traffic: BLOCKED ${Object.entries(blocked)

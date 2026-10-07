@@ -1,21 +1,23 @@
 // Runs the headless suites against one deployment — sequentially (one browser at a time on the
 // shared home IP) and once per bundle: a second run for the same build is refused unless --force.
 //
-//   node scripts/prod-suite.mjs [base-url] [--force] [--only=road,hazards]
+//   node scripts/prod-suite.mjs [base-url] [--force] [--only=road,hazards] [--mock]
 //
 // The bundle is identified by the hashed entry script in index.html; runs are recorded in
-// e2e-shots/.prod-runs.json with each suite's pass count.
+// e2e-shots/.prod-runs.json with each suite's pass count. --mock passes --mock to every suite
+// (APIs answered locally, zero live calls, nothing charged to the ledger); logs go under e2e-shots/mock/.
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { loadLedger, QA_DAILY_CAP } from './lib/qa-budget.mjs'
 
 const args = process.argv.slice(2)
 const force = args.includes('--force')
+const mock = args.includes('--mock')
 const only = args.find((a) => a.startsWith('--only='))?.slice(7).split(',')
 const BASE = (args.find((a) => !a.startsWith('--')) || 'https://stormscope-two.vercel.app/').replace(/\/?$/, '/')
 const RUNS = 'e2e-shots/.prod-runs.json'
 // One directory per run (bundle + start time), so a later run never overwrites this run's logs/screens.
-const OUT = `e2e-shots/prod/${new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}-${process.env.PROD_SUITE_TAG ?? 'run'}`
+const OUT = `e2e-shots/${mock ? 'mock' : 'prod'}/${new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}-${process.env.PROD_SUITE_TAG ?? 'run'}`
 mkdirSync(OUT, { recursive: true })
 
 // A protected preview needs Vercel's automation-bypass header (the suites add it to every request via the guard).
@@ -33,15 +35,15 @@ try {
 } catch {
   /* first run */
 }
-const prev = runs.find((r) => r.bundle === bundle && r.base === BASE && !r.only && !r.incomplete)
-if (prev && !force && !only) {
+const prev = runs.find((r) => r.bundle === bundle && r.base === BASE && !r.only && !r.incomplete && !r.mock)
+if (prev && !force && !only && !mock) {
   console.log(`SKIP  bundle ${bundle} at ${BASE} was already run on ${prev.at} (${prev.summary}). Use --force to repeat.`)
   process.exit(3)
 }
 // Don't start a full run that the Open-Meteo day budget can't finish (≈ 1 500 locations across the suites).
 const ledger = loadLedger()
 const NEED = 1500
-if (!only && ledger.used + NEED > QA_DAILY_CAP) {
+if (!only && !mock && ledger.used + NEED > QA_DAILY_CAP) {
   console.log(`SKIP  QA Open-Meteo budget: ${ledger.used}/${QA_DAILY_CAP} locations used today, a full run needs ≈${NEED}. Run after 00:00 UTC, or --only=<suites> for the cheap ones.`)
   process.exit(3)
 }
@@ -66,11 +68,11 @@ const SUITES = [
   { name: 'road', script: 'road-check.mjs' },
 ].filter((s) => !only || only.includes(s.name))
 
-console.log(`prod-suite: ${BASE} bundle ${bundle} — ${SUITES.length} suites, sequential; logs in ${OUT}`)
+console.log(`prod-suite: ${BASE} bundle ${bundle} — ${SUITES.length} suites, sequential${mock ? ', MOCKED (zero live calls)' : ''}; logs in ${OUT}`)
 const results = []
 for (const s of SUITES) {
   const t0 = Date.now()
-  const r = spawnSync('node', [`scripts/${s.script}`, BASE, `${OUT}/${s.name}`], { env: { ...process.env, ...(s.env ?? {}) }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const r = spawnSync('node', [`scripts/${s.script}`, BASE, `${OUT}/${s.name}`, ...(mock ? ['--mock'] : [])], { env: { ...process.env, ...(s.env ?? {}) }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   const out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`
   writeFileSync(`${OUT}/${s.name}.log`, out)
   const passed = out.match(/(\d+)\/(\d+) (?:checks )?passed/)
@@ -85,7 +87,7 @@ for (const s of SUITES) {
 const summary = `${results.filter((r) => r.ok).length}/${results.length} suites passed`
 // A run cut short by the budget guard doesn't count as "done" for this bundle.
 const incomplete = results.some((r) => r.status === 'skip')
-runs.push({ bundle, base: BASE, at: new Date().toISOString(), only: only ?? null, incomplete, summary, results, logs: OUT })
+runs.push({ bundle, base: BASE, at: new Date().toISOString(), only: only ?? null, mock, incomplete, summary, results, logs: OUT })
 writeFileSync(RUNS, JSON.stringify(runs, null, 1))
 console.log(summary)
 process.exit(results.every((r) => r.ok) ? 0 : 1)
