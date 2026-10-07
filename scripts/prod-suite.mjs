@@ -40,9 +40,9 @@ if (prev && !force && !only && !mock) {
   console.log(`SKIP  bundle ${bundle} at ${BASE} was already run on ${prev.at} (${prev.summary}). Use --force to repeat.`)
   process.exit(3)
 }
-// Don't start a full run that the Open-Meteo day budget can't finish (≈ 1 500 locations across the suites).
+// Don't start a full run that the Open-Meteo day budget can't finish (≈ 2 200 locations across the 17 suites, Oct 7 measurement).
 const ledger = loadLedger()
-const NEED = 1500
+const NEED = 2200
 if (!only && !mock && ledger.used + NEED > QA_DAILY_CAP) {
   console.log(`SKIP  QA Open-Meteo budget: ${ledger.used}/${QA_DAILY_CAP} locations used today, a full run needs ≈${NEED}. Run after 00:00 UTC, or --only=<suites> for the cheap ones.`)
   process.exit(3)

@@ -19,34 +19,40 @@ const DIR = 'e2e-shots'
 const FILE = `${DIR}/.qa-budget.json`
 const LEGACY = `${DIR}/.open-meteo-budget.json`
 
-/** Open-Meteo locations per UTC day the suites may consume (leaves ≥ 7 000 of the 10 000 for real use). */
-export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 3000)
+/**
+ * Open-Meteo locations per UTC day the suites may consume (leaves ≥ 6 400 of the 10 000 for real use).
+ * One full pass, measured Oct 7 (mocked batch, same code path as live): 17 suites 2 077 + the live-only
+ * sections the mock skips (hazards 23, road 23, journey Philadelphia 73) + phone walkthrough 422 +
+ * perf ≤ 637 (13 requests × 49) ≈ 3 250.
+ */
+export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 3600)
 
 /** Requests per UTC day per host. Unlisted hosts get DEFAULT_CAP; our own origins are never counted. */
-// Sized for ONE full pass of the 16 suites + the perf measurement (Oct 5 ledger × ~1.05), no retry
-// allowance: a second run of anything that day is refused by design. Oct 7 (conditions-first UI): every
-// place change now costs one Open-Meteo request (current + hourly) and one NWS alerts request, and the
-// alerts refresh every 3 min while a page is open, so those two hosts are sized up for the new flows.
+// Sized for ONE full pass (17 suites + phone walkthrough + perf) with no retry allowance: a second run of
+// anything that day is refused by design. API hosts: Oct 7 mocked batch of the lazy-rivers build (the
+// guard counts mocked requests per host; the app makes the same calls live) plus the Oct 6 live counts of
+// the sections the mock skips, × ~1.15. Tile hosts: Oct 5 live ledger × ~1.05 (the mock serves fewer
+// glyph/sprite requests than the real style, so mocked tile counts under-report).
 export const HOST_CAPS = {
-  'api.open-meteo.com': 130,
+  'api.open-meteo.com': 120, // 64 suites + 15 walkthrough + 13 perf + 5 live-only = 97
   'archive-api.open-meteo.com': 5, // replays are cached; only re-recording calls this
   'historical-forecast-api.open-meteo.com': 5,
-  'geocoding-api.open-meteo.com': 10,
-  'api.waterdata.usgs.gov': 50, // rivers-check 27 + ~18 app gauge loads
-  'api.water.noaa.gov': 750, // 21 per gauge load (list + 20 details). Oct 7: the Rivers page is place-bound, so every place change in a suite is a load — ~33 loads across the 17 suites + walkthrough + perf
-  'api.weather.gov': 180,
+  'geocoding-api.open-meteo.com': 10, // 6
+  'api.waterdata.usgs.gov': 50, // rivers-check's Node-side comparisons 27 + 3 per Rivers page open (5 opens) = 42
+  'api.water.noaa.gov': 150, // 1 per summary load, 21 per Rivers page open (first time per place): suites 99 + walkthrough 25 + perf 1 + rivers-check 1 = 126
+  'api.weather.gov': 140, // 85 + 28 + 4 + 5 = 122 (alerts 1 + station 3 per place change; alerts refresh every 3 min)
   'alerts.weather.gov': 10,
-  'mapservices.weather.noaa.gov': 50,
-  'mesonet.agron.iastate.edu': 40,
-  'valhalla1.openstreetmap.de': 10,
+  'mapservices.weather.noaa.gov': 85, // 24 + 18 + 30 live-only = 72
+  'mesonet.agron.iastate.edu': 60, // 12 + 9 + 27 live-only = 48
+  'valhalla1.openstreetmap.de': 10, // 6
   'router.project-osrm.org': 10,
-  'nominatim.openstreetmap.org': 35,
-  'hydro.nationalmap.gov': 35,
-  'gibs.earthdata.nasa.gov': 1100,
-  'api.rainviewer.com': 65,
+  'nominatim.openstreetmap.org': 40, // 34
+  'hydro.nationalmap.gov': 30, // 25
+  'gibs.earthdata.nasa.gov': 1100, // mocked 844
+  'api.rainviewer.com': 50, // 41
   'tilecache.rainviewer.com': 1700,
   'tiles.openfreemap.org': 1200,
-  's3.amazonaws.com': 450,
+  's3.amazonaws.com': 450, // mocked 353
   ...(process.env.QA_CAPS ? JSON.parse(process.env.QA_CAPS) : {}),
 }
 export const DEFAULT_CAP = 50
