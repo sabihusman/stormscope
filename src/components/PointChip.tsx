@@ -43,7 +43,8 @@ export function PointChip() {
   const pf = usePointForecast(sel && isPoint ? sel.lngLat : null)
   if (!sel || sheet !== 'peek') return null
   const h = headline(sel)
-  const rel = place ? `${U.distance(haversine(place.lngLat, sel.lngLat), units)} ${bearingLabel(place.lngLat, sel.lngLat)} of ${(store.get().placeLabel ?? place.name).split(',')[0]}` : `${sel.lngLat.lat.toFixed(3)}, ${sel.lngLat.lng.toFixed(3)}`
+  const dist = place ? haversine(place.lngLat, sel.lngLat) : null
+  const rel = place ? (dist! < 100 ? `at ${(store.get().placeLabel ?? place.name).split(',')[0]}` : `${U.distance(dist, units)} ${bearingLabel(place.lngLat, sel.lngLat)} of ${(store.get().placeLabel ?? place.name).split(',')[0]}`) : `${sel.lngLat.lat.toFixed(3)}, ${sel.lngLat.lng.toFixed(3)}`
   const c = pf.data?.current
   const w = c ? wmo(c.code, c.isDay) : null
   const rain24 = pf.data ? pf.data.hourly.slice(0, 24).reduce((a, x) => a + (x.precipMm ?? 0), 0) : sample?.rain24Mm
@@ -91,7 +92,8 @@ export function PointDetails() {
   const w = c ? wmo(c.code, c.isDay) : null
   const hours = pf.data?.hourly.slice(0, 24) ?? null
   const rain24 = hours ? hours.reduce((a, x) => a + (x.precipMm ?? 0), 0) : sample?.rain24Mm
-  const rel = place ? `${U.distance(haversine(place.lngLat, sel.lngLat), units)} ${bearingLabel(place.lngLat, sel.lngLat)} of ${(store.get().placeLabel ?? place.name).split(',')[0]}` : ''
+  const dist = place ? haversine(place.lngLat, sel.lngLat) : null
+  const rel = place ? (dist! < 100 ? `at ${(store.get().placeLabel ?? place.name).split(',')[0]}` : `${U.distance(dist, units)} ${bearingLabel(place.lngLat, sel.lngLat)} of ${(store.get().placeLabel ?? place.name).split(',')[0]}`) : ''
   return (
     <div className="panel point-details">
       <div className="panel-title">

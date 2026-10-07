@@ -1349,7 +1349,14 @@ small {
   bottom: calc(var(--nav-h) + var(--sab));
   padding-bottom: 0;
 }
-.app.narrow.screen-map .fab-stack {
+.app.narrow.screen-map .sheet.full {
+  height: calc(100vh - var(--sat) - 70px - var(--nav-h) - var(--sab));
+}
+.app.narrow.screen-map.sheet-full {
+  --sheet-h: calc(100vh - var(--sat) - 70px - var(--nav-h) - var(--sab));
+}
+.app.narrow.screen-map.fab-br .fab-stack,
+.app.narrow.screen-map.fab-bl .fab-stack {
   bottom: calc(var(--nav-h) + var(--sab) + var(--sheet-h) + 14px);
 }
 .app.narrow.screen-map .maplibregl-ctrl-bottom-left,
@@ -1832,7 +1839,8 @@ small {
   top: calc(var(--sat) + 10px);
   bottom: auto;
 }
-.app.wide:not(.screen-map) .fab-stack {
+.app.wide:not(.screen-map).fab-br .fab-stack,
+.app.wide:not(.screen-map).fab-tr .fab-stack {
   right: calc(var(--sar) + 12px);
 }
 .app.wide .toast {

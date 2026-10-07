@@ -154,17 +154,20 @@ await page.waitForTimeout(400)
 await openMenu()
 s = await waitFor((x) => /Band13/.test(x.satLayer ?? ''), 60000)
 check('Switching to IR reloads frames for the IR layer; radar stays off', /Band13/.test(s.satLayer ?? '') && !s.layers.radar, s.satLayer)
+await page.getByRole('button', { name: 'Show legend' }).click().catch(() => {})
+await page.waitForTimeout(300)
 const legend = await page.locator('.legend').innerText().catch(() => '')
+await page.getByRole('button', { name: 'Hide legend' }).click().catch(() => {})
 check('Legend shows only the active imagery (satellite IR, no radar bar)', /Band 13 IR/.test(legend) && !/Radar \(RainViewer\)/.test(legend))
 await page.screenshot({ path: `${OUT}/ir.png` })
 
-// ---- Turning satellite off leaves no imagery (allowed); legend drops it.
+// ---- Background 'None' leaves no imagery (allowed); legend drops it.
 await openMenu()
-await page.getByRole('radio', { name: /Satellite/ }).click()
+await page.getByRole('radio', { name: 'None' }).click()
 await page.waitForTimeout(500)
 await openMenu()
 s = await st()
-check('Tapping the active imagery again turns imagery off (none selected)', !s.layers.satellite && !s.layers.radar && s.mapSat === 0 && s.mapRadar === 0)
+check('Background "None" turns imagery off (nothing selected)', !s.layers.satellite && !s.layers.radar && s.mapSat === 0 && s.mapRadar === 0)
 
 __recordBudget()
 await browser.close()

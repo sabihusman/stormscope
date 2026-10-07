@@ -74,6 +74,7 @@ export function DataController() {
   const floodFor = useApp((s) => s.floodFor)
   const satProduct = useApp((s) => s.satProduct)
   const placeKey = place ? `${place.lngLat.lat.toFixed(3)},${place.lngLat.lng.toFixed(3)}` : ''
+  const replayActive = useApp((s) => !!s.replay)
 
   // A new place (geolocation, search, map tap) always re-centres the point data on it.
   useEffect(() => {
@@ -785,7 +786,8 @@ export function DataController() {
       }
     },
     REFRESH.conditions,
-    !!place,
+    // Replays drive the Trip page only (archived data): no live place conditions / alerts for them.
+    !!place && !replayActive,
     [placeKey, nonce],
   )
 
@@ -807,7 +809,7 @@ export function DataController() {
       }
     },
     REFRESH.alerts,
-    !!place,
+    !!place && !replayActive,
     [placeKey, nonce],
   )
 
