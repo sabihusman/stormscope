@@ -63,7 +63,7 @@ const st = () =>
 const handle = () => centre(page.locator('.sheet-handle'))
 const settle = () => page.waitForTimeout(450)
 const start = await st()
-check('Starts collapsed (peek): no sheet on screen until a point is tapped', start.mode === 'peek' && start.height === 0 && (await page.locator('.playbar').count()) === 1, `height ${start.height}`)
+check('Starts collapsed (peek): no sheet on screen until a point is tapped', start.mode === 'peek' && start.height === 0 && (await page.locator('.playbar, .playpill').count()) === 1, `height ${start.height}`)
 const H0 = start.height
 
 /** Open the details sheet (a map tap, then the chip's Details button), expand to full, scroll if it can. */
@@ -144,7 +144,7 @@ s = await expandAndScroll('details')
 await touchTap(page, await centre(page.getByRole('button', { name: '‹ Close' })))
 await settle()
 s = await st()
-check('‹ Close clears the selection, removes the sheet and the chip, keeps the playback bar', s.mode === 'peek' && s.content === 'none' && s.height === H0 && (await page.locator('.point-chip').count()) === 0 && (await page.locator('.playbar').count()) === 1, `${s.mode} ${s.content} ${s.height}px`)
+check('‹ Close clears the selection, removes the sheet and the chip, keeps the playback bar', s.mode === 'peek' && s.content === 'none' && s.height === H0 && (await page.locator('.point-chip').count()) === 0 && (await page.locator('.playbar, .playpill').count()) === 1, `${s.mode} ${s.content} ${s.height}px`)
 await page.screenshot({ path: `${OUT}/sheet-final.png` })
 check('No page errors', errs.length === 0, errs[0])
 __recordBudget()

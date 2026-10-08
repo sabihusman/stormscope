@@ -2,7 +2,7 @@
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
-import { openMap, openMore, openRivers, pageText, setSheet, setUnits, sheetText, searchPlace } from './lib/ui.mjs'
+import { expandPlayback, openMap, openMore, openRivers, pageText, setSheet, setUnits, sheetText, searchPlace } from './lib/ui.mjs'
 // --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
 const MOCK = process.argv.includes('--mock')
 assertBudget(MOCK ? 'qa.mjs (mock)' : 'qa.mjs')
@@ -226,6 +226,7 @@ await page.getByRole('radio', { name: 'Next 2 h wind & cloud' }).click()
 await page.getByRole('button', { name: 'Close layer menu' }).click()
 await settle(page, 12000)
 await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
+await expandPlayback(page) // phones: the pill → the full bar with the scrubber
 const readout = () => page.locator('.playbar-time').innerText()
 const r0 = await readout()
 const clock0 = await page.evaluate(() => window.__store.get().playTime)

@@ -7,7 +7,7 @@ import { installMocks } from './lib/mock-server.mjs'
 const MOCK = process.argv.includes('--mock')
 assertBudget(MOCK ? 'satellite-check.mjs (mock)' : 'satellite-check.mjs') // the Now screen fetches one Open-Meteo location per place on every load
 import { mkdirSync } from 'node:fs'
-import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
+import { allowLocation, expandPlayback, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:5174/'
 const OUT = process.argv[3] || 'e2e-shots/satellite'
@@ -82,6 +82,7 @@ let s = await waitFor((x) => x.radarFrames > 0)
 check('Default: radar on, satellite off, map has radar frames', s.layers.radar && !s.layers.satellite && s.mapRadar === s.radarFrames && s.mapSat === 0, `${s.mapRadar} radar layers`)
 
 // Scrub radar back to its oldest past frame (~2 h ago) so the carry-over has a satellite match.
+await expandPlayback(page) // the phone layout shows a pill until expanded
 await page.getByRole('slider', { name: 'Playback time' }).focus()
 await page.keyboard.press('Home')
 s = await st()

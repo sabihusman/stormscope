@@ -29,6 +29,14 @@ export const openRivers = async (page, timeout = 30000) => {
   }
   await settle(page, 300)
 }
+/** Phones show the playback control as a pill; expand it into the full bar (scrubber, horizon, scale) when needed. */
+export const expandPlayback = async (page) => {
+  const label = page.locator('.playpill .pill-label')
+  if (await label.count()) {
+    await label.click()
+    await settle(page, 400)
+  }
+}
 export const pageText = (page) => page.locator('.page-body').innerText()
 export const tripText = (page) => page.locator('.screen.trip').innerText()
 export const sheetText = (page) => page.locator('.sheet-body').innerText()

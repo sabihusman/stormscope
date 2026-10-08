@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
 import { installMocks } from './lib/mock-server.mjs'
-import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
+import { allowLocation, expandPlayback, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 
 const args = process.argv.slice(2)
 const MOCK = args.includes('--mock')
@@ -140,7 +140,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 
   // ---------------- radar play / pause / scrub
   await feature('radar play', async () => { await tap(page.getByRole('button', { name: 'Play' })); await page.waitForTimeout(5000) }, () => st(() => window.__store.get().playing))
-  await feature('radar pause + scrub', async () => { await tap(page.getByRole('button', { name: 'Pause' })); await page.getByRole('slider').focus(); await page.keyboard.press('Home'); await page.waitForTimeout(500); await page.keyboard.press('End'); await page.waitForTimeout(500) }, () => st(() => !window.__store.get().playing))
+  await feature('radar pause + scrub', async () => { await tap(page.getByRole('button', { name: 'Pause' })); await expandPlayback(page); await page.getByRole('slider').focus(); await page.keyboard.press('Home'); await page.waitForTimeout(500); await page.keyboard.press('End'); await page.waitForTimeout(500) }, () => st(() => !window.__store.get().playing))
 
   // ---------------- satellite GeoColor / IR + switch with time carry
   await feature('satellite GeoColor', async () => { await openMenu(); await tap(page.getByRole('radio', { name: /Satellite/ })); await page.waitForTimeout(300); await openMenu() }, () => st(() => window.__store.get().layers.satellite && (window.__store.get().satellite.data?.times.length ?? 0) > 0 && !window.__store.get().imageryCarry), { timeoutMs: 40000 })
