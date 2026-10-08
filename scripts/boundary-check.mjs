@@ -66,7 +66,7 @@ check('Playback bar and the details sheet still work after a layer failure', s.s
 await page.getByRole('button', { name: 'Collapse panel' }).click()
 await page.waitForTimeout(400)
 check('Sheet still collapses', (await st()).sheet === 'peek')
-const mapOk = await page.evaluate(() => { const m = window.__map; const z = m.getZoom(); m.jumpTo({ zoom: z + 1 }); return Math.abs(m.getZoom() - (z + 1)) < 0.01 && !!m.getLayer('rv-radar-0') })
+const mapOk = await page.evaluate(() => { const m = window.__map; const z = m.getZoom(); m.jumpTo({ zoom: z + 1 }); return Math.abs(m.getZoom() - (z + 1)) < 0.01 && m.getStyle().layers.some((l) => l.id.startsWith('rv-radar-')) })
 check('Map still interactive with the radar layer present', mapOk)
 await page.screenshot({ path: `${OUT}/layer-failed.png` })
 // Retry: fix the cause, enable again → works.

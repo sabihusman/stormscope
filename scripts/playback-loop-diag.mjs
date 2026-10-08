@@ -54,7 +54,8 @@ await page.evaluate((STEP) => {
     if (s.playTime === lastPlay) return
     lastPlay = s.playTime
     if (!rec.running) return
-    const id = s.layers.satellite ? `gibs-sat-${s.satFrame}` : `rv-radar-${s.radarFrame}`
+    // Frame sources are keyed by their time (and product / kind), not by index.
+    const id = s.layers.satellite ? `gibs-sat-${s.satellite.data?.times[s.satFrame]}-${s.satellite.data?.layer.id}` : `rv-radar-${s.radar.data?.frames[s.radarFrame]?.time}-${s.radar.data?.frames[s.radarFrame]?.kind}`
     const loaded = m.getSource(id) ? m.isSourceLoaded(id) : null
     rec.switches.push({ t: performance.now(), playTime: s.playTime, id, loaded })
   })
@@ -113,12 +114,13 @@ async function measure(layerName) {
     const intervals = L.frames.slice(1).map((f, k) => f.t - L.frames[k].t)
     const late = intervals.filter((d) => d > STEP * 1.5).length
     const blank = L.frames.filter((f) => f.loaded === false).length
+    const unknown = L.frames.filter((f) => f.loaded === null).length
     // rAF samples inside this loop's time window (approximate: the raf array is in order, stamp by cumulative sum)
     let acc = rec.switches[0]?.t ?? 0
     const rafIn = []
     for (const d of rec.raf) { acc += d; if (acc >= tStart && acc < tEnd) rafIn.push(d) }
     const longest = Math.max(0, ...rec.longTasks.filter((x) => x.t >= tStart && x.t < tEnd).map((x) => x.d))
-    report.push({ loop: li + 1, frames: L.frames.length, requests: byHost, late, blank, p50: Math.round(pct(rafIn, 50)), p95: Math.round(pct(rafIn, 95)), max: Math.round(Math.max(0, ...rafIn)), longestTask: Math.round(longest), heapMB: rec.heapMB })
+    report.push({ loop: li + 1, frames: L.frames.length, requests: byHost, late, blank, unknown, p50: Math.round(pct(rafIn, 50)), p95: Math.round(pct(rafIn, 95)), max: Math.round(Math.max(0, ...rafIn)), longestTask: Math.round(longest), heapMB: rec.heapMB })
   }
   results.push({ layer: layerName, ticks, report })
   void t0
@@ -144,10 +146,11 @@ for (const r of results) {
   for (const L of r.report) {
     const reqN = Object.values(L.requests).reduce((a, b) => a + b, 0)
     const badReq = L.loop >= 2 && reqN > 2
-    const badFrames = L.loop >= 2 && (L.max > 100 || L.blank > 0)
+    // A frame whose source could not be found counts as not verified: the assertion must not pass vacuously.
+    const badFrames = L.loop >= 2 && (L.max > 100 || L.blank > 0 || L.unknown > 0)
     if (badReq) okReq = false
     if (badFrames) okFrames = false
-    console.log(`    loop ${L.loop}: frames ${L.frames} · requests ${reqN}${reqN ? ' (' + Object.entries(L.requests).map(([h, n]) => `${h} ${n}`).join(', ') + ')' : ''} · late ${L.late} · blank ${L.blank} · frame p50/p95/max ${L.p50}/${L.p95}/${L.max} ms · longest task ${L.longestTask} ms · heap ${L.heapMB ?? '?'} MB${badReq || badFrames ? '   ← over' : ''}`)
+    console.log(`    loop ${L.loop}: frames ${L.frames} · requests ${reqN}${reqN ? ' (' + Object.entries(L.requests).map(([h, n]) => `${h} ${n}`).join(', ') + ')' : ''} · late ${L.late} · blank ${L.blank}${L.unknown ? ` · unverified ${L.unknown}` : ''} · frame p50/p95/max ${L.p50}/${L.p95}/${L.max} ms · longest task ${L.longestTask} ms · heap ${L.heapMB ?? '?'} MB${badReq || badFrames ? '   ← over' : ''}`)
   }
 }
 console.log('JSON ' + JSON.stringify({ view: VIEW, results }))
