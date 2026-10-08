@@ -131,6 +131,14 @@ export function trackTraffic(page, scriptName) {
     if (isOpenMeteoData(url)) {
       const m = url.match(/[?&]latitude=([^&]*)/)
       mockedUsed += m ? m[1].split(',').length : 1
+      // A wrong "zero Open-Meteo calls" declaration must fail the mocked run too (live, the request is aborted).
+      if (noOpenMeteo) {
+        blocked[host] = (blocked[host] ?? 0) + 1
+        if (!warned.has('om-declared')) {
+          warned.add('om-declared')
+          console.log(`BLOCK ${host}: ${scriptName} declared zero Open-Meteo calls but requested ${url.slice(0, 90)}… (answered by the mock; live it would be aborted)`)
+        }
+      }
     }
   }
   page.context().route('**/*', (route, req) => {
