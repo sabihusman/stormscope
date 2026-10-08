@@ -153,7 +153,7 @@ export function PlaybackBar() {
         <StatusStrip />
         <div className="playpill">
           {playButton}
-          <button className="pill-label" onClick={() => store.set({ playbarExpanded: true })} aria-label={`${current}. Show controls`} aria-expanded={false}>
+          <button className="pill-label" onClick={() => store.set({ playbarExpanded: true })} aria-label={`Show controls (${current})`} aria-expanded={false}>
             {current}
           </button>
           <div className="pill-progress" aria-hidden="true" style={{ ['--now-pct' as string]: `${pct(nowIdx)}%` }}>
