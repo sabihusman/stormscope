@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { setFabCorner, setLayer, setSatProduct, store, useApp, type FabCorner } from '../state/store'
+import { LegendRows } from './Legend'
 import type { LayerId } from '../types'
 
 /** Forecast overlays are one at a time (they stack into an unreadable quilt otherwise). */
@@ -153,6 +154,9 @@ export function LayerFab() {
             <span aria-hidden="true">⛰</span>
             <span className="fab-label">{is3D ? '3D terrain on' : '3D terrain off'}</span>
           </button>
+          <div className="fab-sep" />
+          <div className="fab-group-label">Legend (layers that are on)</div>
+          <LegendRows />
           <small className="fab-hint">Tip: drag ☰ to any corner</small>
         </div>
       )}

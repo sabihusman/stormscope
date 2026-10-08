@@ -1,6 +1,6 @@
 import { CLOUD_STOPS, FLOOD_STOPS, RAIN_STOPS } from '../lib/colors'
 import { U } from '../lib/units'
-import { store, useApp } from '../state/store'
+import { useApp, type AnimLayer } from '../state/store'
 import { RISK_COLORS } from '../map/RiversLayer'
 
 function Ramp({ stops, title }: { stops: { color: string; label: string }[]; title: string }) {
@@ -19,30 +19,19 @@ function Ramp({ stops, title }: { stops: { color: string; label: string }[]; tit
   )
 }
 
-/** Legend for every enabled overlay. Collapses to a small chip so it never hogs a phone screen. */
-export function Legend() {
+const gradient = (stops: { color: string }[]) => `linear-gradient(90deg, ${stops.map((s) => s.color).join(', ')})`
+
+/** Legend rows for the layers that are on — lives inside the ☰ layers panel. Nothing when no layer is on. */
+export function LegendRows() {
   const layers = useApp((s) => s.layers)
-  const open = useApp((s) => s.legendOpen)
   const rainHorizon = useApp((s) => s.rainHorizon)
   const units = useApp((s) => s.units)
   const satProduct = useApp((s) => s.satProduct)
   const anyOverlay = layers.radar || layers.satellite || layers.rainfall || layers.flood || layers.rivers || layers.nowcast
   if (!anyOverlay) return null
-  if (!open)
-    return (
-      <button className="legend-chip" onClick={() => store.set({ legendOpen: true })} aria-label="Show legend">
-        Legend
-      </button>
-    )
   const rainStops = RAIN_STOPS.map((s) => ({ color: s.color, label: s.value === RAIN_STOPS[0].value ? 'trace' : U.precipLabel(s.value, units) + (s === RAIN_STOPS[RAIN_STOPS.length - 1] ? '+' : '') }))
   return (
-    <aside className="legend card" aria-label="Map legend">
-      <div className="legend-head">
-        <strong>Legend</strong>
-        <button className="icon-btn" onClick={() => store.set({ legendOpen: false })} aria-label="Hide legend">
-          ×
-        </button>
-      </div>
+    <div className="legend-rows" aria-label="Legend">
       {layers.radar && (
         <div className="legend-row">
           <div className="legend-title">Radar (RainViewer)</div>
@@ -83,6 +72,41 @@ export function Legend() {
           </div>
         </>
       )}
-    </aside>
+    </div>
+  )
+}
+
+/** A thin colour scale for the layer the playback clock drives, so the legend is on screen while scrubbing. */
+export function PlaybackScale({ layer }: { layer: AnimLayer }) {
+  const units = useApp((s) => s.units)
+  const satProduct = useApp((s) => s.satProduct)
+  if (layer === 'radar')
+    return (
+      <div className="playbar-scale" aria-label="Radar scale">
+        <small>Radar · light</small>
+        <div className="scale-bar radar-bar" aria-hidden="true" />
+        <small>heavy / hail</small>
+      </div>
+    )
+  if (layer === 'satellite')
+    return (
+      <div className="playbar-scale" aria-label="Satellite">
+        <small>{satProduct === 'geocolor' ? 'Satellite · GeoColor: true colour by day, IR-tinted clouds at night' : 'Satellite · Band 13 IR: brighter = colder, higher cloud tops'}</small>
+      </div>
+    )
+  if (layer === 'rainfall')
+    return (
+      <div className="playbar-scale" aria-label="Rain scale">
+        <small>Rain · trace</small>
+        <div className="scale-bar" style={{ background: gradient(RAIN_STOPS) }} aria-hidden="true" />
+        <small>{U.precipLabel(RAIN_STOPS[RAIN_STOPS.length - 1].value, units)}+</small>
+      </div>
+    )
+  return (
+    <div className="playbar-scale" aria-label="Nowcast scale">
+      <small>Cloud · clear</small>
+      <div className="scale-bar" style={{ background: gradient(CLOUD_STOPS.slice(1)) }} aria-hidden="true" />
+      <small>overcast · rain in rain colours</small>
+    </div>
   )
 }

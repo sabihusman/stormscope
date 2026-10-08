@@ -141,6 +141,8 @@ export interface AppState {
   animLayer: AnimLayer
   /** Playback clock (ms epoch) shared by radar / satellite and the active forecast overlay; null = live ("Now"). */
   playTime: number | null
+  /** Phones: the playback control is a pill until expanded into the full bar (wide layouts are always expanded). */
+  playbarExpanded: boolean
   radarFrame: number
   rainFrame: number
   nowcastFrame: number
@@ -234,6 +236,7 @@ export const store = createStore<AppState>({
   nowcastT0: 0,
   animLayer: 'radar',
   playTime: null,
+  playbarExpanded: false,
   radarFrame: 0,
   rainFrame: 0,
   nowcastFrame: 0,

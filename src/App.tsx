@@ -21,7 +21,6 @@ import { WARM_CACHE_NO_REFETCH } from './lib/perfFlags'
 import { LocationPrompt } from './components/LocationPrompt'
 import { SearchBar } from './components/SearchBar'
 import { LayerFab } from './components/LayerFab'
-import { Legend } from './components/Legend'
 import { BottomSheet } from './components/BottomSheet'
 import { PlaybackBar } from './components/PlaybackBar'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -129,7 +128,6 @@ export default function App() {
           <ErrorBoundary kind="panel" name="Search">
             <SearchBar onLocate={geo.request} locating={geo.status === 'locating'} />
           </ErrorBoundary>
-          <ErrorBoundary kind="panel" name="Legend"><Legend /></ErrorBoundary>
           <ErrorBoundary kind="panel" name="Layer menu"><LayerFab /></ErrorBoundary>
           <ErrorBoundary kind="panel" name="Playback"><PlaybackBar /></ErrorBoundary>
         </>

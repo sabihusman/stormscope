@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useNow, useOnline, useReducedMotion } from '../hooks/useMisc'
+import { useNow, useOnline, useReducedMotion, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
 import { clock, HOUR, MIN, relOffset, timeAgo } from '../lib/time'
-import { aggregate, nearestFrame, setLayer, store, useApp, useVisibleBlocks } from '../state/store'
+import { aggregate, nearestFrame, setLayer, store, useApp, useVisibleBlocks, type AnimLayer } from '../state/store'
 import { NOWCAST_FRAME_MIN, NOWCAST_FRAMES } from '../workers/client'
 import type { RainHorizon } from '../types'
+import { PlaybackScale } from './Legend'
 
 /** Tick cadence while playing (ms per step; radar frames are 10 min apart, forecast hours step hourly). */
 const STEP_MS = 450
@@ -13,8 +14,10 @@ const RADAR_TOLERANCE = 12 * MIN
 
 /**
  * One playback clock for the map: radar (or satellite) plus the active forecast overlay move together.
- * Docked along the bottom edge of the map: ▶/❚❚ · time ("Now", "+1 h", "3:40 PM") · scrubber · how far
- * ahead (6/12/24/48 h). The data status chips sit above the row and wrap instead of scrolling off.
+ * Wide layouts: the full bar docked along the bottom edge of the map (▶/❚❚ · time · scrubber · how far
+ * ahead · a thin colour scale for the layer being scrubbed). Phones: a pill bottom-left (▶/❚❚ + time, a
+ * thin progress line with a "now" mark) that expands into the full bar on tap and collapses with ✕.
+ * Nothing at all when no layer animates (background None, no overlay).
  */
 export function PlaybackBar() {
   const layers = useApp((s) => s.layers)
@@ -27,15 +30,19 @@ export function PlaybackBar() {
   const place = useApp((s) => s.place)
   const label = useApp((s) => s.placeLabel)
   const imageryLag = useApp((s) => s.imageryLag)
+  const expandedPref = useApp((s) => s.playbarExpanded)
   const blocks = useVisibleBlocks()
   const reduced = useReducedMotion()
+  const wide = useWide()
   const now = useNow(30_000)
 
-  const overlay = layers.rainfall ? 'rainfall' : layers.nowcast ? 'nowcast' : null
-  const imagery = layers.radar ? 'radar' : layers.satellite ? 'satellite' : null
+  const overlay: AnimLayer | null = layers.rainfall ? 'rainfall' : layers.nowcast ? 'nowcast' : null
+  const imagery: AnimLayer | null = layers.radar ? 'radar' : layers.satellite ? 'satellite' : null
   const overlayAgg = aggregate(blocks, (b) => (overlay === 'rainfall' ? b.rainCells : b.nowcast))
   const overlayReady = !!overlay && overlayAgg.ready > 0
   const noBlocks = !!overlay && blocks.length === 0
+  const nothingOn = !imagery && !overlay
+  const expanded = wide || expandedPref
 
   // The time axis: every imagery frame time plus every forecast frame time, sorted.
   const ticks = useMemo(() => {
@@ -53,6 +60,7 @@ export function PlaybackBar() {
   const nowIdx = ticks.length ? nearestFrame(ticks, now)! : 0
   const shown = playTime ?? now
   const idx = ticks.length ? nearestFrame(ticks, shown)! : 0
+  const pct = (i: number) => (i / Math.max(1, ticks.length - 1)) * 100
 
   // Clock → each layer's frame. Live (null) leaves the imagery on its newest observed frame (the controller lands there).
   useEffect(() => {
@@ -95,11 +103,33 @@ export function PlaybackBar() {
     return () => clearInterval(t)
   }, [playing, ticks, reduced])
 
+  // Floating controls (layer button, zoom, chip, toasts) stack above the control via --playbar-h on .app.
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    const app = el?.closest('.app') as HTMLElement | null
+    if (!el || !app) {
+      document.querySelector<HTMLElement>('.app')?.style.setProperty('--playbar-h', '0px')
+      return
+    }
+    const apply = () => app.style.setProperty('--playbar-h', `${el.offsetHeight}px`)
+    apply()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
+    ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      app.style.setProperty('--playbar-h', '0px')
+    }
+  }, [expanded, nothingOn])
+
+  if (nothingOn) return null
+
   const timeLabel = (t: number) => {
     const d = t - now
     if (Math.abs(d) < 5 * MIN) return 'Now'
     return d > 0 ? relOffset(now, t) : clock(t)
   }
+  const current = ticks.length ? timeLabel(ticks[idx]) : '—'
   const name = (label ?? place?.name ?? 'my place').split(',')[0]
   const zoomToPlace = () => {
     if (!place) return
@@ -110,39 +140,34 @@ export function PlaybackBar() {
     store.set({ rainHorizon: h })
     if (!layers.rainfall) setLayer('rainfall', true)
   }
-  const nothingOn = !imagery && !overlay
+  const scaleLayer: AnimLayer = overlay ?? imagery!
+  const playButton = (
+    <button className="icon-btn round big play" onClick={() => store.set({ playing: !playing })} aria-label={playing ? 'Pause' : 'Play'} aria-pressed={playing} disabled={ticks.length < 2}>
+      {playing ? '❚❚' : '▶'}
+    </button>
+  )
 
-  // Floating controls (layer button, zoom, legend, chip, toasts) stack above the bar via --playbar-h on .app.
-  const ref = useRef<HTMLElement>(null)
-  useEffect(() => {
-    const el = ref.current
-    const app = el?.closest('.app') as HTMLElement | null
-    if (!el || !app) return
-    const apply = () => app.style.setProperty('--playbar-h', `${el.offsetHeight}px`)
-    apply()
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
-    ro?.observe(el)
-    return () => {
-      ro?.disconnect()
-      app.style.setProperty('--playbar-h', '0px')
-    }
-  }, [])
+  if (!expanded)
+    return (
+      <section className="playpill" aria-label="Playback" ref={ref}>
+        {playButton}
+        <button className="pill-label" onClick={() => store.set({ playbarExpanded: true })} aria-label={`Playback at ${current}. Expand`} aria-expanded={false}>
+          {current}
+        </button>
+        <div className="pill-progress" aria-hidden="true" style={{ ['--now-pct' as string]: `${pct(nowIdx)}%` }}>
+          <i className="pill-now" style={{ left: `${pct(nowIdx)}%` }} />
+          <i className="pill-pos" style={{ left: `${pct(idx)}%` }} />
+        </div>
+      </section>
+    )
 
   return (
     <section className="playbar" aria-label="Playback" ref={ref}>
       <StatusStrip />
       <div className="playbar-row">
-        <button
-          className="icon-btn round big play"
-          onClick={() => store.set({ playing: !playing })}
-          aria-label={playing ? 'Pause' : 'Play'}
-          aria-pressed={playing}
-          disabled={ticks.length < 2}
-        >
-          {playing ? '❚❚' : '▶'}
-        </button>
+        {playButton}
         <strong className="playbar-time" aria-live="polite">
-          {ticks.length ? timeLabel(ticks[idx]) : '—'}
+          {current}
         </strong>
         <input
           className="scrubber"
@@ -153,8 +178,8 @@ export function PlaybackBar() {
           disabled={ticks.length < 2}
           onChange={(e) => store.set({ playing: false, playTime: ticks[+e.target.value] ?? null, imageryLag: null })}
           aria-label="Playback time"
-          aria-valuetext={ticks.length ? timeLabel(ticks[idx]) : 'no frames'}
-          style={{ ['--now-pct' as string]: `${(nowIdx / Math.max(1, ticks.length - 1)) * 100}%` }}
+          aria-valuetext={current}
+          style={{ ['--now-pct' as string]: `${pct(nowIdx)}%` }}
         />
         <div className="segmented small horizon" role="radiogroup" aria-label="How far ahead">
           {([6, 12, 24, 48] as RainHorizon[]).map((h) => (
@@ -163,7 +188,13 @@ export function PlaybackBar() {
             </button>
           ))}
         </div>
+        {!wide && (
+          <button className="icon-btn playbar-close" onClick={() => store.set({ playbarExpanded: false })} aria-label="Collapse playback">
+            ✕
+          </button>
+        )}
       </div>
+      <PlaybackScale layer={scaleLayer} />
       {noBlocks && (
         <div className="playbar-note" role="status">
           <span>Zoom in to see the forecast</span>
@@ -172,14 +203,6 @@ export function PlaybackBar() {
               Zoom to {name}
             </button>
           )}
-        </div>
-      )}
-      {nothingOn && (
-        <div className="playbar-note" role="status">
-          <span>No radar or forecast layer is on.</span>
-          <button className="btn small" onClick={() => setLayer('radar', true)}>
-            Turn on radar
-          </button>
         </div>
       )}
       {imageryLag && (
