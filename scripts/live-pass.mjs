@@ -18,6 +18,9 @@ const steps = [
   { name: 'prod-suite', args: ['scripts/prod-suite.mjs', BASE, '--split'] },
   { name: 'walkthrough-phone', args: ['scripts/walkthrough.mjs', BASE, `${OUT}/walkthrough`, '--viewport=phone', '--mock'] },
   { name: 'perf-live-tiles', args: ['scripts/perf-measure.mjs', BASE, `${OUT}/perf`, '--headed', '--live-tiles', '--label=live-tiles'] },
+  // Playback loops on a real GPU (APIs and tiles mocked: zero quota): loops 2+ make ~0 requests, no frame over 100 ms.
+  { name: 'playback-phone', args: ['scripts/playback-loop-diag.mjs', BASE, '--viewport=phone', '--assert'] },
+  { name: 'playback-desktop', args: ['scripts/playback-loop-diag.mjs', BASE, '--viewport=desktop', '--assert'] },
 ]
 const summary = { base: BASE, startedAt: new Date().toISOString(), steps: [] }
 for (const s of steps) {

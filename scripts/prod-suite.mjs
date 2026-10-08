@@ -62,6 +62,8 @@ const SUITES = [
   { name: 'units', script: 'units-check.mjs' },
   { name: 'playbar', script: 'playbar-check.mjs' },
   { name: 'flood-tile', script: 'flood-tile-check.mjs' },
+  { name: 'trip', script: 'trip-check.mjs' },
+  { name: 'playback', script: 'playback-loop-diag.mjs', args: ['--headless', '--assert'] },
   { name: 'qa', script: 'qa.mjs' },
   { name: 'nonus', script: 'nonus-check.mjs', live: 'postcode search (Nominatim) and the outside-US fallbacks (NWS 404s)' },
   { name: 'satellite-desktop', script: 'satellite-check.mjs', live: 'GIBS frame listing and GOES tiles' },
@@ -90,7 +92,7 @@ for (const s of SUITES) {
     spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'])
   }
   const t0 = Date.now()
-  const r = spawnSync('node', [`scripts/${s.script}`, BASE, `${OUT}/${s.name}`, ...(isMocked(s) ? ['--mock'] : [])], { env: { ...process.env, ...(s.env ?? {}) }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const r = spawnSync('node', [`scripts/${s.script}`, BASE, `${OUT}/${s.name}`, ...(s.args ?? []), ...(isMocked(s) ? ['--mock'] : [])], { env: { ...process.env, ...(s.env ?? {}) }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   const out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`
   writeFileSync(`${OUT}/${s.name}.log`, out)
   lastUsed = isMocked(s) ? 0 : Number(out.match(/budget: this run used (\d+) Open-Meteo locations/)?.[1] ?? 0)
