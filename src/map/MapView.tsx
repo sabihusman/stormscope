@@ -53,6 +53,11 @@ export function MapView({ children }: { children: ReactNode }) {
       pitchWithRotate: true,
       touchPitch: true,
       fadeDuration: 0,
+      // Radar / satellite frames carry their time in the URL, so a tile never changes: no expiry refetch
+      // (it caused re-requests mid-playback). Each frame source keeps up to 20 off-screen tiles, so the
+      // imagery stack is bounded at ≈ frames × (tiles in view + 20) × 256 KB — ~60–120 MB for 19 frames.
+      refreshExpiredTiles: false,
+      maxTileCacheSize: 20,
     })
     // Debug/test handle (used by scripts/qa.mjs and scripts/e2e.mjs).
     ;(window as unknown as { __map: MlMap }).__map = m
