@@ -4,12 +4,15 @@ export class HttpError extends Error {
   url: string
   /** Server-provided reason (e.g. Open-Meteo's "Daily API request limit exceeded"). */
   reason?: string
-  constructor(status: number, url: string, message?: string, reason?: string) {
+  /** The body was not JSON (an HTML/text error page behind an OK status, or a throttling page). */
+  nonJson?: boolean
+  constructor(status: number, url: string, message?: string, reason?: string, nonJson = false) {
     super(message ?? `HTTP ${status} for ${url}`)
     this.name = 'HttpError'
     this.status = status
     this.url = url
     this.reason = reason
+    this.nonJson = nonJson
   }
 }
 
@@ -60,7 +63,13 @@ export async function fetchJSON<T>(url: string, opts: FetchOptions = {}): Promis
       }
       throw new HttpError(res.status, url, undefined, reason)
     }
-    return (await res.json()) as T
+    // An OK status with a non-JSON body is a throttling / error page, not data: say so instead of
+    // leaking "Unexpected token …" (seen from Open-Meteo under its per-minute limit).
+    try {
+      return (await res.json()) as T
+    } catch {
+      throw new HttpError(res.status, url, `Non-JSON response (HTTP ${res.status}) from ${url}`, undefined, true)
+    }
   } finally {
     clearTimeout(timer)
   }
@@ -86,6 +95,7 @@ export async function pLimitAll<T>(tasks: (() => Promise<T>)[], limit = 4): Prom
 
 export function describeError(e: unknown): string {
   if (e instanceof HttpError) {
+    if (e.nonJson) return isOpenMeteo(e.url) ? 'Open-Meteo is throttling this network (non-JSON answer) — retrying shortly' : `Service answered with an error page (HTTP ${e.status})`
     if (e.status !== 429) return `Service returned ${e.status}`
     if (!isOpenMeteo(e.url)) {
       let host = e.url
