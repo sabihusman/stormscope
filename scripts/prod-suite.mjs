@@ -61,6 +61,7 @@ const SUITES = [
   { name: 'flows', script: 'flows-check.mjs', live: 'conditions within 15 s of a grant / an address on real latency' },
   { name: 'units', script: 'units-check.mjs' },
   { name: 'playbar', script: 'playbar-check.mjs' },
+  { name: 'flood-tile', script: 'flood-tile-check.mjs' },
   { name: 'qa', script: 'qa.mjs' },
   { name: 'nonus', script: 'nonus-check.mjs', live: 'postcode search (Nominatim) and the outside-US fallbacks (NWS 404s)' },
   { name: 'satellite-desktop', script: 'satellite-check.mjs', live: 'GIBS frame listing and GOES tiles' },

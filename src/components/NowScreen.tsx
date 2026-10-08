@@ -276,7 +276,12 @@ function Tiles() {
   const station = useApp((s) => s.station)
   const units = useApp((s) => s.units)
   const now = useNow()
-  // Gauges and the flood screening are fetched only while these tiles are on screen (or their pages / map layers show them).
+  // Gauges are fetched only while the rivers tile is on screen (or the Rivers page / map layer shows them).
+  // The flood screening (one 49-location block, terrain tiles and a slow NHD query per place) is computed on
+  // demand: when the Flood page opens, or when this tile is on screen *after the user has scrolled the Now
+  // screen* — the tiles row sits at the bottom edge of a 390 × 844 phone on a fresh open, so "visible" alone
+  // would still fire on every first load. Once computed, the block is cached for the place until the next
+  // forecast refresh (30 min), so the level stays on the tile at no further cost.
   const riversTile = useRef<HTMLButtonElement>(null)
   const floodTile = useRef<HTMLButtonElement>(null)
   const place = useApp((s) => s.place)
@@ -290,32 +295,41 @@ function Tiles() {
     const fl = floodTile.current
     if (!el || !fl || typeof IntersectionObserver === 'undefined') {
       store.set({ riversTileVisible: true })
-      wantFlood('tile', floodKey)
-      return () => {
-        store.set({ riversTileVisible: false })
-        wantFlood('tile', null)
-      }
+      return () => store.set({ riversTileVisible: false })
     }
+    let floodVisible = false
+    let scrolled = false
+    const ask = () => wantFlood('tile', floodVisible && scrolled ? floodKey : null)
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (e.target === el) store.set({ riversTileVisible: e.isIntersecting })
-          if (e.target === fl) wantFlood('tile', e.isIntersecting ? floodKey : null)
+          if (e.target === fl) {
+            floodVisible = e.isIntersecting
+            ask()
+          }
         }
       },
       { threshold: 0.5 },
     )
     io.observe(el)
     io.observe(fl)
+    const screen = fl.closest('.screen')
+    const onScroll = () => {
+      scrolled = true
+      ask()
+    }
+    screen?.addEventListener('scroll', onScroll, { passive: true, once: true })
     return () => {
       io.disconnect()
+      screen?.removeEventListener('scroll', onScroll)
       store.set({ riversTileVisible: false })
       wantFlood('tile', null)
     }
   }, [floodKey])
   const here = place ? floodHere(flood, place.lngLat) : null
   const placeName = (label ?? place?.name ?? '').split(',')[0]
-  const floodLine = here ? `${riskWord(here.risk)} at ${placeName}` : flood?.error ? flood.error : place && !replay ? 'computing…' : 'for this place ›'
+  const floodLine = here ? `${riskWord(here.risk)} at ${placeName}` : flood?.error ? flood.error : flood && flood.state === 'loading' ? 'computing…' : 'Check flood risk ›'
   const high = rivers.data?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
   const what = tier === 'full' ? 'gauges' : 'NOAA gauges'
   const riversLine = rivers.data
