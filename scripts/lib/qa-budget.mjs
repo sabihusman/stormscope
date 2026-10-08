@@ -25,34 +25,42 @@ const LEGACY = `${DIR}/.open-meteo-budget.json`
  * sections the mock skips (hazards 23, road 23, journey Philadelphia 73) + phone walkthrough 422 +
  * perf ≤ 637 (13 requests × 49) ≈ 3 250.
  */
-export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 3600)
+/**
+ * Open-Meteo locations per UTC day the suites may consume. Sized for the release pass (`prod-suite --split`
+ * + the mocked walkthrough + `perf-measure --live-tiles`), measured on the Oct 8 live ledger per suite with
+ * the Now flood tile on demand: pwa 1, flows ≈ 60 (one location per place change + the Flood page's block
+ * once), nonus ≈ 50 (place + its Flood page block), satellite 1 + 1, rivers 1, journey Philadelphia 73,
+ * hazards 23, road 23, perf 0 → ≈ 235. A full live run of every suite (`--force` without `--split`) needs
+ * ≈ 4 400 (Oct 8: 3 686 for 10 of 18 suites) and must set QA_OM_CAP deliberately.
+ */
+export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 300)
 
 /** Requests per UTC day per host. Unlisted hosts get DEFAULT_CAP; our own origins are never counted. */
-// Sized for ONE full pass (17 suites + phone walkthrough + perf) with no retry allowance: a second run of
-// anything that day is refused by design. API hosts: Oct 7 mocked batch of the lazy-rivers build (the
-// guard counts mocked requests per host; the app makes the same calls live) plus the Oct 6 live counts of
-// the sections the mock skips, × ~1.15. Tile hosts: Oct 5 live ledger × ~1.05 (the mock serves fewer
-// glyph/sprite requests than the real style, so mocked tile counts under-report).
+// Sized for ONE release pass (split suite + mocked walkthrough + perf with live tiles) with no retry
+// allowance: a second run of anything that day is refused by design. Numbers are the Oct 8 live ledger per
+// live suite, × ~1.3 because they are small. A full live run of every suite needs QA_CAPS set deliberately
+// (Oct 7 sizing: Open-Meteo 120, NWPS 150, NWS 140, SPC 85, IEM 60, nominatim 40, NHD 30, RainViewer 50,
+// GIBS 1 100, radar tiles 1 700, basemap 1 200, terrain 450 — and that run still blew NHD and terrain).
 export const HOST_CAPS = {
-  'api.open-meteo.com': 120, // 64 suites + 15 walkthrough + 13 perf + 5 live-only = 97
+  'api.open-meteo.com': 40, // pwa 2 + flows 10 + nonus 3 + satellite 4 + rivers 1 + journey 3 + hazards 1 + road 1 = 25
   'archive-api.open-meteo.com': 5, // replays are cached; only re-recording calls this
   'historical-forecast-api.open-meteo.com': 5,
-  'geocoding-api.open-meteo.com': 10, // 6
-  'api.waterdata.usgs.gov': 50, // rivers-check's Node-side comparisons 27 + 3 per Rivers page open (5 opens) = 42
-  'api.water.noaa.gov': 150, // 1 per summary load, 21 per Rivers page open (first time per place): suites 99 + walkthrough 25 + perf 1 + rivers-check 1 = 126
-  'api.weather.gov': 140, // 85 + 28 + 4 + 5 = 122 (alerts 1 + station 3 per place change; alerts refresh every 3 min)
+  'geocoding-api.open-meteo.com': 10, // flows 1 + nonus 1 + journey 1
+  'api.waterdata.usgs.gov': 50, // rivers-check's Node-side comparisons 27 + 3 per Rivers page open (2 opens)
+  'api.water.noaa.gov': 60, // flows 22 (Rivers page once) + rivers 21 + 1 per other live context = 46
+  'api.weather.gov': 60, // flows 15 + satellite 8 + pwa 4 + nonus 4 + rivers 4 + journey 3 + hazards 1 + road 1 = 40
   'alerts.weather.gov': 10,
-  'mapservices.weather.noaa.gov': 85, // 24 + 18 + 30 live-only = 72
-  'mesonet.agron.iastate.edu': 60, // 12 + 9 + 27 live-only = 48
-  'valhalla1.openstreetmap.de': 10, // 6
+  'mapservices.weather.noaa.gov': 45, // journey Philadelphia 18 + hazards 6 + road 6 = 30
+  'mesonet.agron.iastate.edu': 40, // journey Philadelphia 18 + hazards 6 + road 3 = 27
+  'valhalla1.openstreetmap.de': 10, // 3
   'router.project-osrm.org': 10,
-  'nominatim.openstreetmap.org': 40, // 34
-  'hydro.nationalmap.gov': 30, // 25
-  'gibs.earthdata.nasa.gov': 1100, // mocked 844
-  'api.rainviewer.com': 50, // 41
-  'tilecache.rainviewer.com': 1700,
-  'tiles.openfreemap.org': 1200,
-  's3.amazonaws.com': 450, // mocked 353
+  'nominatim.openstreetmap.org': 20, // ≈ 12
+  'hydro.nationalmap.gov': 10, // flows 3 (Flood page) + nonus 1
+  'gibs.earthdata.nasa.gov': 1000, // satellite ×2 ≈ 800
+  'api.rainviewer.com': 20, // ≈ 12
+  'tilecache.rainviewer.com': 300, // ≈ 170 incl. perf's live tiles
+  'tiles.openfreemap.org': 600, // ≈ 400 incl. perf's live tiles
+  's3.amazonaws.com': 150, // flows ≈ 60 (Flood page) + nonus ≈ 20
   ...(process.env.QA_CAPS ? JSON.parse(process.env.QA_CAPS) : {}),
 }
 export const DEFAULT_CAP = 50
