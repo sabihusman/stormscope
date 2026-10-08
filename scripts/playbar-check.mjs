@@ -98,16 +98,21 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   check(`[${name}] ❚❚ pauses`, !(await page.evaluate(() => window.__store.get().playing)))
 
   // Below forecast zoom with the rain overlay on: plain words and a button that zooms to the place.
+  // Nothing is fetched at zoom 4; pressing the button loads ~7 rain blocks (≈ 340 Open-Meteo locations
+  // live), so only the phone layout presses it — the other layouts assert the note and the button.
   await setLayers(page, { rainfall: true })
   await page.evaluate(() => window.__map.jumpTo({ center: [-93.6, 41.6], zoom: 4 }))
   await page.waitForTimeout(900)
   const note = await page.locator('.playbar-note').innerText().catch(() => '')
   check(`[${name}] below forecast zoom: "Zoom in to see the forecast" + zoom-to-place button, no jargon`, /Zoom in to see the forecast/.test(note) && !/5\.5|blocks/.test(note) && (await page.getByRole('button', { name: /^Zoom to / }).count()) === 1, note.replace(/\n/g, ' | '))
-  await page.getByRole('button', { name: /^Zoom to / }).click()
-  await page.waitForTimeout(1200)
-  const z = await page.evaluate(() => window.__map.getZoom())
-  check(`[${name}] the button zooms the map to the place`, z >= 8, `zoom ${z.toFixed(1)}`)
+  if (name === 'phone') {
+    await page.getByRole('button', { name: /^Zoom to / }).click()
+    await page.waitForTimeout(1200)
+    const z = await page.evaluate(() => window.__map.getZoom())
+    check(`[${name}] the button zooms the map to the place`, z >= 8, `zoom ${z.toFixed(1)}`)
+  }
   await page.screenshot({ path: `${OUT}/${name}-map-rain.png` })
+  await setLayers(page, { rainfall: false })
   done()
   await ctx.close()
 }
