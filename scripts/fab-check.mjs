@@ -43,8 +43,7 @@ await page.waitForTimeout(400)
 const b1 = await box()
 check('Drag snaps the button to the top-left corner', (await corner()) === 'tl' && b1.x < 60 && b1.y < 200, `${await corner()} @ ${Math.round(b1.x)},${Math.round(b1.y)}`)
 check('Drag did not open the menu', !(await page.locator('.fab-menu').isVisible()))
-const legend = await page.locator('.legend-chip, .legend').first().boundingBox()
-check('Legend chip moved below the button (no overlap)', legend.y >= b1.y + b1.height - 2, `legend y ${Math.round(legend.y)} vs fab bottom ${Math.round(b1.y + b1.height)}`)
+check('Nothing floats under the top-left button: the legend lives inside the layer menu', (await page.locator('.legend-chip, .legend').count()) === 0)
 await page.screenshot({ path: `${OUT}/fab-top-left.png` })
 
 // Tap still opens the menu; the menu opens downward and stays on-screen.

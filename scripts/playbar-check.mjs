@@ -1,7 +1,12 @@
-// The docked playback bar, on phone / tablet / desktop: fully in view, never overlapping the layer
-// menu (open), the legend (open), the ☰ button or the zoom buttons; the layer menu anchored to its
-// button; nothing clipped at the viewport edge; ▶ advances the time label; the below-forecast-zoom
-// note with its zoom-to-place button. One screenshot per layout. --mock answers every API locally.
+// The playback control on phone / tablet / desktop. Phones: a pill bottom-left (▶/❚❚ + time, a progress
+// line with a "now" mark) with 44 px tap targets, clear of ☰; tapping its label expands the full bar
+// (▶, time, scrubber, 6/12/24/48 h, colour scale, ✕) docked along the bottom edge, full map width; ✕
+// collapses it; nothing at all when no layer animates. Tablet / desktop: the full bar, no ✕. The legend
+// lives inside the ☰ layers panel (active layers only); there is no floating legend. The open layer
+// menu, ☰ and the zoom buttons never overlap the control; the menu is anchored to ☰; nothing is clipped
+// by the viewport; status chips are not cut off; ▶ advances the time label; below forecast zoom the
+// plain note and its zoom-to-place button (pressed on the phone only — it loads ~340 Open-Meteo
+// locations live). One screenshot per layout state. --mock answers every API locally.
 //   node scripts/playbar-check.mjs [base-url] [shots-dir] [--mock]
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
@@ -43,38 +48,62 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   await until(() => !!window.__map?.loaded() && !!window.__store?.get().radar.data)
   const wide = vp.width >= 768
   const box = (sel) => page.locator(sel).first().boundingBox().catch(() => null)
+  const count = (sel) => page.locator(sel).count()
 
-  // The bar is on screen on the Map (every layout) and, on wide layouts, on Now too.
   if (wide) {
     await openNow(page)
-    check(`[${name}] bar is present while Now is open (map always visible)`, !!(await box('.playbar')), fmt(await box('.playbar')))
+    check(`[${name}] full bar is present while Now is open (map always visible), never a pill`, (await count('.playbar')) === 1 && (await count('.playpill')) === 0, fmt(await box('.playbar')))
   }
   await openMap(page)
   await page.waitForTimeout(600)
-  const bar = await box('.playbar')
-  check(`[${name}] bar docked along the bottom edge, full map width, fully in view`, inside(bar, vp.width, vp.height) && bar.width >= (wide ? vp.width - 64 - 1 : vp.width - 1) && (await page.evaluate(() => { const b = document.querySelector('.playbar').getBoundingClientRect(); const nav = document.querySelector('.nav')?.getBoundingClientRect(); const bottom = nav && nav.top > b.top ? nav.top : window.innerHeight; return Math.abs(b.bottom - bottom) <= 1 })), fmt(bar))
-  check(`[${name}] bar is one row: play, time, scrubber, horizon`, (await page.locator('.playbar .play').count()) === 1 && (await page.locator('.playbar-time').count()) === 1 && (await page.locator('.playbar .scrubber').count()) === 1 && (await page.locator('.playbar .horizon button').count()) === 4)
+  const navTop = await page.evaluate(() => { const nav = document.querySelector('.nav')?.getBoundingClientRect(); return nav && nav.top > 0 && nav.width > nav.height ? nav.top : window.innerHeight })
 
-  // Floating controls: ☰, its menu (open), the legend (open), the zoom buttons — none overlaps the bar, all in view.
+  if (!wide) {
+    // Phone: the pill by default.
+    const pill = await box('.playpill')
+    const fab = await box('.fab-main')
+    const play = await box('.playpill .play')
+    const lbl = await box('.playpill .pill-label')
+    check(`[${name}] phone default is a pill bottom-left above the nav, with ▶ and the time`, !!pill && inside(pill, vp.width, vp.height) && pill.x <= 16 && Math.abs(pill.y + pill.height - navTop) <= 14 && (await count('.playbar')) === 0, `pill ${fmt(pill)} nav top ${Math.round(navTop)}`)
+    check(`[${name}] pill tap targets ≥ 44 px (▶ and the label)`, !!play && play.width >= 44 && play.height >= 44 && !!lbl && lbl.height >= 44 && lbl.width >= 44, `play ${fmt(play)} label ${fmt(lbl)}`)
+    check(`[${name}] pill clear of ☰`, !overlap(pill, fab), `fab ${fmt(fab)}`)
+    check(`[${name}] pill shows a progress line with a "now" mark`, (await count('.playpill .pill-progress .pill-now')) === 1 && (await count('.playpill .pill-progress .pill-pos')) === 1)
+    await page.screenshot({ path: `${OUT}/${name}-map-pill.png` })
+    // Nothing animates → nothing shown.
+    await setLayers(page, { radar: false, satellite: false, rainfall: false, nowcast: false })
+    await page.waitForTimeout(400)
+    check(`[${name}] hidden entirely when nothing animates (background None, no overlay)`, (await count('.playpill')) === 0 && (await count('.playbar')) === 0)
+    await setLayers(page, { radar: true })
+    await page.waitForTimeout(400)
+    // Tap the label → the full bar.
+    await page.locator('.playpill .pill-label').click()
+    await page.waitForTimeout(400)
+    check(`[${name}] tapping the label expands into the full bar with ✕`, (await count('.playbar')) === 1 && (await count('.playpill')) === 0 && (await count('.playbar .playbar-close')) === 1)
+  } else {
+    check(`[${name}] full bar, no pill, no ✕`, (await count('.playbar')) === 1 && (await count('.playpill')) === 0 && (await count('.playbar .playbar-close')) === 0)
+  }
+
+  const bar = await box('.playbar')
+  check(`[${name}] bar docked along the bottom edge, full map width, fully in view`, inside(bar, vp.width, vp.height) && bar.width >= (wide ? vp.width - 64 - 1 : vp.width - 1) && Math.abs(bar.y + bar.height - navTop) <= 1, fmt(bar))
+  check(`[${name}] bar row: play, time, scrubber, horizon; plus a colour scale for the scrubbed layer`, (await count('.playbar .play')) === 1 && (await count('.playbar-time')) === 1 && (await count('.playbar .scrubber')) === 1 && (await count('.playbar .horizon button')) === 4 && (await count('.playbar .playbar-scale')) === 1)
+
+  // Floating controls: ☰, its menu (open, with the legend inside), the zoom buttons — none overlaps the bar, all in view.
   await page.locator('.fab-main').click()
   await page.waitForTimeout(400)
-  await page.locator('.legend-chip').click().catch(() => {})
-  await page.waitForTimeout(300)
   const fab = await box('.fab-main')
   const menu = await box('.fab-menu')
-  const legend = await box('.legend')
   const zoom = await box('.maplibregl-ctrl-top-right')
+  const legendText = await page.locator('.fab-menu .legend-rows').innerText().catch(() => '')
   check(`[${name}] ☰ fully on screen and clear of the bar`, inside(fab, vp.width, vp.height) && !overlap(fab, bar), `fab ${fmt(fab)} bar ${fmt(bar)}`)
   check(`[${name}] layer menu anchored to ☰ (same edge), fully on screen, clear of the bar`, !!menu && inside(menu, vp.width, vp.height) && !overlap(menu, bar) && Math.abs(menu.x + menu.width - (fab.x + fab.width)) <= 24, `menu ${fmt(menu)}`)
-  check(`[${name}] legend open, in view, clear of the bar`, !!legend && inside(legend, vp.width, vp.height) && !overlap(legend, bar), fmt(legend))
+  check(`[${name}] legend inside the layer menu, active layers only (radar + rivers, no rain)`, /Radar \(RainViewer\)/.test(legendText) && /River gauges/.test(legendText) && !/Rain next/.test(legendText) && (await count('.legend-chip, .legend')) === 0, legendText.split('\n').slice(0, 2).join(' | '))
   check(`[${name}] zoom buttons in view, clear of the bar`, inside(zoom, vp.width, vp.height) && !overlap(zoom, bar), fmt(zoom))
-  const clipped = await page.evaluate(() => [...document.querySelectorAll('.app button, .app .pill, .app .legend-chip, .app .maplibregl-ctrl')].filter((el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && cs.visibility !== 'hidden' && (r.right > window.innerWidth + 1 || r.left < -1 || r.bottom > window.innerHeight + 1 || r.top < -1) }).map((el) => `${el.className || el.tagName}@${Math.round(el.getBoundingClientRect().left)},${Math.round(el.getBoundingClientRect().top)}`))
+  const clipped = await page.evaluate(() => [...document.querySelectorAll('.app button, .app .pill, .app .maplibregl-ctrl')].filter((el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && cs.visibility !== 'hidden' && (r.right > window.innerWidth + 1 || r.left < -1 || r.bottom > window.innerHeight + 1 || r.top < -1) }).map((el) => `${el.className || el.tagName}@${Math.round(el.getBoundingClientRect().left)},${Math.round(el.getBoundingClientRect().top)}`))
   check(`[${name}] no control is clipped by the viewport edge`, clipped.length === 0, clipped.join(' | ') || 'none')
   const chips = await page.evaluate(() => [...document.querySelectorAll('.playbar-status .pill')].map((el) => ({ w: el.scrollWidth, cw: el.clientWidth, r: el.getBoundingClientRect().right })))
   check(`[${name}] status chips are not cut off`, chips.every((c) => c.w <= c.cw + 1 && c.r <= vp.width + 1), `${chips.length} chips`)
   await page.screenshot({ path: `${OUT}/${name}-map-menu-legend.png` })
   await page.locator('.fab-main').click()
-  await page.locator('.legend .icon-btn').click().catch(() => {})
 
   // A tapped point's chip sits above the bar and never covers ☰.
   await page.evaluate(() => { window.__store.set({ selection: null, sheet: 'peek' }); window.__map.jumpTo({ center: [-93.6, 41.6], zoom: 10 }) })
@@ -98,13 +127,12 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   check(`[${name}] ❚❚ pauses`, !(await page.evaluate(() => window.__store.get().playing)))
 
   // Below forecast zoom with the rain overlay on: plain words and a button that zooms to the place.
-  // Nothing is fetched at zoom 4; pressing the button loads ~7 rain blocks (≈ 340 Open-Meteo locations
-  // live), so only the phone layout presses it — the other layouts assert the note and the button.
   await setLayers(page, { rainfall: true })
   await page.evaluate(() => window.__map.jumpTo({ center: [-93.6, 41.6], zoom: 4 }))
   await page.waitForTimeout(900)
   const note = await page.locator('.playbar-note').innerText().catch(() => '')
   check(`[${name}] below forecast zoom: "Zoom in to see the forecast" + zoom-to-place button, no jargon`, /Zoom in to see the forecast/.test(note) && !/5\.5|blocks/.test(note) && (await page.getByRole('button', { name: /^Zoom to / }).count()) === 1, note.replace(/\n/g, ' | '))
+  check(`[${name}] colour scale follows the scrubbed layer (rain scale with the rain overlay on)`, /Rain/.test(await page.locator('.playbar-scale').innerText().catch(() => '')))
   if (name === 'phone') {
     await page.getByRole('button', { name: /^Zoom to / }).click()
     await page.waitForTimeout(1200)
@@ -113,6 +141,12 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   }
   await page.screenshot({ path: `${OUT}/${name}-map-rain.png` })
   await setLayers(page, { rainfall: false })
+
+  if (!wide) {
+    await page.locator('.playbar .playbar-close').click()
+    await page.waitForTimeout(400)
+    check(`[${name}] ✕ collapses back to the pill`, (await count('.playpill')) === 1 && (await count('.playbar')) === 0)
+  }
   done()
   await ctx.close()
 }

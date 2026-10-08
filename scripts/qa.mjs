@@ -137,11 +137,13 @@ await settle(page)
 check('Collapse → peek mode (sheet gone, chip stays)', (await page.evaluate(() => window.__store.get().sheet)) === 'peek' && (await page.locator('.sheet').count()) === 0 && (await page.locator('.point-chip').count()) === 1)
 check('Peek: FAB visible again', await page.getByRole('button', { name: /layer menu/ }).isVisible())
 
-// Legend chip → open → hide
-await page.getByRole('button', { name: 'Show legend' }).click()
-check('Legend chip opens the legend', await page.locator('.legend').isVisible())
-await page.getByRole('button', { name: 'Hide legend' }).click()
-check('Legend hides back to a small chip', await page.getByRole('button', { name: 'Show legend' }).isVisible())
+// Legend lives inside the layer menu, showing the layers that are on
+await page.getByRole('button', { name: 'Open layer menu' }).click()
+await settle(page, 300)
+const legendRows = await page.locator('.fab-menu .legend-rows').innerText().catch(() => '')
+check('Layer menu carries the legend for the layers that are on (radar, rivers)', /Radar \(RainViewer\)/.test(legendRows) && /River gauges/.test(legendRows) && !/Rain next/.test(legendRows), legendRows.split('\n').slice(0, 3).join(' | '))
+check('No floating legend chip or card', (await page.locator('.legend-chip, .legend').count()) === 0)
+await page.getByRole('button', { name: 'Close layer menu' }).click()
 
 // Map tap → chip (never a dialog), at 4 corners + centre, chip on-screen
 const W = 390
