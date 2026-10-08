@@ -1,5 +1,17 @@
 # Build log
 
+## Oct 8 (evening) — playback layout "1 + 3": legend in the layers panel, phone pill, colour scale, full bar on wide layouts
+
+The user's layout decision, implemented in 3bc5fe0 with the suites in 617fabf:
+
+1. **Legend inside the ☰ layers panel**, showing only the layers that are on (`LegendRows` at the foot of the menu, under "Legend (layers that are on)"). The floating chip/card is gone; `legendOpen` is unused.
+2. **Phone default: a collapsed pill** bottom-left above the nav — ▶/❚❚ and the time label ("Now", "3:40 PM", "+2 h"), both 44 px targets. Tapping the label expands the full bar (▶, time, scrubber, 6/12/24/48 h, ✕); ✕ collapses it. Nothing is rendered when no layer animates (background None and no overlay) — the previous "Turn on radar" note is gone with it. `store.playbarExpanded` holds the choice; wide layouts ignore it.
+3. **The expanded bar carries a thin colour scale** for the layer being scrubbed (the overlay when one is on, else the background): radar's reflectivity ramp, the rain ramp with its top value in the chosen units, the nowcast cloud ramp, a one-line note for satellite (GeoColor / IR).
+4. **The pill carries a 2 px progress line** with the playhead and a white "now" mark; the past part is accent-coloured, the forecast part grey.
+5. **Tablet and desktop keep the full bar**, never a pill, no ✕.
+
+Phone row sizing at ≤ 420 px: ▶ 40, time 44, scrubber ≥ 60 (flexible), four 26 px horizon buttons, ✕ 32 — the first build's ✕ sat 7 px off the right edge, caught by the suite's "no control clipped" check. `playbar-check` 51/51 mocked (phone pill checks, hidden-when-nothing-animates, expand/collapse, scale follows the layer, legend in the menu with no floating legend, plus the earlier bar checks); fab, qa, satellite and boundary read the legend from the menu. Screenshots in `e2e-shots/mock/playbar/` (phone pill, phone bar, each layout with the menu open).
+
 ## Oct 8 (later) — the five fixes; flood tile on demand (A), measured against eager; the release pass split live/mock
 
 **Items 1–5, one commit each:** playbar-check presses the zoom-to-place button on the phone layout only (b578d7d); sheet-check declares Open-Meteo and the guard applies a zero-Open-Meteo declaration to mocked requests too, so `--mock` fails on a wrong declaration (ffb40ef); an OK status with a non-JSON body is reported as "Open-Meteo is throttling this network — retrying shortly" instead of "Unexpected token …" (ed54ca4); pwa-check waits for the place's conditions instead of network-idle (6cc2e36); prod-suite pauses 60 s after a suite that used > 250 locations before the next live one, in the same commit as the split pass (eecdf1e).
