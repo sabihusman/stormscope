@@ -28,6 +28,7 @@ export function LayerFab() {
   const corner = useApp((s) => s.fabCorner)
   const layerErrors = useApp((s) => s.layerErrors)
   const satProduct = useApp((s) => s.satProduct)
+  const rainHorizon = useApp((s) => s.rainHorizon)
   const [open, setOpen] = useState(false)
   const timers = useRef<Partial<Record<LayerId, number>>>({})
   const [pendingState, setPending] = useState<Partial<Record<LayerId, boolean>>>({})
@@ -130,7 +131,7 @@ export function LayerFab() {
               <button key={l.id} role="radio" aria-checked={active} className={`fab-item ${active ? 'on' : ''} ${err ? 'err' : ''}`} onClick={() => toggle(l.id, !active)} title={err ? `Unavailable: ${err}. Tap to retry.` : undefined}>
                 <span aria-hidden="true">{l.icon}</span>
                 <span className="fab-label">
-                  {l.label}
+                  {l.id === 'rainfall' ? `Rain next ${rainHorizon} h` : l.label}
                   {err && <small className="fab-err"> · unavailable — {err}</small>}
                 </span>
               </button>
