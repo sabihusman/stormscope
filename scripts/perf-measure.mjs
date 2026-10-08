@@ -17,12 +17,15 @@ import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setShe
 
 const args = process.argv.slice(2)
 const mockArg = args.find((a) => a === '--mock' || a.startsWith('--mock='))
-const MOCK = mockArg ? mockArg.slice(7) || 'synthetic' : null // --mock → synthetic tiles; --mock=<har> → tiles from the HAR
+// --live-tiles: APIs answered locally (zero Open-Meteo / NWS / NWPS calls), tile hosts live through the guard —
+// the first radar frame and the main-thread tasks on real tiles, without spending the forecast quota.
+const LIVE_TILES = args.includes('--live-tiles')
+const MOCK = LIVE_TILES ? 'synthetic' : mockArg ? mockArg.slice(7) || 'synthetic' : null // --mock → synthetic tiles; --mock=<har> → tiles from the HAR
 const HAR = MOCK && MOCK !== 'synthetic' ? MOCK : null
 const RECORD = args.includes('--record')
 const LABEL = args.find((a) => a.startsWith('--label='))?.slice(8) ?? ''
 const positional = args.filter((a) => !a.startsWith('--'))
-assertBudget('perf-measure.mjs', { openMeteo: !!MOCK ? false : true })
+assertBudget(`perf-measure.mjs${LIVE_TILES ? ' (live tiles)' : ''}`, { openMeteo: !!MOCK ? false : true })
 
 const BASE = (positional[0] || 'http://localhost:4173/').replace(/\/?$/, '/')
 const OUT = positional[1] || 'e2e-shots/perf'
@@ -66,9 +69,9 @@ await ctx.addInitScript((layers) => { try { if (!localStorage.getItem('stormscop
 if (LOW_DEVICE) await ctx.addInitScript(() => { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4 }); Object.defineProperty(navigator, 'deviceMemory', { get: () => 4 }) })
 out.profile.deviceClass = LOW_DEVICE ? 'low (4 cores, 4 GB emulated)' : 'host'
 const page = await ctx.newPage()
-// Replay: no guard needed (nothing leaves the machine); record/live: the guard counts and caps.
-const done = MOCK && !RECORD ? () => {} : trackTraffic(page, 'perf-measure.mjs')
-const mocks = MOCK ? await installMocks(ctx, { har: HAR, record: RECORD }) : null
+// Replay: no guard needed (nothing leaves the machine); record / live / live tiles: the guard counts and caps.
+const done = MOCK && !RECORD && !LIVE_TILES ? () => {} : trackTraffic(page, `perf-measure.mjs${LIVE_TILES ? ' (live tiles)' : ''}`)
+const mocks = MOCK ? await installMocks(ctx, { har: HAR, record: RECORD, liveTiles: LIVE_TILES }) : null
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Network.enable')
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })

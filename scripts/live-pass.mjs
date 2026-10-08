@@ -1,7 +1,9 @@
-// One-shot live pass against production, run once after the 00:00 UTC cap reset:
-//   1. the full headless suite (prod-suite, sequential, once per bundle)
-//   2. one live phone walkthrough (headed Chrome, real network)
-//   3. one headed perf measurement with live tiles (first radar frame on live data)
+// One-shot live pass against a deployment, run once after the 00:00 UTC cap reset:
+//   1. the headless suite in --split mode (live where live data is the point, mocks elsewhere)
+//   2. one phone walkthrough against the deployment with the APIs mocked (layout and flows, no quota)
+//   3. one headed perf measurement with live tiles and mocked APIs (first radar frame on live tiles,
+//      main-thread tasks on a real GPU)
+// Together ≈ 150 Open-Meteo locations instead of ≈ 5 600 for everything live.
 // Logs and a summary land in e2e-shots/prod/live-<UTC day>/. Each step runs through the QA traffic
 // guard; nothing is retried.
 //
@@ -13,9 +15,9 @@ const day = new Date().toISOString().slice(0, 10)
 const OUT = `e2e-shots/prod/live-${day}`
 mkdirSync(OUT, { recursive: true })
 const steps = [
-  { name: 'prod-suite', args: ['scripts/prod-suite.mjs', BASE] },
-  { name: 'walkthrough-phone', args: ['scripts/walkthrough.mjs', BASE, `${OUT}/walkthrough`, '--viewport=phone'] },
-  { name: 'perf-live', args: ['scripts/perf-measure.mjs', BASE, `${OUT}/perf`, '--headed', '--label=live-prod'] },
+  { name: 'prod-suite', args: ['scripts/prod-suite.mjs', BASE, '--split'] },
+  { name: 'walkthrough-phone', args: ['scripts/walkthrough.mjs', BASE, `${OUT}/walkthrough`, '--viewport=phone', '--mock'] },
+  { name: 'perf-live-tiles', args: ['scripts/perf-measure.mjs', BASE, `${OUT}/perf`, '--headed', '--live-tiles', '--label=live-tiles'] },
 ]
 const summary = { base: BASE, startedAt: new Date().toISOString(), steps: [] }
 for (const s of steps) {
