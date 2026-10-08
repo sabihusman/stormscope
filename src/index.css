@@ -2088,11 +2088,26 @@ small {
 }
 
 /* ---- Playback pill (phones, collapsed) + colour scale in the expanded bar + legend inside the layers panel ---- */
-.playpill {
+.playdock {
   position: absolute;
   z-index: 24;
   left: calc(var(--sal) + 12px);
+  right: calc(var(--sar) + 84px);
   bottom: calc(var(--sab) + 12px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.playdock > * {
+  pointer-events: auto;
+}
+.playdock .playbar-status {
+  padding: 0;
+}
+.playpill {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2102,7 +2117,7 @@ small {
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
 }
-.app.narrow.screen-map .playpill {
+.app.narrow.screen-map .playdock {
   bottom: calc(var(--nav-h) + var(--sab) + 12px);
 }
 .playpill .play {
@@ -2175,4 +2190,10 @@ small {
 }
 .fab-menu .legend-row {
   white-space: normal;
+}
+.fab-menu .legend-ramp {
+  gap: 6px;
+}
+.fab-menu .legend-swatch small {
+  font-size: 10px;
 }

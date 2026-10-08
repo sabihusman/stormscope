@@ -149,14 +149,17 @@ export function PlaybackBar() {
 
   if (!expanded)
     return (
-      <section className="playpill" aria-label="Playback" ref={ref}>
-        {playButton}
-        <button className="pill-label" onClick={() => store.set({ playbarExpanded: true })} aria-label={`Playback at ${current}. Expand`} aria-expanded={false}>
-          {current}
-        </button>
-        <div className="pill-progress" aria-hidden="true" style={{ ['--now-pct' as string]: `${pct(nowIdx)}%` }}>
-          <i className="pill-now" style={{ left: `${pct(nowIdx)}%` }} />
-          <i className="pill-pos" style={{ left: `${pct(idx)}%` }} />
+      <section className="playdock" aria-label="Playback" ref={ref}>
+        <StatusStrip />
+        <div className="playpill">
+          {playButton}
+          <button className="pill-label" onClick={() => store.set({ playbarExpanded: true })} aria-label={`${current}. Show controls`} aria-expanded={false}>
+            {current}
+          </button>
+          <div className="pill-progress" aria-hidden="true" style={{ ['--now-pct' as string]: `${pct(nowIdx)}%` }}>
+            <i className="pill-now" style={{ left: `${pct(nowIdx)}%` }} />
+            <i className="pill-pos" style={{ left: `${pct(idx)}%` }} />
+          </div>
         </div>
       </section>
     )
@@ -189,7 +192,7 @@ export function PlaybackBar() {
           ))}
         </div>
         {!wide && (
-          <button className="icon-btn playbar-close" onClick={() => store.set({ playbarExpanded: false })} aria-label="Collapse playback">
+          <button className="icon-btn playbar-close" onClick={() => store.set({ playbarExpanded: false })} aria-label="Hide controls">
             ✕
           </button>
         )}
