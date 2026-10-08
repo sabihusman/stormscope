@@ -97,17 +97,32 @@ export async function routeOsrm(from: LngLat, to: LngLat, signal?: AbortSignal):
   })
 }
 
-/** Valhalla first, OSRM if it fails. Never more than one request per second per engine. */
+/** The FOSSGIS Valhalla demo refuses auto routes whose path exceeds 1 500 km (HTTP 400, error 154). */
+export const VALHALLA_MAX_PATH_M = 1_500_000
+/** Straight-line distance above which Valhalla is not even asked (the path is always longer than the line). */
+export const VALHALLA_SKIP_ABOVE_M = 1_400_000
+export const LONG_TRIP_NOTE = 'Long trip: routed by OSRM (the Valhalla demo stops at 1,500 km)'
+export const FALLBACK_NOTE = 'Using backup routing (OSRM)'
+
+/**
+ * Valhalla first, OSRM if it fails or the trip is too long for the demo server. Never more than one request
+ * per second per engine. `fallbackReason` is a short note for the panel; the failure detail goes to the console.
+ */
 let lastCall = 0
 export async function route(from: LngLat, to: LngLat, signal?: AbortSignal): Promise<{ routes: RouteResult[]; engine: 'valhalla' | 'osrm'; fallbackReason?: string }> {
   const wait = 1100 - (Date.now() - lastCall)
   if (wait > 0) await new Promise((r) => setTimeout(r, wait))
   lastCall = Date.now()
+  if (haversine(from, to) > VALHALLA_SKIP_ABOVE_M) {
+    const routes = await routeOsrm(from, to, signal)
+    return { routes, engine: 'osrm', fallbackReason: LONG_TRIP_NOTE }
+  }
   try {
     const routes = await routeValhalla(from, to, 2, signal)
     return { routes, engine: 'valhalla' }
   } catch (e) {
+    console.warn('[routing] Valhalla failed, using OSRM:', e instanceof Error ? e.message : e)
     const routes = await routeOsrm(from, to, signal)
-    return { routes, engine: 'osrm', fallbackReason: e instanceof Error ? e.message : String(e) }
+    return { routes, engine: 'osrm', fallbackReason: FALLBACK_NOTE }
   }
 }
