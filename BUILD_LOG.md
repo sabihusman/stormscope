@@ -1,5 +1,20 @@
 # Build log
 
+## Oct 8 — live pass on preview icxj1et7u (bundle DTKEXTtW): red, no promotion
+
+Started 01:12 UTC with a fresh ledger; stopped by the Open-Meteo day budget after 10 of 18 suites (3 686 / 3 600 locations); the walkthrough and perf step were refused (exit 3) for the same reason; bypass secret revoked (0 entries). **4/18 suites green: flows 24/24, playbar 41/41, satellite 17/17 ×2.**
+
+- **pwa — crash:** `page.goto(…, waitUntil: 'networkidle')` timed out at 30 s on the first load. New first-load traffic: the Now flood tile is on screen at 390 × 844 and screens the place block on load (49-location block + terrain tiles + one NHD drainage query, which is slow live). The old UI passed the same step on Oct 6 and 7. Harness assumption (`networkidle`) meets a real cost added by item 6.
+- **units 10/12:** both Station checks failed with no evidence string — the Station page's values were not on the page when read (NWS slow or empty live); not a units defect (the same checks passed mocked, and the Now/Trip/Rivers unit checks passed live).
+- **qa — crash after 3 failures:** conditions never arrived on Now ("null ms"), and the point chip read "Conditions unavailable — Unexpected token 'U', "Unexpected"… is not valid JSON": Open-Meteo answered with a non-JSON body. The two playbar layouts just before it had loaded rain blocks at zoom 9 on tablet and desktop (345 locations each) — ~800 locations in two minutes against Open-Meteo's 600/min, so this is our own test volume tripping the minute limit, and the app then surfaced a parse error instead of a rate-limit message (wording defect to fix). qa then crashed on a navigation that assumed conditions had loaded.
+- **blocks 11/13, zoom, fab:** `hydro.nationalmap.gov` hit its 30/day cap (sized from the mocked pass, which did not include the flood tile's NHD query on every first load and place change) and `s3.amazonaws.com` hit 450 — the flood jobs could not finish, and every later block suite is marked untrustworthy by the guard.
+- **sheet 10/10 but BLOCKED:** sheet-check still declared zero Open-Meteo calls (the Now screen fetches one location per place since Phase 2; bc16b3c fixed pwa/satellite/rivers, not sheet). The mock answers before the guard, so `--mock` runs cannot catch a wrong declaration.
+- **boundary, follow, rivers, journey ×2, hazards, road:** refused, budget exhausted.
+
+**Live Open-Meteo cost per suite vs the mocked estimate:** pwa 50 (mock 1), flows 252 (104), units 74 (26), playbar 790 (not in the sizing), qa 701 (603), satellite 50 + 50 (1 + 1), blocks 883 (785), zoom 491 (491), fab 345 (296), sheet 0 (3). The flood tile adds 49 per first load / place change in every suite, playbar adds ~790; the day budget sized Oct 7 (3 600) was wrong for this build. A full pass of this build needs ≈ 5 600 locations.
+
+**Recommendation:** keep DT2bjBmp in production; do not promote DTKEXTtW. Before the next single pass: (1) playbar loads rain blocks on one layout only — the note and the zoom-to-place button do not need the overlay fetched on all three; (2) sheet-check declares Open-Meteo, and the guard applies declarations to mocked requests too; (3) the app says "rate limited" for a non-JSON Open-Meteo body; (4) caps and the day budget re-sized from this live ledger (NHD ≥ 60, terrain ≥ 700, Open-Meteo ≈ 5 600 → day budget 6 000 — that leaves 4 000 of the free 10 000 for real use, which the user should decide on; the alternative is to defer the Now flood tile's screening until the user scrolls to it or opens the page); (5) pwa's first-load wait becomes "conditions ready" rather than network idle; (6) prod-suite paces suites that load forecast blocks so two heavy suites never land in the same minute. No reruns today.
+
 ## Oct 7 (evening) — playback bar docked on the map; layer menu anchored; flood level on the Now tile; imperial by default
 
 The user's wide-layout screenshot (Map, continental zoom) showed the old floating timeline sheet bottom-right pushing the layer menu into the middle of the map, truncated status chips and the "Zoom in to a region (past zoom 5.5) to load forecast blocks" jargon. Their list, item by item:
