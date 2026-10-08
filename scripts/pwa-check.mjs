@@ -37,7 +37,11 @@ const errors = []
 page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`))
 page.on('console', (m) => m.type() === 'error' && errors.push(`[console] ${m.text()}`))
 
-await page.goto(BASE, { waitUntil: 'networkidle' })
+// "load" + the place's conditions on screen, not network-idle: the live map keeps fetching tiles and
+// the Now screen's slower reference calls (NWS station, NHD) can hold the network busy past 30 s.
+await page.goto(BASE, { waitUntil: 'load' })
+await page.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
+for (let i = 0; i < 120; i++) { if (await page.evaluate(() => window.__store?.get().conditions.state === 'ready').catch(() => false)) break; await page.waitForTimeout(500) }
 const manifest = await page.evaluate(async () => {
   const link = document.querySelector('link[rel=manifest]')
   if (!link) return null
