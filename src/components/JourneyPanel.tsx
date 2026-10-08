@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useNow } from '../hooks/useMisc'
 import { clock, dayClock, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
-import { SEVERITY_COLORS, type JourneySample } from '../lib/journey'
+import { isCapped, SEVERITY_COLORS, type JourneySample } from '../lib/journey'
 import { clearJourney, selectRoute, setDeparture, setJourneyTo, store, useApp } from '../state/store'
 import { summarize, type HazardHit, type HazardReport, type SourceStatus } from '../lib/hazardEngine'
 import { condText, effectiveCondition, type RoadReport, type RoadSample } from '../lib/roadIce'
@@ -53,6 +53,11 @@ export function JourneyPanel() {
           <strong>Replay</strong> · {replay.label}
           <br />
           <small>Hazards come from archived NWS/SPC products; weather is ERA5 reanalysis, not a forecast.</small>
+        </div>
+      )}
+      {route && isCapped(route) && (
+        <div className="trip-cap-warning" role="alert">
+          <strong>Over 24 h of driving ({fmtDur(route.durationS)}).</strong> The forecast covers the first 24 h; the arrival card shows the 24 h mark. Plan one driving day at a time.
         </div>
       )}
       <div className="trip-from">
@@ -144,7 +149,7 @@ export function JourneyPanel() {
                 <br />
                 <small className="muted">
                   {route.summary} · via {j.routes.data?.engine === 'valhalla' ? 'Valhalla' : 'OSRM'}
-                  {j.routes.data?.fallbackReason ? ` (Valhalla failed: ${j.routes.data.fallbackReason})` : ''} · ETAs are estimates without traffic (±5–10 min)
+                  {j.routes.data?.fallbackReason ? ` · ${j.routes.data.fallbackReason}` : ''} · ETAs are estimates without traffic (±5–10 min)
                 </small>
               </div>
               {routes.length > 1 && (
@@ -166,8 +171,8 @@ export function JourneyPanel() {
             <>
               <HazardsSection r={j.hazards} units={units} />
               <div className={`arrival-card sev-${cond(w.samples[w.samples.length - 1]).severity}`}>
-                <small>Arrive {j.to.name.split(',')[0]}</small>
-                <strong>{dayClock(arrival)}</strong>
+                <small>{isCapped(route) ? `At the 24 h mark (arrive ${j.to.name.split(',')[0]} ${dayClock(arrival)})` : `Arrive ${j.to.name.split(',')[0]}`}</small>
+                <strong>{isCapped(route) ? dayClock(w.samples[w.samples.length - 1].eta) : dayClock(arrival)}</strong>
                 <span>
                   {ICON[cond(w.samples[w.samples.length - 1]).code]} {cond(w.samples[w.samples.length - 1]).label} · {U.temp(w.samples[w.samples.length - 1].tempC, units)}
                   {w.samples[w.samples.length - 1].precipMm ? ` · ${U.precip(w.samples[w.samples.length - 1].precipMm, units)}/h` : ''}

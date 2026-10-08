@@ -56,18 +56,27 @@ export type WeatherSource = 'auto' | 'era5' | 'historical-forecast'
 /** ERA5 reanalysis lags real time by ~5 days; anything older than that is "historical". */
 export const HISTORICAL_AFTER_MS = 5 * 86_400_000
 
-/** Pick vertex indices ~every `fineStepS` for the first FINE_HOURS, then every `coarseStepS`, capped at MAX_SAMPLES. */
+/** Driving time the forecast strip covers; longer trips are capped here and the panel says so. */
+export const TRIP_CAP_S = 24 * 3600
+export const isCapped = (route: RouteResult) => route.durationS > TRIP_CAP_S
+
+/**
+ * Pick vertex indices ~every `fineStepS` for the first FINE_HOURS, then every `coarseStepS`, capped at
+ * MAX_SAMPLES and at TRIP_CAP_S of driving (the last sample of a capped trip is the 24 h mark, not the destination).
+ */
 export function sampleRoute(route: RouteResult, fineStepS = 300, coarseStepS = 900): number[] {
   const idx: number[] = [0]
   let next = fineStepS
+  const capped = isCapped(route)
   for (let i = 1; i < route.offsetS.length; i++) {
     const t = route.offsetS[i]
+    if (capped && t > TRIP_CAP_S) break
     if (t >= next) {
       idx.push(i)
       next = t + (t < FINE_HOURS * 3600 ? fineStepS : coarseStepS)
     }
   }
-  if (idx[idx.length - 1] !== route.coords.length - 1) idx.push(route.coords.length - 1)
+  if (!capped && idx[idx.length - 1] !== route.coords.length - 1) idx.push(route.coords.length - 1)
   // Thin evenly if over the cap.
   if (idx.length > MAX_SAMPLES) {
     const step = idx.length / MAX_SAMPLES

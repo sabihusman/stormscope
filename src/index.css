@@ -2197,3 +2197,14 @@ small {
 .fab-menu .legend-swatch small {
   font-size: 10px;
 }
+
+/* Trip: over the 24 h forecast window */
+.trip-cap-warning {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(250, 204, 21, 0.6);
+  background: rgba(250, 204, 21, 0.12);
+  color: #fde68a;
+  font-size: 13px;
+}
