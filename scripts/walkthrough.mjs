@@ -18,7 +18,7 @@ const NO_THROTTLE = args.includes('--no-throttle')
 const only = args.find((a) => a.startsWith('--viewport='))?.slice(11)
 const WEBKIT = args.includes('--browser=webkit') // Playwright WebKit (Safari engine), no CDP: no CPU throttle, synthetic drags
 const positional = args.filter((a) => !a.startsWith('--'))
-assertBudget('walkthrough.mjs', { openMeteo: !MOCK })
+assertBudget(`walkthrough.mjs${MOCK ? ' (mock)' : ''}`)
 const BASE = (positional[0] || 'http://localhost:4173/').replace(/\/?$/, '/')
 const OUT = positional[1] || (WEBKIT ? 'e2e-shots/walkthrough-webkit' : 'e2e-shots/walkthrough')
 mkdirSync(OUT, { recursive: true })

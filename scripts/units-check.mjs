@@ -10,7 +10,7 @@ import { openMap, openMore, openNow, openRivers, openTrip, pageText, setUnits, s
 
 const argv = process.argv.slice(2)
 const MOCK = argv.includes('--mock')
-assertBudget(`units-check.mjs${MOCK ? ' (mock)' : ''}`, { openMeteo: !MOCK })
+assertBudget(`units-check.mjs${MOCK ? ' (mock)' : ''}`)
 const positional = argv.filter((a) => !a.startsWith('--'))
 const BASE = positional[0] || 'http://localhost:4173/'
 const OUT = positional[1] || 'e2e-shots/units'

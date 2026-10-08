@@ -11,7 +11,7 @@ import { allowLocation, openMore, openNow } from './lib/ui.mjs'
 
 const argv = process.argv.slice(2)
 const MOCK = argv.includes('--mock')
-assertBudget(`flood-tile-check.mjs${MOCK ? ' (mock)' : ''}`, { openMeteo: !MOCK })
+assertBudget(`flood-tile-check.mjs${MOCK ? ' (mock)' : ''}`)
 const positional = argv.filter((a) => !a.startsWith('--'))
 const BASE = positional[0] || 'http://localhost:4173/'
 const OUT = positional[1] || 'e2e-shots/flood-tile'

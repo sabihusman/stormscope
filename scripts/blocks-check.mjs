@@ -5,7 +5,7 @@ import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 // --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
 const MOCK = process.argv.includes('--mock')
-assertBudget(MOCK ? 'blocks-check.mjs (mock)' : 'blocks-check.mjs', { openMeteo: !MOCK })
+assertBudget(MOCK ? 'blocks-check.mjs (mock)' : 'blocks-check.mjs')
 import { mkdirSync } from 'node:fs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 

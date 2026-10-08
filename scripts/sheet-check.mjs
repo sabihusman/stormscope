@@ -8,7 +8,7 @@ import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { touchDrag, touchTap, centre } from './lib/touch.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
-assertBudget(`sheet-check.mjs${MOCK ? ' (mock)' : ''}`, { openMeteo: !MOCK }) // the Now screen fetches one Open-Meteo location per place on every load
+assertBudget(`sheet-check.mjs${MOCK ? ' (mock)' : ''}`) // the Now screen fetches one Open-Meteo location per place on every load
 
 // --browser=webkit runs Playwright's WebKit (Safari engine, not iOS Safari); --mock answers every API locally.
 const argv = process.argv.slice(2)

@@ -25,7 +25,7 @@ const HAR = MOCK && MOCK !== 'synthetic' ? MOCK : null
 const RECORD = args.includes('--record')
 const LABEL = args.find((a) => a.startsWith('--label='))?.slice(8) ?? ''
 const positional = args.filter((a) => !a.startsWith('--'))
-assertBudget(`perf-measure.mjs${LIVE_TILES ? ' (live tiles)' : ''}`, { openMeteo: !!MOCK ? false : true })
+assertBudget(`perf-measure.mjs${LIVE_TILES ? ' (live tiles, APIs mocked)' : MOCK ? ' (mock)' : ''}`)
 
 const BASE = (positional[0] || 'http://localhost:4173/').replace(/\/?$/, '/')
 const OUT = positional[1] || 'e2e-shots/perf'
@@ -70,7 +70,7 @@ if (LOW_DEVICE) await ctx.addInitScript(() => { Object.defineProperty(navigator,
 out.profile.deviceClass = LOW_DEVICE ? 'low (4 cores, 4 GB emulated)' : 'host'
 const page = await ctx.newPage()
 // Replay: no guard needed (nothing leaves the machine); record / live / live tiles: the guard counts and caps.
-const done = MOCK && !RECORD && !LIVE_TILES ? () => {} : trackTraffic(page, `perf-measure.mjs${LIVE_TILES ? ' (live tiles)' : ''}`)
+const done = MOCK && !RECORD && !LIVE_TILES ? () => {} : trackTraffic(page, `perf-measure.mjs${LIVE_TILES ? ' (live tiles, APIs mocked)' : ''}`)
 const mocks = MOCK ? await installMocks(ctx, { har: HAR, record: RECORD, liveTiles: LIVE_TILES }) : null
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Network.enable')

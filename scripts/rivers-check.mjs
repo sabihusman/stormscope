@@ -16,7 +16,7 @@ import { installMocks } from './lib/mock-server.mjs'
 import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setSheet, setUnits, sheetText, tripText, searchPlace, openNow } from './lib/ui.mjs'
 // --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
 const MOCK = process.argv.includes('--mock')
-assertBudget(MOCK ? 'rivers-check.mjs (mock)' : 'rivers-check.mjs', { openMeteo: !MOCK }) // the Now screen fetches one Open-Meteo location per place on every load
+assertBudget(MOCK ? 'rivers-check.mjs (mock)' : 'rivers-check.mjs') // the Now screen fetches one Open-Meteo location per place on every load
 
 const record = process.argv.includes('--record')
 const BASE = process.argv.find((a) => /^https?:/.test(a)) || 'http://localhost:5174/'

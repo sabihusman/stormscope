@@ -5,7 +5,7 @@
 import { chromium } from 'playwright'
 import { installMocks } from './lib/mock-server.mjs'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('diag-flood-stall (mock)', { openMeteo: false })
+assertBudget('diag-flood-stall (mock)')
 const BASE = process.argv[2] || 'http://localhost:4173/'
 const STALL = process.argv[3] === 'stall'
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })

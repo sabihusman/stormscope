@@ -8,7 +8,7 @@ import { chromium } from 'playwright'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { installMocks } from './lib/mock-server.mjs'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
-assertBudget('ux-inventory.mjs (mock)', { openMeteo: false })
+assertBudget('ux-inventory.mjs (mock)')
 
 const BASE = (process.argv[2] || 'http://localhost:4173/').replace(/\/?$/, '/')
 const OUT = process.argv[3] || 'docs/ux/inventory'

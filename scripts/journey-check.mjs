@@ -9,7 +9,7 @@ import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setShe
 const argv = process.argv.slice(2)
 // --mock: every API answered locally (zero live calls); only the Iowa scenario has saved bodies (JOURNEY_SCENARIO=1).
 const MOCK = argv.includes('--mock')
-assertBudget(`journey-check.mjs${MOCK ? ' (mock)' : ''}`, { openMeteo: !MOCK })
+assertBudget(`journey-check.mjs${MOCK ? ' (mock)' : ''}`)
 const positional = argv.filter((a) => !a.startsWith('--'))
 
 const BASE = positional[0] || 'http://localhost:5174/'

@@ -10,7 +10,7 @@ import { allowLocation, openMap, openMore, openTrip, pageText, setLayers, setShe
 const argv = process.argv.slice(2)
 const MOCK = argv.includes('--mock')
 // Toggling Rainfall on fetches Open-Meteo for the visible blocks on a live deployment; only the mocked run makes none.
-assertBudget('boundary-check.mjs', { openMeteo: !MOCK })
+assertBudget(`boundary-check.mjs${MOCK ? ' (mock)' : ''}`)
 const positional = argv.filter((a) => !a.startsWith('--'))
 const BASE = positional[0] || 'http://localhost:4173/'
 const OUT = positional[1] || 'e2e-shots/boundary'

@@ -91,16 +91,19 @@ function save(j) {
 }
 
 /**
- * Call at the start of a suite; exits if the Open-Meteo cap is already reached (unless the suite
- * declares `{ openMeteo: false }` — it makes no Open-Meteo calls, so only the per-host caps apply;
- * anything it does call is still counted), and warns about hosts at cap.
+ * Call at the start of a suite; exits if the Open-Meteo cap is already reached, and warns about hosts at
+ * cap. A suite whose name says it runs against the mock server ("(mock)", "APIs mocked") is never refused —
+ * nothing it does reaches Open-Meteo. `{ openMeteo: false }` declares that the APP makes no Open-Meteo
+ * calls in this suite: live, such a request is aborted and the run flagged; mocked, the mock's answer is
+ * flagged the same way (so a wrong declaration cannot hide behind --mock).
  */
 const declaredNoOpenMeteo = new Set()
 const baseName = (scriptName) => scriptName.split(' ')[0]
 export function assertBudget(scriptName, { openMeteo = true } = {}) {
   if (!openMeteo) declaredNoOpenMeteo.add(baseName(scriptName))
   const j = loadLedger()
-  if (openMeteo && j.used >= QA_DAILY_CAP) {
+  const mocked = /mock/i.test(scriptName)
+  if (openMeteo && !mocked && j.used >= QA_DAILY_CAP) {
     console.log(`SKIP  ${scriptName}: QA Open-Meteo budget for ${j.day} exhausted (${j.used}/${QA_DAILY_CAP} locations). Set QA_OM_CAP to override.`)
     process.exit(3)
   }

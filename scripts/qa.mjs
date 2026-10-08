@@ -5,7 +5,7 @@ import { installMocks } from './lib/mock-server.mjs'
 import { openMap, openMore, openRivers, pageText, setSheet, setUnits, sheetText, searchPlace } from './lib/ui.mjs'
 // --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
 const MOCK = process.argv.includes('--mock')
-assertBudget(MOCK ? 'qa.mjs (mock)' : 'qa.mjs', { openMeteo: !MOCK })
+assertBudget(MOCK ? 'qa.mjs (mock)' : 'qa.mjs')
 import { mkdirSync } from 'node:fs'
 
 const BASE = process.argv[2] || 'http://localhost:5173/'
