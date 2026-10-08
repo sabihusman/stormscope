@@ -209,10 +209,11 @@ const PLACES = [
   { re: /cedar/i, name: 'Cedar Rapids', latitude: 41.9779, longitude: -91.6656, admin2: 'Linn County' },
   { re: /johnston/i, name: 'Johnston', latitude: 41.673, longitude: -93.698, admin2: 'Polk County' },
   { re: /des moines/i, name: 'Des Moines', latitude: 41.5868, longitude: -93.625, admin2: 'Polk County' },
+  { re: /miami/i, name: 'Miami', latitude: 25.7617, longitude: -80.1918, admin1: 'Florida', admin2: 'Miami-Dade County' },
 ]
 function geocode(q) {
   const p = PLACES.find((x) => x.re.test(q)) ?? { name: 'Iowa City', latitude: 41.6611, longitude: -91.5302, admin2: 'Johnson County' }
-  return { name: p.name, latitude: p.latitude, longitude: p.longitude, country: 'United States', admin1: 'Iowa', admin2: p.admin2 }
+  return { name: p.name, latitude: p.latitude, longitude: p.longitude, country: 'United States', admin1: p.admin1 ?? 'Iowa', admin2: p.admin2 }
 }
 function nwps(url, focus) {
   const u = new URL(url)
@@ -275,6 +276,31 @@ function valhalla() {
   const trip = (r) => ({ legs: [{ shape: encodePolyline6(r.coords), maneuvers: [{ time: r.durationS, length: r.distanceM / 1000, begin_shape_index: 0, end_shape_index: r.coords.length - 1, instruction: r.summary || 'Drive' }], summary: { length: r.distanceM / 1000, time: r.durationS } }], summary: { length: r.distanceM / 1000, time: r.durationS } })
   const [main, ...alts] = saved.route.routes
   return { trip: trip(main), alternates: alts.map((a) => ({ trip: trip(a) })) }
+}
+
+/** The FOSSGIS demo's limit: a path over 1 500 km answers 400 (error 154). Otherwise the recorded Iowa route. */
+function valhallaFor(url) {
+  try {
+    const body = JSON.parse(new URL(url).searchParams.get('json') ?? '{}')
+    const [a, b] = body.locations ?? []
+    if (a && b && hav(a.lat, a.lon, b.lat, b.lon) > 1_500_000) return json({ error_code: 154, error: 'Path distance exceeds the max distance limit: 1500000 meters', status_code: 400, status: 'Bad Request' }, 400)
+  } catch {
+    /* fall through */
+  }
+  return json(valhalla())
+}
+const hav = (lat1, lon1, lat2, lon2) => { const r = Math.PI / 180; const dLat = (lat2 - lat1) * r; const dLon = (lon2 - lon1) * r; const s = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2; return 2 * 6371000 * Math.asin(Math.sqrt(s)) }
+/** OSRM: a straight-line route with 60 vertices, duration at 90 km/h (so a coast-to-coast trip runs past 24 h). */
+function osrm(url) {
+  const m = new URL(url).pathname.match(/driving\/(-?[\d.]+),(-?[\d.]+);(-?[\d.]+),(-?[\d.]+)/)
+  if (!m) return { code: 'NoRoute', routes: [] }
+  const [lng1, lat1, lng2, lat2] = m.slice(1).map(Number)
+  const n = 60
+  const coords = Array.from({ length: n }, (_, i) => [lng1 + ((lng2 - lng1) * i) / (n - 1), lat1 + ((lat2 - lat1) * i) / (n - 1)])
+  const distance = hav(lat1, lng1, lat2, lng2) * 1.15
+  const duration = distance / (90 / 3.6)
+  const seg = Array.from({ length: n - 1 }, () => duration / (n - 1))
+  return { code: 'Ok', routes: [{ distance, duration, geometry: { type: 'LineString', coordinates: coords }, legs: [{ annotation: { duration: seg } }] }] }
 }
 
 // ---------- RWIS "currents" from the archive's last observation per station ----------
@@ -366,8 +392,8 @@ export async function installMocks(context, { har = null, record = false, focus 
       if (host === 'api.water.noaa.gov') return route.fulfill(json(nwps(url, focus)))
       if (host === 'api.waterdata.usgs.gov') return route.fulfill(json(usgs(url, focus)))
       if (host === 'hydro.nationalmap.gov') return route.fulfill(json({ type: 'FeatureCollection', features: [] }))
-      if (host === 'valhalla1.openstreetmap.de') return route.fulfill(json(valhalla()))
-      if (host === 'router.project-osrm.org') return route.fulfill(json({ code: 'NoRoute', routes: [] }, 400))
+      if (host === 'valhalla1.openstreetmap.de') return route.fulfill(valhallaFor(url))
+      if (host === 'router.project-osrm.org') return route.fulfill(json(osrm(url)))
       if (host === 'mesonet.agron.iastate.edu') return route.fulfill(url.includes('currents.json') ? json(rwisCurrents()) : json({ type: 'FeatureCollection', features: [] }))
       if (host === 'mapservices.weather.noaa.gov') return route.fulfill(json({ type: 'FeatureCollection', features: [] }))
       if (host === 'gibs.earthdata.nasa.gov' && url.includes('WMTSCapabilities')) return route.fulfill({ status: 200, contentType: 'application/xml', headers: { 'access-control-allow-origin': '*' }, body: gibsCapabilities() })
