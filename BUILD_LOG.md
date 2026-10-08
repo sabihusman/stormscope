@@ -1,5 +1,31 @@
 # Build log
 
+## Oct 8 (later) — the five fixes; flood tile on demand (A), measured against eager; the release pass split live/mock
+
+**Items 1–5, one commit each:** playbar-check presses the zoom-to-place button on the phone layout only (b578d7d); sheet-check declares Open-Meteo and the guard applies a zero-Open-Meteo declaration to mocked requests too, so `--mock` fails on a wrong declaration (ffb40ef); an OK status with a non-JSON body is reported as "Open-Meteo is throttling this network — retrying shortly" instead of "Unexpected token …" (ed54ca4); pwa-check waits for the place's conditions instead of network-idle (6cc2e36); prod-suite pauses 60 s after a suite that used > 250 locations before the next live one, in the same commit as the split pass (eecdf1e).
+
+**Flood tile: A, on demand.** The tile reads "Check flood risk ›". The screening (one 49-location block, terrain tiles, one NHD query) runs only when the Flood page opens, or when the tile is on screen *and the Now screen has been scrolled*. The scroll condition matters: on a fresh open the tiles row starts at 717 px on a 390 × 844 phone (700 on 430 × 932, 717 on 375 × 812), so the first row is more than half on screen above the nav and a plain "visible" rule would compute on every first load — only a 390 × 667 phone keeps it off screen. Once computed, the block stays cached for the place until the next forecast refresh (30 min), so the tile keeps the level at no further cost. The levels follow the flood legend: Low / Elevated / High / Severe (there is no "Moderate" class). `flood-tile-check.mjs` (in prod-suite, mocked) asserts zero flood requests on a fresh open, one block + terrain + one NHD on scroll, the cached block on the Flood page, and the level still on the tile afterwards.
+
+**A vs B (eager when the tile is on screen, the Oct 7 build), same mocked build profile — headed Chrome, CPU 4×, Fast 4G, APIs mocked, one run each (`flood-tile-measure.mjs`):**
+
+| | phone, first open | phone, place change | desktop, first open | desktop, place change |
+|---|---|---|---|---|
+| Open-Meteo locations | 50 → 1 (−98 %) | 50 → 1 (−98 %) | 50 → 1 (−98 %) | 50 → 1 (−98 %) |
+| terrain tiles | 20 → 0 | 16 → 0 | 20 → 0 | 16 → 0 |
+| NHD queries | 1 → 0 | 1 → 0 | 1 → 0 | 1 → 0 |
+| requests, all hosts | 41 → 20 (−51 %) | 29 → 11 (−62 %) | 54 → 24 (−56 %) | 27 → 8 (−70 %) |
+| time to conditions | 5 129 → 5 094 ms (−1 %) | 8 137 → 1 692 ms (−79 %) | 5 171 → 5 172 ms (0 %) | 7 421 → 1 785 ms (−76 %) |
+| time until settled | 5 760 → 5 096 ms (−12 %) | 11 133 → 3 803 ms (−66 %) | 5 174 → 5 174 ms (0 %) | 10 579 → 3 907 ms (−63 %) |
+| longest main-thread task | 293 → 176 ms (−40 %) | 151 → 0 ms | 306 → 354 ms (+16 %, noise) | 141 → 69 ms (−51 %) |
+
+The first-open "time to conditions" is the same under both (the geolocation grant and the mock's latency dominate); the place change is where the eager tile hurt: its block, terrain and NHD traffic competed with the conditions call on the throttled link. **C (a point-only estimate) was dropped:** its agreement with the block method cannot be shown on the mocked build (terrain and NHD are synthetic, and the mock's hourly series differ per location index, not per coordinate) or on the replay fixtures (they hold route-point forecasts, no terrain or drainage); showing it would take a live comparison for one place (≈ 50 locations, 16 terrain tiles, 1 NHD). The method itself would be the same formula — the place's own hourly rain instead of the interpolated grid, the 7 × 7 cell neighbourhood for relative elevation (2–4 terrain tiles at zoom 11 instead of ~16), a small NHD bbox — at 0 Open-Meteo locations per load.
+
+**Full-pass cost in Open-Meteo locations:** every suite live — B ≈ 5 600, A ≈ 4 400 (−21 %; the eager tile added 49 per browser context and per place change in every suite); the release pass as now split — B ≈ 800, A ≈ 235 (−70 %, and −96 % against the Oct 8 run).
+
+**The release pass, split (eecdf1e).** Live: pwa (the real deployment's service worker and caches), flows (conditions within 15 s on real latency), nonus (new — the qa non-US section on its own: Nominatim postcode search, outside-US fallbacks), satellite ×2 (GIBS frames, GOES tiles), rivers (USGS medians, snapshot), journey Philadelphia (live routing, no mocked bodies), hazards and road (their live NWS / SPC / RWIS sections). Mocked: units, playbar, flood-tile, qa, blocks, zoom, fab, sheet, boundary, follow, journey Iowa, the phone walkthrough. perf-measure runs with `--live-tiles`: APIs mocked, tile hosts live through the guard — the first radar frame and the main-thread tasks on real tiles, zero forecast quota. Per pass: ≈ 235 Open-Meteo locations, NWPS ≈ 46, NWS ≈ 40, USGS ≈ 33, GIBS ≈ 800, basemap ≈ 400, radar tiles ≈ 170, terrain ≈ 80, NHD ≈ 4. Caps re-sized to that (a799d21): day budget 300 locations; a full live run of every suite must set `QA_OM_CAP` / `QA_CAPS` deliberately.
+
+**Queued:** when playback is not on the newest frame, the bar's time label shows the offset ("−5 min") or the clock time instead of "Now".
+
 ## Oct 8 — live pass on preview icxj1et7u (bundle DTKEXTtW): red, no promotion
 
 Started 01:12 UTC with a fresh ledger; stopped by the Open-Meteo day budget after 10 of 18 suites (3 686 / 3 600 locations); the walkthrough and perf step were refused (exit 3) for the same reason; bypass secret revoked (0 entries). **4/18 suites green: flows 24/24, playbar 41/41, satellite 17/17 ×2.**
