@@ -72,6 +72,7 @@ const geometry = (page) =>
     return { vw: innerWidth, vh: innerHeight, menu: box('.fab-menu'), first, lastReachable, scroll, overscroll: menu ? getComputedStyle(menu).overscrollBehaviorY : null, topbar: box('.topbar'), fab: box('.fab-main'), map: box('.map-root'), ctrl: box('.maplibregl-ctrl-top-right'), playbar: box('.playbar'), nav: box('.nav'), column: box('.screen') }
   })
 const inside = (a, b) => a.left >= b.left && a.right <= b.right && a.top >= b.top && a.bottom <= b.bottom
+const overlap = (a, b) => !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
 const fmt = (b) => (b ? `${b.left}-${b.right}x${b.top}-${b.bottom}` : '-')
 
 // ---- Phones
@@ -128,6 +129,10 @@ for (const c of desktop) {
   check(`${label}: the button is the element under its own centre and the click opens the panel`, hit && !!g.menu, hit ? (g.menu ? 'opened' : 'click did not open') : 'covered')
   if (g.menu) {
     check(`${label}: panel inside the map area, beside the controls, below the location bar, above the playback bar`, inside(g.menu, g.map) && g.menu.top >= g.topbar.bottom && (!g.playbar || g.menu.bottom <= g.playbar.top) && g.menu.right <= g.ctrl.left && g.menu.right <= g.fab.left, `panel ${fmt(g.menu)} · topbar ${fmt(g.topbar)} · controls ${fmt(g.ctrl)} · playbar ${fmt(g.playbar)}`)
+    // The PANEL (not only the button) stays inside the visible map: its left edge at or right of the map's, and
+    // it never overlaps the side column or the nav rail, whatever the column state; and it is tied to ☰.
+    check(`${label}: panel fully inside the visible map area, clear of the side column and the nav rail`, g.menu.left >= g.map.left && inside(g.menu, g.map) && !overlap(g.menu, g.column) && !overlap(g.menu, g.nav), `panel ${fmt(g.menu)} · map ${fmt(g.map)} · column ${fmt(g.column)} · rail ${fmt(g.nav)}`)
+    check(`${label}: panel top within 16 px of the button's top`, Math.abs(g.menu.top - g.fab.top) <= 16, `panel top ${g.menu.top} · button top ${g.fab.top}`)
     check(`${label}: first row visible, last row reachable, scroll contained`, g.first.top >= g.menu.top && g.first.bottom <= g.menu.bottom && g.lastReachable && g.overscroll === 'contain', `content ${g.scroll}`)
   }
   await page.screenshot({ path: `${OUT}/${label.replace(/[^a-z0-9]+/gi, '-')}.png` })
