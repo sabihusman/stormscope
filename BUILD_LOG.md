@@ -1,5 +1,13 @@
 # Build log
 
+## Oct 9 (night) — new preview 9hfo22lyg (bundle DyDvRSBo), its mocked dry run, the live-tiles playback check
+
+**Preview:** https://stormscope-9hfo22lyg-sabihusman-4178s-projects.vercel.app, bundle `index-DyDvRSBo.js`, commit 7e0c842 (harness commits after it do not change the bundle). Secret generated for the runs below and revoked after (0 entries).
+
+**Dry run (`preview-dry-run.mjs`, 01:31–02:00 UTC, everything mocked):** prod-suite 16 passes + 5 mock-only skips (nonus, rivers, journey-phl-bal, hazards' and road's live sections — now counted as passed under --mock, 131d7e3; before that fix the skip line also hid qa's pass count) and one red check: qa "No long main-thread tasks > 200 ms idle with the nowcast overlay" — 19 frames of 53–114 ms and one of 258 ms (particles 213/549 drawn, 7.3 ms a frame, 83 frames skipped). Walkthrough phone 166 s, no timeouts (the toolbar opt-out works). Headed playback diag mocked, phone and desktop: satellite 15 → 1 → 0 requests, radar 13 → 0 → 0, no blank frame, frame max 17–57 ms, both asserts green. **49 live calls** (NWPS 21, basemap 18, NWS 4, USGS 3, …) — all from the walkthrough's rate-limited context, where the guard had been registered after the mocks (my change that morning; Playwright runs the last route first, so the guard continued requests to the network before the mocks could answer). Fixed (order swapped, 354eb03) and re-run on the preview: "no external requests" from both contexts, the rate-limited wording check back to ok. The dry-run record for DyDvRSBo is red (qa + those calls); a re-run after the user's decision on the qa check is the way to a green record.
+
+**Live-tiles playback diag (`--live-tiles`, headed, 3 loops, phone then desktop):** satellite valid — GIBS 15 → 1 → 0 requests on both layouts, no blank frame, frame p50/p95 8/14–16 ms, max 20–63 ms. Radar invalid: 45 → 48–51 → 48 requests per loop — the mock's frame list gives synthetic paths (`/v2/radar/<unix time>`), the real tile host answers them **410**, and MapLibre re-requests an errored tile every time it is shown; the day's radar-tile cap (300) was hit during the desktop run (160 blocked). Not a regression (the mocked diag and the keyed sources are unchanged); fix in the mock: with `--live-tiles` the frame lists (api.rainviewer.com, GIBS capabilities) go live too so the paths are real. The radar half must be re-run after the 00:00 UTC Oct 10 ledger reset.
+
 ## Oct 9 (later) — the Oct 9 fixes, the long task named, the dry-run gate
 
 Separate commits after the red pass (the user's list, plus the three extras):
