@@ -1909,10 +1909,8 @@ small {
   font-size: 18px;
 }
 .app.wide .fab-stack .fab-menu {
-  /* Beside the whole control column, not just the button: its top lines up with the zoom buttons (just
-     under the location bar), so a short map (a phone in landscape is this layout too) still has room. */
-  margin-top: calc(-1 * (var(--map-ctrl-h) + 8px));
-  max-height: calc(var(--vvh) - var(--map-ctrl-top) - var(--menu-bottom-reserve));
+  /* Tied to the button: the panel's top is the button's top, and it runs down to the playback bar. */
+  max-height: calc(var(--vvh) - var(--fab-stack-top) - var(--menu-bottom-reserve));
 }
 .app.wide .fab-hint {
   display: none;
