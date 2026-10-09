@@ -817,7 +817,9 @@ export function DataController() {
       }
     },
     REFRESH.station,
-    !!place,
+    // Replays drive the Trip page only: no station observation for the fixture's origin (a blocked or failed
+    // NWS call would otherwise fall back to a live Open-Meteo call inside a "zero live calls" replay).
+    !!place && !replayActive,
     [placeKey, nonce],
   )
 

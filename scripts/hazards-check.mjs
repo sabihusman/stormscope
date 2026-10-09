@@ -27,6 +27,10 @@ page.on('pageerror', (e) => errs.push(e.message))
 // Replays ship their recorded route + Open-Meteo response: none of these may be requested live.
 const liveCalls = []
 page.on('request', (r) => /open-meteo\.com\/v1\/(forecast|archive|era5)|valhalla1\.openstreetmap\.de|router\.project-osrm\.org/.test(r.url()) && liveCalls.push(r.url()))
+// Replays drive the Trip page only: no station observation for the fixture's origin either (NWS points /
+// stations, or the Open-Meteo "current" fallback a blocked NWS call would trigger — Oct 9).
+const stationCalls = []
+page.on('request', (r) => /api\.weather\.gov\/(points|stations)\/|open-meteo\.com\/v1\/forecast\?[^ ]*current=surface_pressure/.test(r.url()) && stationCalls.push(r.url()))
 
 const report = async (ms = 120000) => {
   const t0 = Date.now()
@@ -102,6 +106,7 @@ if (r.hits) {
 }
 
 check('Replays made no live Open-Meteo or routing request (cached route + response in the fixture)', liveCalls.length === 0, liveCalls.length ? liveCalls.slice(0, 2).map((u) => u.slice(0, 80)).join(' | ') : 'three replays, zero live calls')
+check('Replays made no station observation request for the origin (NWS points/stations or the Open-Meteo fallback)', stationCalls.length === 0, stationCalls.length ? stationCalls.slice(0, 2).map((u) => u.slice(0, 80)).join(' | ') : 'none')
 const cachedProvider = await page.evaluate(() => window.__store.get().journey.weather.data?.provider ?? '')
 check('Replay provider line says the response is cached', /cached in the fixture/.test(cachedProvider), cachedProvider)
 
