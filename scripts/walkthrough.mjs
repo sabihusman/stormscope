@@ -234,9 +234,12 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   if (MOCK) {
     await ctx.close()
     const ctx2 = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch, deviceScaleFactor: vp.deviceScaleFactor, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
-    await installMocks(ctx2, { focus: FOCUS, failHosts: ['api.open-meteo.com', 'api.water.noaa.gov', 'api.waterdata.usgs.gov'] })
     const p2 = await ctx2.newPage()
-    const done2 = trackTraffic(p2, `walkthrough.mjs ${vpName} rate-limited${MOCK ? ' (mock)' : ''}`) // bypass + toolbar opt-out on a preview, too
+    // The guard before the mocks (Playwright runs the last-registered route first: the mocks must answer
+    // before the guard would continue a request to the network — registered the other way round in the
+    // Oct 9 dry run, this context made 49 live calls).
+    const done2 = trackTraffic(p2, `walkthrough.mjs ${vpName} rate-limited${MOCK ? ' (mock)' : ''}`)
+    await installMocks(ctx2, { focus: FOCUS, failHosts: ['api.open-meteo.com', 'api.water.noaa.gov', 'api.waterdata.usgs.gov'] })
     const errs2 = []
     p2.on('console', (m) => m.type() === 'error' && errs2.push(m.text().slice(0, 160)))
     await p2.goto(BASE, { waitUntil: 'load' })
