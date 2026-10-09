@@ -161,10 +161,18 @@ export function trackTraffic(page, scriptName) {
       return route.continue()
     }
     if (!/^https?:/.test(url)) return route.continue()
+    // Vercel's preview toolbar (vercel.live) is injected once the bypass cookie is set; its panel covered the
+    // bottom nav on Oct 9 and every later tap timed out. Never loaded, never counted.
+    if (host === 'vercel.live' || host.endsWith('.vercel.live')) return route.abort()
     if (own(host)) {
-      // Protected preview deployments: Vercel's Protection Bypass for Automation headers, when provided.
-      const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-      if (secret && host.endsWith('.vercel.app')) return route.continue({ headers: { ...req.headers(), 'x-vercel-protection-bypass': secret, 'x-vercel-set-bypass-cookie': 'true' } })
+      if (host.endsWith('.vercel.app')) {
+        // Protected preview deployments: Vercel's Protection Bypass for Automation headers, when provided,
+        // and the toolbar opt-out on every request to the deployment.
+        const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+        const headers = { ...req.headers(), 'x-vercel-skip-toolbar': '1' }
+        if (secret) Object.assign(headers, { 'x-vercel-protection-bypass': secret, 'x-vercel-set-bypass-cookie': 'true' })
+        return route.continue({ headers })
+      }
       return route.continue()
     }
     // A suite that declared "no Open-Meteo calls" gets none: the request is aborted and the run flagged.
