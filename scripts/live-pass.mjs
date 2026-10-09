@@ -10,8 +10,17 @@
 //   node scripts/live-pass.mjs [base-url]
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, openSync, closeSync, writeFileSync } from 'node:fs'
-const BASE = process.argv[2] || 'https://stormscope-two.vercel.app/'
+import { bundleOf, readRecords } from './preview-dry-run.mjs'
+const BASE = (process.argv[2] || 'https://stormscope-two.vercel.app/').replace(/\/?$/, '/')
 const day = new Date().toISOString().slice(0, 10)
+// Gate (Oct 9): the deployed bundle must have a green mocked dry run (scripts/preview-dry-run.mjs) first.
+const bundle = await bundleOf(BASE)
+const dry = readRecords().find((r) => r.bundle === bundle && r.base === BASE)
+if (!dry?.green) {
+  console.log(`REFUSED  bundle ${bundle} at ${BASE} has ${dry ? `a RED dry run (${dry.at}: ${dry.steps.join(', ')}${Object.keys(dry.liveHosts ?? {}).length ? '; live calls ' + JSON.stringify(dry.liveHosts) : ''})` : 'no mocked dry run'} — run \`node scripts/preview-dry-run.mjs ${BASE}\` and get it green before the live pass`)
+  process.exit(3)
+}
+console.log(`live-pass: ${BASE} bundle ${bundle} — dry run green at ${dry.at}`)
 const OUT = `e2e-shots/prod/live-${day}`
 mkdirSync(OUT, { recursive: true })
 const steps = [
