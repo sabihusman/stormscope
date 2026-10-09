@@ -30,13 +30,13 @@ const check = (name, ok, ev = '') => {
 }
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 
-async function session({ failHosts = [] } = {}) {
+async function session({ failHosts = [], delayHosts = {} } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: 41.6267, longitude: -93.7122 }, permissions: ['geolocation'] })
   const page = await ctx.newPage()
   const done = trackTraffic(page, 'trip-check.mjs (mock)')
   const hosts = {}
   globalThis.__qaMockedRequest = (url) => { try { const h = new URL(url).host; hosts[h] = (hosts[h] ?? 0) + 1 } catch {} }
-  await installMocks(ctx, { failHosts })
+  await installMocks(ctx, { failHosts, delayHosts })
   const warnings = []
   page.on('console', (m) => m.type() === 'warning' && warnings.push(m.text()))
   await page.goto(BASE, { waitUntil: 'load' })
@@ -108,6 +108,45 @@ const plan = async (page, until, dest) => {
   check('48 h chosen: the legend (in the menu) says "Rain next 48 h" too', (menu.match(/Rain next 48 h/g) ?? []).length >= 2, `${(menu.match(/Rain next 48 h/g) ?? []).length} mentions`)
   await page.screenshot({ path: `${OUT}/legend-48h.png` })
   await openNow(page)
+  done()
+  await ctx.close()
+}
+
+// ---- 5. Change while fetches are in flight (live latency, Oct 9): nothing lands after the clear.
+// (a) the hazards / road hosts answer 2.5 s late; Change is tapped once the forecast is ready.
+// (b) Open-Meteo answers 2.5 s late; Change is tapped while the journey forecast itself is in flight.
+const journeyNow = () => page => page.evaluate(() => { const j = window.__store.get().journey; return { to: !!j.to, routes: !!j.routes.data, weather: !!j.weather.data, hazards: !!j.hazards.data, road: !!j.road.data, hs: j.hazards.state, rs: j.road.state, ws: j.weather.state, gen: j.gen } })
+const leftovers = (j) => Object.entries(j).filter(([k, v]) => ['to', 'routes', 'weather', 'hazards', 'road'].includes(k) && v).map(([k]) => k)
+{
+  const { ctx, page, done, until } = await session({ delayHosts: { 'api.weather.gov': 2500, 'mapservices.weather.noaa.gov': 2500, 'mesonet.agron.iastate.edu': 2500 } })
+  await openTrip(page)
+  await page.getByRole('searchbox', { name: 'Destination' }).fill('Iowa City')
+  await page.waitForTimeout(800)
+  await page.getByRole('dialog').getByRole('option').first().click().catch(async () => page.getByRole('option').first().click())
+  await until(() => { const j = window.__store.get().journey; return j.weather.state === 'ready' && j.hazards.state === 'loading' }, 60000)
+  const before = await journeyNow()(page)
+  await page.getByRole('button', { name: 'Change', exact: true }).click()
+  await page.waitForTimeout(4000)
+  const after = await journeyNow()(page)
+  check('Change while hazards + road are in flight: 4 s later nothing is back (panel and store stay cleared)', before.hazards === false && before.hs === 'loading' && leftovers(after).length === 0 && after.hs === 'idle' && after.rs === 'idle', `before: hazards ${before.hs}, road ${before.rs}; after: ${leftovers(after).join('+') || 'clear'} (hazards ${after.hs}, road ${after.rs}, gen ${before.gen} → ${after.gen})`)
+  const panel = await tripText(page).catch(() => '')
+  const searchBack = await page.getByRole('searchbox', { name: 'Destination' }).isVisible().catch(() => false)
+  check('Change while in flight: the Trip panel shows the destination search again, no stale hazards or road section', searchBack && !/Hazards along the route|Road conditions/.test(panel), `${searchBack ? 'search visible' : 'no search box'}; ${panel.split('\n').slice(0, 2).join(' | ')}`)
+  await page.screenshot({ path: `${OUT}/clear-while-in-flight.png` })
+  done()
+  await ctx.close()
+}
+{
+  const { ctx, page, done, until } = await session({ delayHosts: { 'api.open-meteo.com': 2500 } })
+  await openTrip(page)
+  await page.getByRole('searchbox', { name: 'Destination' }).fill('Iowa City')
+  await page.waitForTimeout(800)
+  await page.getByRole('dialog').getByRole('option').first().click().catch(async () => page.getByRole('option').first().click())
+  await until(() => { const j = window.__store.get().journey; return j.routes.state === 'ready' && j.weather.state === 'loading' }, 60000)
+  await page.getByRole('button', { name: 'Change', exact: true }).click()
+  await page.waitForTimeout(4000)
+  const after = await journeyNow()(page)
+  check('Change while the journey forecast is in flight: no forecast, hazards or road lands afterwards', leftovers(after).length === 0 && after.ws === 'idle' && after.hs === 'idle', `after: ${leftovers(after).join('+') || 'clear'} (weather ${after.ws}, hazards ${after.hs})`)
   done()
   await ctx.close()
 }

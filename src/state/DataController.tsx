@@ -538,6 +538,7 @@ export function DataController() {
     const timer = window.setTimeout(async () => {
       if (lastWeather.current.key === key && Date.now() - lastWeather.current.at < 60_000 && store.get().journey.weather.data) return
       lastWeather.current = { key, at: Date.now() }
+      const gen = store.get().journey.gen
       patchJourney({ weather: loading(store.get().journey.weather) })
       const J = await loadJourney()
       try {
@@ -552,10 +553,10 @@ export function DataController() {
           }
         }
         const w = await J.fetchJourneyWeather(r, jDeparture, undefined, rp?.weather ?? 'auto', cached)
-        patchJourney({ weather: ready(w, 'Open-Meteo (hourly + 15-minutely) at ETA', OPEN_METEO_URL, w.fetchedAt) })
+        patchJourney({ weather: ready(w, 'Open-Meteo (hourly + 15-minutely) at ETA', OPEN_METEO_URL, w.fetchedAt) }, gen)
       } catch (e) {
         const prev = store.get().journey.weather
-        patchJourney({ weather: { ...failed(prev, e), error: J.isRateLimited(e) ? `${describeError(e)} — journey forecast unavailable until then` : describeError(e) } })
+        patchJourney({ weather: { ...failed(prev, e), error: J.isRateLimited(e) ? `${describeError(e)} — journey forecast unavailable until then` : describeError(e) } }, gen)
       }
     }, 800)
     return () => window.clearTimeout(timer)
@@ -598,6 +599,7 @@ export function DataController() {
     const key = `${w.fetchedAt}:${s.replay?.id ?? 'live'}`
     if (!force && hazardsRef.current.key === key && Date.now() - hazardsRef.current.at < 2 * MIN) return
     hazardsRef.current = { key, at: Date.now() }
+    const gen = s.journey.gen
     patchJourney({ hazards: loading(s.journey.hazards) })
     try {
       const { loadReplayHazards, evaluateHazards, statesForBBox, fetchNwsHazards, fetchWatches, fetchOutlooks, resolveZones } = await loadJourney()
@@ -659,9 +661,9 @@ export function DataController() {
         }
         report = evaluateHazards(w.samples, hazards, sources)
       }
-      patchJourney({ hazards: ready(report, s.replay ? 'Replay fixture' : 'NWS alerts + SPC (IEM) + SPC outlooks', 'https://api.weather.gov/alerts', report.evaluatedAt) })
+      patchJourney({ hazards: ready(report, s.replay ? 'Replay fixture' : 'NWS alerts + SPC (IEM) + SPC outlooks', 'https://api.weather.gov/alerts', report.evaluatedAt) }, gen)
     } catch (e) {
-      patchJourney({ hazards: failed(store.get().journey.hazards, e) })
+      patchJourney({ hazards: failed(store.get().journey.hazards, e) }, gen)
     }
   }
   const runHazardsRef = useRef(runHazards)
@@ -688,13 +690,14 @@ export function DataController() {
     const key = `${w.fetchedAt}:${s.replay?.id ?? 'live'}`
     if (!force && roadRef.current.key === key && Date.now() - roadRef.current.at < 5 * MIN) return
     roadRef.current = { key, at: Date.now() }
+    const gen = s.journey.gen
     patchJourney({ road: loading(s.journey.road) })
     try {
       const { evaluateRoadIce, parseRwisArchive, fetchRwisCurrent, statesForBBox } = await loadJourney()
       if (s.replay) {
         const sc = s.replay
         if (!sc.files.rwis || !sc.files.rwisStations) {
-          patchJourney({ road: { ...ready(evaluateRoadIce(w.samples, [], { now: s.journey.departure, mode: 'replay' }), 'no RWIS archive in this fixture', ''), error: 'fixture has no RWIS archive' } })
+          patchJourney({ road: { ...ready(evaluateRoadIce(w.samples, [], { now: s.journey.departure, mode: 'replay' }), 'no RWIS archive in this fixture', ''), error: 'fixture has no RWIS archive' } }, gen)
           return
         }
         const [csv, meta] = await Promise.all([
@@ -703,7 +706,7 @@ export function DataController() {
         ])
         const stations = parseRwisArchive(csv, Object.fromEntries(Object.entries(meta).map(([id, m]) => [id, { name: m.name, lngLat: { lng: m.lng, lat: m.lat } }])), 0)
         const report = evaluateRoadIce(w.samples, stations, { now: s.journey.departure, mode: 'replay' })
-        patchJourney({ road: ready(report, 'IEM RWIS archive (replay)', 'https://mesonet.agron.iastate.edu/RWIS/', report.evaluatedAt) })
+        patchJourney({ road: ready(report, 'IEM RWIS archive (replay)', 'https://mesonet.agron.iastate.edu/RWIS/', report.evaluatedAt) }, gen)
       } else {
         let west = 180, south = 90, east = -180, north = -90
         for (const [x, y] of r.coords) {
@@ -714,15 +717,15 @@ export function DataController() {
         }
         const states = statesForBBox({ west: west - 0.1, south: south - 0.1, east: east + 0.1, north: north + 0.1 })
         if (!states.length) {
-          patchJourney({ road: { ...ready(evaluateRoadIce(w.samples, [], { now: Date.now(), mode: 'live' }), 'IEM RWIS', 'https://mesonet.agron.iastate.edu/RWIS/'), error: 'RWIS pavement sensors are US-only' } })
+          patchJourney({ road: { ...ready(evaluateRoadIce(w.samples, [], { now: Date.now(), mode: 'live' }), 'IEM RWIS', 'https://mesonet.agron.iastate.edu/RWIS/'), error: 'RWIS pavement sensors are US-only' } }, gen)
           return
         }
         const stations = await fetchRwisCurrent(states)
         const report = evaluateRoadIce(w.samples, stations, { now: Date.now(), mode: 'live' })
-        patchJourney({ road: ready(report, `IEM RWIS (${states.map((x) => x + '_RWIS').join(', ')})`, 'https://mesonet.agron.iastate.edu/RWIS/', report.evaluatedAt) })
+        patchJourney({ road: ready(report, `IEM RWIS (${states.map((x) => x + '_RWIS').join(', ')})`, 'https://mesonet.agron.iastate.edu/RWIS/', report.evaluatedAt) }, gen)
       }
     } catch (e) {
-      patchJourney({ road: failed(store.get().journey.road, e) })
+      patchJourney({ road: failed(store.get().journey.road, e) }, gen)
     }
   }
   const runRoadRef = useRef(runRoad)

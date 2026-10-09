@@ -368,8 +368,10 @@ function terrainTile() {
  * Install the mocks on a Playwright context. `focus` is the geolocation the session uses.
  * Returns { live: string[] } — URLs that fell through to the network (should stay empty in replay).
  */
-export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], alerts = [], liveTiles = false } = {}) {
+export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], alerts = [], liveTiles = false, delayHosts = {} } = {}) {
   const live = []
+  // delayHosts: { host: ms } — the answer is held that long (live latency, for races such as Clear while a
+  // hazards / road fetch is in flight).
   // liveTiles: the APIs are answered locally but the tile hosts (basemap, radar, satellite, terrain)
   // go to the network — through the guard, which must be registered before this (it counts them).
   const TILE_HOST = /^(tiles\.openfreemap\.org|tilecache\.rainviewer\.com|gibs\.earthdata\.nasa\.gov|s3\.amazonaws\.com)$/
@@ -381,6 +383,7 @@ export async function installMocks(context, { har = null, record = false, focus 
     const host = new URL(url).host
     if (liveTiles && TILE_HOST.test(host)) return route.fallback()
     globalThis.__qaMockedRequest?.(url)
+    if (delayHosts[host]) await new Promise((r) => setTimeout(r, delayHosts[host]))
     try {
       if (/open-meteo\.com\/v1\/(forecast|era5)/.test(url)) return route.fulfill(json(openMeteo(url)))
       if (host === 'archive-api.open-meteo.com' || host === 'historical-forecast-api.open-meteo.com') return route.fulfill(json(openMeteo(url)))

@@ -95,6 +95,8 @@ export interface Journey {
   hazards: Resource<HazardReport>
   /** RWIS pavement sensors along the route (ice confirmation). */
   road: Resource<RoadReport>
+  /** Bumped by every change of destination / route / clear: a loader started under an older value must not write its result. */
+  gen: number
 }
 
 export interface AppState {
@@ -261,7 +263,7 @@ export const store = createStore<AppState>({
   toast: null,
   layerErrors: {},
   refreshNonce: 0,
-  journey: { to: null, departure: Date.now(), routes: emptyResource(), selected: 0, weather: emptyResource(), hazards: emptyResource(), road: emptyResource() },
+  journey: { to: null, departure: Date.now(), routes: emptyResource(), selected: 0, weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), gen: 0 },
   replay: null,
   imageryCarry: null,
   imageryLag: null,
@@ -388,7 +390,7 @@ export function setLayer(id: LayerId, on: boolean) {
 }
 
 export function setJourneyTo(to: Place) {
-  store.set((s) => ({ journey: { ...s.journey, to, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0 }, screen: 'trip', selection: null }))
+  store.set((s) => ({ journey: { ...s.journey, to, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0, gen: s.journey.gen + 1 }, screen: 'trip', selection: null }))
 }
 
 /** Navigate. `more` pages take the current place as their input. Playback keeps its state (the bar is always on screen on wide layouts). */
@@ -436,13 +438,17 @@ export function setDeparture(ms: number) {
   store.set((s) => ({ journey: { ...s.journey, departure: ms } }))
 }
 export function selectRoute(i: number) {
-  store.set((s) => ({ journey: { ...s.journey, selected: i, weather: emptyResource(), hazards: emptyResource(), road: emptyResource() } }))
+  store.set((s) => ({ journey: { ...s.journey, selected: i, weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), gen: s.journey.gen + 1 } }))
 }
 export function clearJourney() {
-  store.set((s) => ({ journey: { ...s.journey, to: null, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0 }, selection: null }))
+  store.set((s) => ({ journey: { ...s.journey, to: null, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0, gen: s.journey.gen + 1 }, selection: null }))
 }
-export function patchJourney(p: Partial<Journey>) {
-  store.set((s) => ({ journey: { ...s.journey, ...p } }))
+/**
+ * Merge into the journey. With `gen`, the patch is dropped when the journey has since been changed or cleared
+ * (Oct 9: a live hazards / road response landing after Change repopulated the panel for good).
+ */
+export function patchJourney(p: Partial<Journey>, gen?: number) {
+  store.set((s) => (gen !== undefined && s.journey.gen !== gen ? {} : { journey: { ...s.journey, ...p } }))
 }
 
 export function setFabCorner(fabCorner: FabCorner) {
