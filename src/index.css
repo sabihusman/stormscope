@@ -62,6 +62,24 @@ small {
   --sheet-h: 0px;
   --playbar-h: 0px;
   --dock-h: max(var(--sheet-h), var(--playbar-h));
+  /* The visible viewport height: 100vh is iOS Safari's *largest* viewport (toolbar collapsed); dvh follows the toolbar. */
+  --vvh: 100vh;
+  /* Map chrome the layers panel must stay between: the top bar (its height is published by SearchBar) and the ☰ button. */
+  --topbar-top: 10px;
+  --topbar-h: 44px;
+  --fab-h: 56px;
+  --fab-gap: 10px;
+  --fab-margin: 14px;
+  --fab-stack-bottom: calc(var(--sab) + var(--dock-h) + var(--fab-margin));
+  --fab-stack-top: calc(var(--sat) + 64px);
+  /* Space the open panel keeps clear at each end (a small gap beyond the chrome itself). */
+  --menu-top-reserve: calc(var(--sat) + var(--topbar-top) + var(--topbar-h) + 8px);
+  --menu-bottom-reserve: calc(var(--sab) + var(--dock-h) + 8px);
+}
+@supports (height: 100dvh) {
+  .app {
+    --vvh: 100dvh;
+  }
 }
 .app.sheet-half {
   --sheet-h: min(46vh, 420px);
@@ -277,17 +295,17 @@ small {
 .fab-stack {
   position: absolute;
   right: calc(var(--sar) + 12px);
-  bottom: calc(var(--sab) + var(--dock-h) + 14px);
+  bottom: var(--fab-stack-bottom);
   transition: bottom 0.25s ease;
   z-index: 25;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 10px;
+  gap: var(--fab-gap);
 }
 .fab-main {
-  width: 56px;
-  height: 56px;
+  width: var(--fab-h);
+  height: var(--fab-h);
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--accent-2);
@@ -305,8 +323,13 @@ small {
   border-radius: 16px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
-  max-height: calc(100vh - var(--dock-h) - 180px);
-  overflow: auto;
+  /* Bottom-anchored above ☰: never taller than the visible space between the top bar and the button
+     (Oct 9: a 100vh budget that ignored the nav bar, the safe areas and Safari's collapsed-toolbar vh ran
+     the panel over the place pill and off the top on iPhone). The rows scroll inside the panel. */
+  max-height: calc(var(--vvh) - var(--fab-stack-bottom) - var(--fab-h) - var(--fab-gap) - var(--menu-top-reserve));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .fab-item {
   display: flex;
@@ -1003,7 +1026,7 @@ small {
 .app.fab-tl .fab-stack,
 .app.fab-tr .fab-stack {
   bottom: auto;
-  top: calc(var(--sat) + 64px);
+  top: var(--fab-stack-top);
   flex-direction: column-reverse;
 }
 .app.fab-tl .fab-stack {
@@ -1013,7 +1036,8 @@ small {
 }
 .app.fab-tl .fab-stack .fab-menu,
 .app.fab-tr .fab-stack .fab-menu {
-  max-height: calc(100vh - var(--dock-h) - 200px);
+  /* Top-anchored below ☰: the space down to the dock (sheet / playback bar) and the nav. */
+  max-height: calc(var(--vvh) - var(--fab-stack-top) - var(--fab-h) - var(--fab-gap) - var(--menu-bottom-reserve));
 }
 /* Keep the legend / map controls out from under the button. */
 .app.fab-tl .legend,
@@ -1356,9 +1380,10 @@ small {
 .app.narrow.screen-map.sheet-full {
   --sheet-h: calc(100vh - var(--sat) - 70px - var(--nav-h) - var(--sab));
 }
-.app.narrow.screen-map.fab-br .fab-stack,
-.app.narrow.screen-map.fab-bl .fab-stack {
-  bottom: calc(var(--nav-h) + var(--sab) + var(--dock-h) + 14px);
+.app.narrow.screen-map {
+  /* The bottom nav sits under the map chrome on phones: ☰ and the panel's bottom reserve clear it. */
+  --fab-stack-bottom: calc(var(--nav-h) + var(--sab) + var(--dock-h) + var(--fab-margin));
+  --menu-bottom-reserve: calc(var(--nav-h) + var(--sab) + var(--dock-h) + 8px);
 }
 .app.narrow.screen-map .maplibregl-ctrl-bottom-left,
 .app.narrow.screen-map .maplibregl-ctrl-bottom-right {
