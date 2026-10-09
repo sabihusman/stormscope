@@ -1,5 +1,11 @@
 # Build log
 
+## Oct 9 — DyDvRSBo promoted to production; the release rule simplified
+
+On the user's instruction, preview 9hfo22lyg (bundle DyDvRSBo, commit 7e0c842) was promoted at 02:47 UTC (`vercel promote`, new production deployment `dpl_46XGr4Tbtzpzou6MDJZ1XatVySqB`), skipping the remaining live pass and the decision on the qa headless long-task check for this release. The alias https://stormscope-two.vercel.app serves `index-DyDvRSBo.js` (checked plain and cache-busted). Rollback target: `dpl_8idjCSZ89DbsaF8RUnq8UbQDaYX4` (DT2bjBmp) — see ROLLBACK.md.
+
+**Release rule from here on (the user's):** a release needs the tests on saved data to pass (the mocked suites against the preview) plus the user's own check on their phone. Live-data tests run only when they ask.
+
 ## Oct 9 (night) — new preview 9hfo22lyg (bundle DyDvRSBo), its mocked dry run, the live-tiles playback check
 
 **Preview:** https://stormscope-9hfo22lyg-sabihusman-4178s-projects.vercel.app, bundle `index-DyDvRSBo.js`, commit 7e0c842 (harness commits after it do not change the bundle). Secret generated for the runs below and revoked after (0 entries).
