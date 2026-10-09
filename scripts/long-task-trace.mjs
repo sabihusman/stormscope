@@ -2,18 +2,20 @@
 // (phone 390×844, APIs mocked, headless software GL unless --headed) and, over N windows of
 // play 3 s → pause → 3 s idle, records every long task (with its attribution) and a CPU profile of the
 // idle window, then prints the functions with the most self time inside it.
-//   node scripts/long-task-trace.mjs [base-url] [--windows=3] [--headed] [--out=e2e-shots/trace]
+//   node scripts/long-task-trace.mjs [base-url] [--windows=3] [--headed] [--qa-path] [--out=e2e-shots/trace]
+// --qa-path reproduces qa.mjs's map state (rivers on, z9.5 over the place, rain → flood → nowcast).
 import { chromium } from 'playwright'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 import { summarise } from './lib/cpu-profile.mjs'
-import { allowLocation, expandPlayback, openMap, settle } from './lib/ui.mjs'
+import { allowLocation, expandPlayback, openMap, setLayers, settle } from './lib/ui.mjs'
 
 const args = process.argv.slice(2)
 const BASE = (args.find((a) => !a.startsWith('--')) || 'http://localhost:4173/').replace(/\/?$/, '/')
 const WINDOWS = Number(args.find((a) => a.startsWith('--windows='))?.slice(10) ?? 3)
 const HEADED = args.includes('--headed')
+const QA_PATH = args.includes('--qa-path')
 const OUT = args.find((a) => a.startsWith('--out='))?.slice(6) ?? 'e2e-shots/trace'
 mkdirSync(OUT, { recursive: true })
 assertBudget('long-task-trace.mjs (mock)')
@@ -34,7 +36,17 @@ await allowLocation(page)
 const until = async (fn, ms = 60000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(200) } return false }
 await until(() => window.__store?.get().conditions.state === 'ready')
 await openMap(page)
-await page.getByRole('button', { name: 'Open layer menu' }).click()
+if (QA_PATH) {
+  // qa.mjs's state before its window: rivers on, the map over the place at z9.5, rain → flood → nowcast.
+  await setLayers(page, { rivers: true })
+  await page.evaluate(() => { const p = window.__store.get().place.lngLat; window.__map.jumpTo({ center: [p.lng, p.lat], zoom: 9.5 }) })
+  await settle(page, 1200)
+  await page.getByRole('button', { name: 'Open layer menu' }).click()
+  await page.getByRole('radio', { name: 'Rain next 24 h' }).click()
+  await settle(page, 400)
+  await page.getByRole('radio', { name: 'Flood risk' }).click()
+  await settle(page, 400)
+} else await page.getByRole('button', { name: 'Open layer menu' }).click()
 await page.getByRole('radio', { name: 'Next 2 h wind & cloud' }).click()
 await page.getByRole('button', { name: 'Close layer menu' }).click()
 await settle(page, 12000)
@@ -64,8 +76,9 @@ for (let w = 1; w <= WINDOWS; w++) {
   const lt = await page.evaluate(() => { window.__ltObs.disconnect(); return { tasks: window.__lt.map((e) => ({ ...e, t: e.t - Math.round(window.__t0) })), heap: Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1048576) } })
   const s = summarise(profile, 15)
   writeFileSync(`${OUT}/window-${w}.cpuprofile`, JSON.stringify(profile))
-  report.push({ window: w, longTasks: lt.tasks, heapMB: lt.heap, busyMs: s.total, top: s.top })
-  console.log(`window ${w}: long tasks ${lt.tasks.length ? lt.tasks.map((t) => `${t.d} ms at +${t.t} ms${t.attr ? ' (' + t.attr + ')' : ''}`).join('; ') : 'none'} · JS busy ${s.total} ms of 3 000 · heap ${lt.heap} MB`)
+  const particles = await page.evaluate(() => window.__particles ?? null)
+  report.push({ window: w, longTasks: lt.tasks, heapMB: lt.heap, busyMs: s.total, particles, top: s.top })
+  console.log(`window ${w}: long tasks ${lt.tasks.length ? lt.tasks.map((t) => `${t.d} ms at +${t.t} ms${t.attr ? ' (' + t.attr + ')' : ''}`).join('; ') : 'none'} · JS busy ${s.total} ms of 3 000 · heap ${lt.heap} MB${particles ? ` · particles ${particles.active}/${particles.count}, ${particles.avgMs} ms per frame, ${particles.skipped} skipped` : ''}`)
   for (const t of s.top) console.log(`    ${String(t.ms).padStart(7)} ms  ${t.fn}`)
 }
 writeFileSync(`${OUT}/report.json`, JSON.stringify({ base: BASE, headed: HEADED, at: new Date().toISOString(), report }, null, 1))
