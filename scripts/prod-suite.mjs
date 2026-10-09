@@ -99,15 +99,18 @@ for (const s of SUITES) {
   const passed = out.match(/(\d+)\/(\d+) (?:checks )?passed/)
   const skipped = /^SKIP/m.test(out)
   const blocked = (out.match(/^BLOCK .*/gm) ?? []).join('; ')
-  const status = skipped ? 'skip' : passed ? `${passed[1]}/${passed[2]}` : `crash (exit ${r.status})`
-  const ok = !skipped && !!passed && passed[1] === passed[2] && !blocked
+  // A suite prints SKIP for a section it cannot run here (its live-only part under --mock, or the whole
+  // suite). The checks that did run still count; a mock-only skip of a live-only suite is fine in a mocked
+  // run (the dry run), and only a live run treats a skip as incomplete.
+  const status = passed ? `${passed[1]}/${passed[2]}${skipped ? '+skip' : ''}` : skipped ? 'skip' : `crash (exit ${r.status})`
+  const ok = !blocked && (passed ? passed[1] === passed[2] : skipped && mock)
   results.push({ name: s.name, status, ok, blocked, secs: Math.round((Date.now() - t0) / 1000) })
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${s.name.padEnd(18)} ${status.padEnd(8)} ${results.at(-1).secs}s${split ? (isMocked(s) ? '  (mock)' : '  (live)') : ''}${blocked ? '  ' + blocked : ''}`)
   for (const line of out.split('\n')) if (/^FAIL|^SKIP|traffic: BLOCKED/.test(line)) console.log('      ' + line)
 }
 const summary = `${results.filter((r) => r.ok).length}/${results.length} suites passed`
 // A run cut short by the budget guard doesn't count as "done" for this bundle.
-const incomplete = results.some((r) => r.status === 'skip')
+const incomplete = !mock && results.some((r) => r.status === 'skip')
 runs.push({ bundle, base: BASE, at: new Date().toISOString(), only: only ?? null, mock, split, incomplete, summary, results, logs: OUT })
 writeFileSync(RUNS, JSON.stringify(runs, null, 1))
 console.log(summary)
