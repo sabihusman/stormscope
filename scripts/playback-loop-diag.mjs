@@ -3,8 +3,11 @@
 // shown before their tiles were loaded ("blank"), frame times (p50 / p95 / max from rAF deltas), the
 // longest main-thread task, and the JS heap. Loops 2+ must make ~0 requests with no frame over 100 ms.
 // Perf profile: headed Chrome by default (real GPU), CPU 4×, Fast 4G, APIs and tiles mocked.
-//   node scripts/playback-loop-diag.mjs [base-url] [--viewport=phone|desktop] [--loops=3] [--headless] [--assert]
+// --live-tiles: the APIs stay mocked but the tile hosts (basemap, radar, GIBS, terrain) are fetched for
+// real through the traffic guard — the stutter fix verified on real tile latency and sizes.
+//   node scripts/playback-loop-diag.mjs [base-url] [--viewport=phone|desktop] [--loops=3] [--headless] [--assert] [--live-tiles]
 import { chromium } from 'playwright'
+import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 import { allowLocation, openMap, setLayers } from './lib/ui.mjs'
 
@@ -14,6 +17,9 @@ const VIEW = args.find((a) => a.startsWith('--viewport='))?.slice(11) ?? 'phone'
 const LOOPS = Number(args.find((a) => a.startsWith('--loops='))?.slice(8) ?? 3)
 const HEADLESS = args.includes('--headless')
 const ASSERT = args.includes('--assert')
+const LIVE_TILES = args.includes('--live-tiles')
+const NAME = `playback-loop-diag.mjs ${VIEW}${LIVE_TILES ? ' (live tiles, APIs mocked)' : ' (mock)'}`
+assertBudget(NAME)
 const VP = VIEW === 'desktop' ? { width: 1366, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 } : { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 3 }
 const STEP = 450
 const TILE_HOSTS = /^(gibs\.earthdata\.nasa\.gov|tilecache\.rainviewer\.com|tiles\.openfreemap\.org|s3\.amazonaws\.com)$/
@@ -28,14 +34,16 @@ await ctx.addInitScript(() => {
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__longTasks.push({ t: e.startTime, d: e.duration }) }).observe({ type: 'longtask', buffered: true }) } catch {}
 })
 const page = await ctx.newPage()
-await installMocks(ctx, {})
+// The guard first (bypass + toolbar opt-out on a protected preview, caps on live tile hosts), then the mocks.
+const done = trackTraffic(page, NAME)
+await installMocks(ctx, { liveTiles: LIVE_TILES })
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
 await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 20, downloadThroughput: (4 * 1024 * 1024) / 8, uploadThroughput: (3 * 1024 * 1024) / 8 })
 
-// Tile requests, stamped so they can be attributed to loops.
+// Tile requests, stamped so they can be attributed to loops (mocked and live alike: the page's request events).
 const reqs = []
-globalThis.__qaMockedRequest = (url) => { try { reqs.push({ t: Date.now(), host: new URL(url).host }) } catch {} }
+page.on('request', (r) => { try { reqs.push({ t: Date.now(), host: new URL(r.url()).host }) } catch {} })
 
 await page.goto(BASE, { waitUntil: 'load' })
 await allowLocation(page)
@@ -135,12 +143,13 @@ await setLayers(page, { radar: true, satellite: false })
 await until(() => window.__map.areTilesLoaded(), 30000)
 await page.waitForTimeout(1500)
 await measure('radar')
+done()
 await browser.close()
 
 // Frame times are only meaningful on a real GPU with the window in front; headless SwiftShader asserts requests only.
 let okReq = true
 let okFrames = true
-console.log(`playback-loop-diag ${VIEW} ${HEADLESS ? 'headless' : 'headed'} CPU 4× Fast 4G mocked ${BASE}`)
+console.log(`playback-loop-diag ${VIEW} ${HEADLESS ? 'headless' : 'headed'} CPU 4× Fast 4G ${LIVE_TILES ? 'live tiles, APIs mocked' : 'mocked'} ${BASE}`)
 for (const r of results) {
   console.log(`  ${r.layer}: ${r.ticks} frames per loop`)
   for (const L of r.report) {

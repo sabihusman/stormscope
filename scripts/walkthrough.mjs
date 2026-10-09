@@ -236,6 +236,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     const ctx2 = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch, deviceScaleFactor: vp.deviceScaleFactor, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
     await installMocks(ctx2, { focus: FOCUS, failHosts: ['api.open-meteo.com', 'api.water.noaa.gov', 'api.waterdata.usgs.gov'] })
     const p2 = await ctx2.newPage()
+    const done2 = trackTraffic(p2, `walkthrough.mjs ${vpName} rate-limited${MOCK ? ' (mock)' : ''}`) // bypass + toolbar opt-out on a preview, too
     const errs2 = []
     p2.on('console', (m) => m.type() === 'error' && errs2.push(m.text().slice(0, 160)))
     await p2.goto(BASE, { waitUntil: 'load' })
@@ -252,6 +253,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     const rec = { name: 'rate-limited sources (429 from Open-Meteo, NWPS, USGS)', timeToUsableMs: Date.now() - t0, riversText: text.split('\n').slice(0, 3).join(' | '), pills, consoleErrors: errs2.filter((e) => !/429|Failed to load resource/.test(e)), screenshot: file, ok: /rate-limited|unavailable|limit/i.test(text) }
     features.push(rec)
     console.log(`${String(rec.timeToUsableMs + 'ms').padStart(8)}  ${rec.name.padEnd(42)} wording ok:${rec.ok} | ${rec.riversText.slice(0, 120)}`)
+    done2()
     await ctx2.close()
   }
   done()
