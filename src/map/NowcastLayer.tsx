@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { CanvasSource, Map as MlMap } from 'maplibre-gl'
 import { CLOUD_STOPS, RAIN_STOPS } from '../lib/colors'
-import { blockAt, blockKey, unionBBox } from '../lib/blocks'
+import { blockAt, blockBBox, blockKey, unionBBox } from '../lib/blocks'
 import { useReducedMotion } from '../hooks/useMisc'
 import { store, useApp, useVisibleBlocks } from '../state/store'
 import { firstSymbolLayer, useMap } from './MapView'
@@ -188,6 +188,12 @@ interface Particle {
   age: number
   px: number
   py: number
+  /** The block the particle was last sampled in (key + bbox), so a frame costs no key building or lookup while it stays inside. */
+  bk?: string
+  bw?: number
+  be?: number
+  bs?: number
+  bn?: number
 }
 
 export function WindParticles() {
@@ -222,9 +228,25 @@ export function WindParticles() {
     resize()
     const { west, east, south, north } = union
 
-    // Wind at a point from the block that contains it (latest data from the store).
-    const sampleUV = (lng: number, lat: number): [number, number] | null => {
-      const key = blockKey(blockAt({ lng, lat }, level))
+    // Wind at a point from the block that contains it (latest data from the store). With a particle, the
+    // block key and bbox are cached on it: the Oct 9 trace put ≈ 50 µs per particle per frame (≈ 27 ms a
+    // frame for 550 particles) in the key string, the lookup and two closures allocated per call, which
+    // also fed the GC; a particle that stays inside its block now costs the bilinear read only.
+    const uv: [number, number] = [0, 0]
+    const sampleUV = (lng: number, lat: number, p?: Particle): [number, number] | null => {
+      let key: string
+      if (p && p.bk !== undefined && lng >= p.bw! && lng < p.be! && lat >= p.bs! && lat < p.bn!) key = p.bk
+      else {
+        key = blockKey(blockAt({ lng, lat }, level))
+        if (p) {
+          const bb = blockBBox(blockAt({ lng, lat }, level))
+          p.bk = key
+          p.bw = bb.west
+          p.be = bb.east
+          p.bs = bb.south
+          p.bn = bb.north
+        }
+      }
       const nc = store.get().blocks[key]?.nowcast.data
       if (!nc) return null
       const f = nc.frames[Math.min(nc.frames.length - 1, frameRef.current)]
@@ -236,10 +258,17 @@ export function WindParticles() {
       const y0 = Math.max(0, Math.min(n - 2, Math.floor(gy)))
       const fx = Math.max(0, Math.min(1, gx - x0))
       const fy = Math.max(0, Math.min(1, gy - y0))
-      const at = (arr: Float32Array, r: number, c: number) => arr[r * n + c]
-      const bl = (arr: Float32Array) =>
-        at(arr, y0, x0) * (1 - fx) * (1 - fy) + at(arr, y0, x0 + 1) * fx * (1 - fy) + at(arr, y0 + 1, x0) * (1 - fx) * fy + at(arr, y0 + 1, x0 + 1) * fx * fy
-      return [bl(f.u), bl(f.v)]
+      const i00 = y0 * n + x0
+      const i10 = i00 + 1
+      const i01 = i00 + n
+      const i11 = i01 + 1
+      const w00 = (1 - fx) * (1 - fy)
+      const w10 = fx * (1 - fy)
+      const w01 = (1 - fx) * fy
+      const w11 = fx * fy
+      uv[0] = f.u[i00] * w00 + f.u[i10] * w10 + f.u[i01] * w01 + f.u[i11] * w11
+      uv[1] = f.v[i00] * w00 + f.v[i10] * w10 + f.v[i01] * w01 + f.v[i11] * w11
+      return uv
     }
     const mPerDegLat = 111_320
     const mPerDegLng = mPerDegLat * Math.cos((((south + north) / 2) * Math.PI) / 180)
@@ -331,6 +360,7 @@ export function WindParticles() {
       q.lng = sb.west + Math.random() * Math.max(1e-6, sb.east - sb.west)
       q.lat = sb.south + Math.random() * Math.max(1e-6, sb.north - sb.south)
       q.age = Math.floor(Math.random() * 200)
+      q.bk = undefined
       const s = projectFast(q.lng, q.lat)
       q.px = s.x
       q.py = s.y
@@ -403,7 +433,7 @@ export function WindParticles() {
       for (let i = 0; i < BUCKETS; i++) paths.push(new Path2D())
       for (let i = 0; i < active; i++) {
         const p = particles[i]
-        const uv = sampleUV(p.lng, p.lat)
+        const uv = sampleUV(p.lng, p.lat, p)
         if (!uv || p.age++ > 220) {
           spawn(p)
           continue
