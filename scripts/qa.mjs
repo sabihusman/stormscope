@@ -2,11 +2,12 @@
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
+import { formatTop, startProfile } from './lib/cpu-profile.mjs'
 import { expandPlayback, openMap, openMore, openRivers, pageText, setSheet, setUnits, sheetText, searchPlace } from './lib/ui.mjs'
 // --mock answers every API locally (zero live calls, scripts/lib/mock-server.mjs); live-only checks are skipped and said so.
 const MOCK = process.argv.includes('--mock')
 assertBudget(MOCK ? 'qa.mjs (mock)' : 'qa.mjs')
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 
 const BASE = process.argv[2] || 'http://localhost:5173/'
 const OUT = process.argv[3] || 'e2e-shots/qa'
@@ -260,11 +261,14 @@ const fps = await page.evaluate(
 )
 await page.getByRole('button', { name: 'Pause' }).click()
 check('Main thread not frozen with radar + nowcast playing (headless software GL; real devices use the GPU)', fps >= 1, `${fps.toFixed(0)} fps`)
+// A CPU profile of the idle window names a long task when there is one (Oct 9: 1 844 ms on the preview, none
+// on the same bundle the day before); the profile is kept next to the screenshots.
+const stopProfile = await startProfile(page, { intervalUs: 1000 }).catch(() => null)
 const longTasks = await page.evaluate(
   () =>
     new Promise((res) => {
       const seen = []
-      const po = new PerformanceObserver((l) => l.getEntries().forEach((e) => seen.push(Math.round(e.duration))))
+      const po = new PerformanceObserver((l) => l.getEntries().forEach((e) => seen.push({ d: Math.round(e.duration), t: Math.round(e.startTime), who: e.attribution?.map((a) => `${a.containerType}${a.containerName ? ':' + a.containerName : ''}`).join(',') })))
       po.observe({ entryTypes: ['longtask'] })
       setTimeout(() => {
         po.disconnect()
@@ -272,7 +276,11 @@ const longTasks = await page.evaluate(
       }, 3000)
     }),
 )
-check('No long main-thread tasks (>200 ms) while idle with the nowcast overlay', !longTasks.some((d) => d > 200), `long tasks: ${longTasks.join(',') || 'none'}`)
+const prof = stopProfile ? await stopProfile({ top: 10 }).catch(() => null) : null
+if (prof) writeFileSync(`${OUT}/idle-nowcast.cpuprofile`, JSON.stringify(prof.profile))
+const over = longTasks.filter((t) => t.d > 200)
+const particles = await page.evaluate(() => window.__particles ?? null)
+check('No long main-thread tasks (>200 ms) while idle with the nowcast overlay', over.length === 0, `long tasks: ${longTasks.map((t) => `${t.d}${t.who ? '(' + t.who + ')' : ''}`).join(',') || 'none'}${prof ? ` · JS busy ${prof.total} ms of 3 000` : ''}${particles ? ` · particles ${particles.active}/${particles.count}, ${particles.avgMs} ms per frame, ${particles.skipped} skipped` : ''}${over.length && prof ? ` · top self time: ${formatTop(prof.top)}` : ''}`)
 await page.screenshot({ path: `${OUT}/map-nowcast.png` })
 
 // Place persistence across reload
