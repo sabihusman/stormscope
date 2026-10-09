@@ -71,6 +71,7 @@ const SUITES = [
   { name: 'blocks', script: 'blocks-check.mjs' },
   { name: 'zoom', script: 'zoom-check.mjs' },
   { name: 'fab', script: 'fab-check.mjs' },
+  { name: 'menu', script: 'menu-check.mjs' },
   { name: 'sheet', script: 'sheet-check.mjs' },
   { name: 'boundary', script: 'boundary-check.mjs' },
   { name: 'follow', script: 'follow-check.mjs' },
