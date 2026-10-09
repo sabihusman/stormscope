@@ -33,7 +33,9 @@ const LEGACY = `${DIR}/.open-meteo-budget.json`
  * hazards 23, road 23, perf 0 → ≈ 235. A full live run of every suite (`--force` without `--split`) needs
  * ≈ 4 400 (Oct 8: 3 686 for 10 of 18 suites) and must set QA_OM_CAP deliberately.
  */
-export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 300)
+// Oct 9 split pass, measured: pwa 5, flows 105, nonus 51, satellite 1, rivers 1, journey 74, hazards 33, road 6
+// (capped: its live section never ran) → 276. Cap 350 leaves room for road's live section (≈ 25).
+export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 350)
 
 /** Requests per UTC day per host. Unlisted hosts get DEFAULT_CAP; our own origins are never counted. */
 // Sized for ONE release pass (split suite + mocked walkthrough + perf with live tiles) with no retry
@@ -41,20 +43,24 @@ export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 300)
 // live suite, × ~1.3 because they are small. A full live run of every suite needs QA_CAPS set deliberately
 // (Oct 7 sizing: Open-Meteo 120, NWPS 150, NWS 140, SPC 85, IEM 60, nominatim 40, NHD 30, RainViewer 50,
 // GIBS 1 100, radar tiles 1 700, basemap 1 200, terrain 450 — and that run still blew NHD and terrain).
+// Oct 9: the Oct 8 ledger had hazards and road skipped, so their rows below were guesses (NWS 1 each; measured 23
+// and ≥ 12) and the split pass capped NWS, NWPS, nominatim and Open-Meteo in those two suites. Re-sized from the
+// Oct 9 ledger (used + blocked per host, + ~25 %); a blocked NWS station call falls back to Open-Meteo, so one
+// cap cascades into another.
 export const HOST_CAPS = {
-  'api.open-meteo.com': 40, // pwa 2 + flows 10 + nonus 3 + satellite 4 + rivers 1 + journey 3 + hazards 1 + road 1 = 25
+  'api.open-meteo.com': 60, // Oct 9: pwa 5 + flows 9 + nonus 3 + satellite 1 + rivers 1 + journey 4 + hazards 11 + road 6 (+7 blocked) = 47
   'archive-api.open-meteo.com': 5, // replays are cached; only re-recording calls this
   'historical-forecast-api.open-meteo.com': 5,
   'geocoding-api.open-meteo.com': 10, // flows 1 + nonus 1 + journey 1
   'api.waterdata.usgs.gov': 50, // rivers-check's Node-side comparisons 27 + 3 per Rivers page open (2 opens)
-  'api.water.noaa.gov': 60, // flows 22 (Rivers page once) + rivers 21 + 1 per other live context = 46
-  'api.weather.gov': 60, // flows 15 + satellite 8 + pwa 4 + nonus 4 + rivers 4 + journey 3 + hazards 1 + road 1 = 40
+  'api.water.noaa.gov': 85, // Oct 9: pwa 3 + flows 24 + satellite 1 + rivers 21 + journey 1 + hazards 8 + road 2 (+5 blocked) = 65
+  'api.weather.gov': 110, // Oct 9: pwa 14 + flows 23 + satellite 4 + rivers 4 + journey 7 + hazards 23 + road 12 = 87
   'alerts.weather.gov': 10,
   'mapservices.weather.noaa.gov': 45, // journey Philadelphia 18 + hazards 6 + road 6 = 30
   'mesonet.agron.iastate.edu': 40, // journey Philadelphia 18 + hazards 6 + road 3 = 27
   'valhalla1.openstreetmap.de': 10, // 3
   'router.project-osrm.org': 10,
-  'nominatim.openstreetmap.org': 20, // ≈ 12
+  'nominatim.openstreetmap.org': 30, // Oct 9: pwa 4 + flows 4 + nonus 1 + satellite 2 + rivers 2 + journey 1 + hazards 5 + road 5 = 24
   'hydro.nationalmap.gov': 10, // flows 3 (Flood page) + nonus 1
   'gibs.earthdata.nasa.gov': 1000, // satellite ×2 ≈ 800
   'api.rainviewer.com': 20, // ≈ 12
