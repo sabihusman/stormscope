@@ -382,6 +382,9 @@ export async function installMocks(context, { har = null, record = false, focus 
     const url = req.url()
     const host = new URL(url).host
     if (liveTiles && TILE_HOST.test(host)) return route.fallback()
+    // Live tiles need the live frame lists: the mock's radar paths are synthetic and the real tile host
+    // answers them 410, which MapLibre treats as an errored tile and re-requests on every loop (Oct 9).
+    if (liveTiles && (host === 'api.rainviewer.com' || (host === 'gibs.earthdata.nasa.gov' && url.includes('WMTSCapabilities')))) return route.fallback()
     globalThis.__qaMockedRequest?.(url)
     if (delayHosts[host]) await new Promise((r) => setTimeout(r, delayHosts[host]))
     try {
