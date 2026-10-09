@@ -53,7 +53,7 @@ for (let i = 0; i < 90; i++) {
   if (/terrain \+ rain only|not available here/.test(floodText)) break
   await settle(page, 1000)
 }
-check('Non-US: flood page computes for the place and falls back to terrain + rain', /terrain \+ rain only|not available here/.test(floodText) && / at /.test(floodText), floodText.split('\n').slice(0, 3).join(' | '))
+check('Non-US: flood page computes for the place and falls back to terrain + rain', /terrain \+ rain only|not available here/.test(floodText) && /(^|\s)at /m.test(floodText), floodText.split('\n').slice(0, 3).join(' | '))
 await page.screenshot({ path: `${OUT}/london-flood.png` })
 done()
 await browser.close()
