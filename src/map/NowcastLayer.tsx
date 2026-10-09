@@ -337,6 +337,16 @@ export function WindParticles() {
       return q
     }
     for (let i = 0; i < COUNT; i++) particles.push(spawn())
+    // Adaptive budget (Oct 9): the loop measures its own cost per frame. Averaging over BUDGET_MS, it draws
+    // fewer particles (down to a quarter) and skips frames, so a slow renderer — a low-end phone, or the
+    // software canvas the headless suites run on, where a frame cost ≈ 110 ms — keeps the main thread
+    // free instead of stalling it; it climbs back once frames are cheap again. Exposed for diagnosis.
+    const BUDGET_MS = 24
+    let active = COUNT
+    let avgMs = 0
+    let skip = 0
+    const stats = { count: COUNT, active, avgMs: 0, frames: 0, skipped: 0 }
+    ;(window as unknown as { __particles?: typeof stats }).__particles = stats
     let raf = 0
     let last = performance.now()
     let moving = false
@@ -358,11 +368,21 @@ export function WindParticles() {
     // one "particles" measure per frame so a long frame can be attributed to this loop or not.
     const marks = (window as unknown as { __perfMarks?: boolean }).__perfMarks === true
     const loop = (t: number) => {
-      const dt = Math.min(50, t - last) / 1000
-      last = t
       raf = requestAnimationFrame(loop)
-      if (moving || document.hidden) return
-      const m0 = marks ? performance.now() : 0
+      if (moving || document.hidden) {
+        last = t
+        return
+      }
+      if (skip > 0) {
+        skip--
+        stats.skipped++
+        return
+      }
+      // Skipped frames accumulate into this dt (capped), so the drift speed does not depend on the budget.
+      const dt = Math.min(100, t - last) / 1000
+      last = t
+      const t0 = performance.now()
+      const m0 = marks ? t0 : 0
       ctx.globalCompositeOperation = 'destination-out'
       // Tail length follows zoom (short ticks at z5, long streaks at z12) and is
       // frame-rate independent (fade per 16.7 ms, converted with this frame's dt).
@@ -381,7 +401,8 @@ export function WindParticles() {
       const BUCKETS = 8
       const paths: Path2D[] = []
       for (let i = 0; i < BUCKETS; i++) paths.push(new Path2D())
-      for (const p of particles) {
+      for (let i = 0; i < active; i++) {
+        const p = particles[i]
         const uv = sampleUV(p.lng, p.lat)
         if (!uv || p.age++ > 220) {
           spawn(p)
@@ -404,6 +425,19 @@ export function WindParticles() {
         ctx.strokeStyle = `rgba(15,23,42,${(0.25 + ((b + 0.5) / BUCKETS) * 0.65).toFixed(3)})`
         ctx.stroke(paths[b])
       }
+      const cost = performance.now() - t0
+      avgMs = avgMs ? avgMs * 0.8 + cost * 0.2 : cost
+      if (avgMs > BUDGET_MS) {
+        active = Math.max(Math.round(COUNT / 4), Math.round(active * 0.7))
+        skip = avgMs > BUDGET_MS * 3 ? 3 : 1
+      } else if (avgMs < BUDGET_MS / 2 && active < COUNT) {
+        const next = Math.min(COUNT, Math.round(active * 1.15) + 1)
+        for (let i = active; i < next; i++) spawn(particles[i])
+        active = next
+      }
+      stats.active = active
+      stats.avgMs = Math.round(avgMs * 10) / 10
+      stats.frames++
       if (marks) performance.measure('particles', { start: m0, end: performance.now() })
     }
     raf = requestAnimationFrame(loop)
