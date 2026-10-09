@@ -72,6 +72,9 @@ small {
   --fab-margin: 14px;
   --fab-stack-bottom: calc(var(--sab) + var(--dock-h) + var(--fab-margin));
   --fab-stack-top: calc(var(--sat) + 64px);
+  /* The map's top-right control column (zoom + compass): button size, and the column's height as published by LayerFab. */
+  --map-ctrl-btn: 36px;
+  --map-ctrl-h: 112px;
   /* Space the open panel keeps clear at each end (a small gap beyond the chrome itself). */
   --menu-top-reserve: calc(var(--sat) + var(--topbar-top) + var(--topbar-h) + 8px);
   --menu-bottom-reserve: calc(var(--sab) + var(--dock-h) + 8px);
@@ -110,8 +113,8 @@ small {
   bottom: calc(var(--sab) + var(--playbar-h) + 6px) !important;
 }
 .maplibregl-ctrl-group button {
-  width: 36px;
-  height: 36px;
+  width: var(--map-ctrl-btn, 36px);
+  height: var(--map-ctrl-btn, 36px);
 }
 .maplibregl-ctrl-attrib {
   font-size: 10px;
@@ -1879,9 +1882,44 @@ small {
   top: calc(var(--sat) + 10px);
   bottom: auto;
 }
-.app.wide:not(.screen-map).fab-br .fab-stack,
-.app.wide:not(.screen-map).fab-tr .fab-stack {
-  right: calc(var(--sar) + 12px);
+/* Desktop: the ☰ button lives in the map's top-right control column, directly under zoom / compass (same
+   size and spacing as those buttons), whatever corner a phone drag saved — the stack is positioned in the
+   viewport-sized .app, so a left corner put it under the rail and the side column (Oct 9). The panel opens
+   beside it, inside the map area, between the location bar and the playback bar, and scrolls internally. */
+.app.wide {
+  --map-ctrl-top: calc(var(--sat) + 64px);
+  --fab-stack-top: calc(var(--map-ctrl-top) + var(--map-ctrl-h) + 8px);
+}
+.app.wide .fab-stack,
+.app.wide.fab-bl .fab-stack,
+.app.wide.fab-tl .fab-stack,
+.app.wide.fab-tr .fab-stack {
+  left: auto;
+  bottom: auto;
+  right: calc(var(--sar) + 8px);
+  top: var(--fab-stack-top);
+  flex-direction: row; /* the panel (first in the DOM) to the left of the button */
+  align-items: flex-start;
+  gap: 12px;
+}
+.app.wide .fab-main {
+  width: var(--map-ctrl-btn);
+  height: var(--map-ctrl-btn);
+  border-radius: 12px;
+  font-size: 18px;
+}
+.app.wide .fab-stack .fab-menu {
+  /* Beside the whole control column, not just the button: its top lines up with the zoom buttons (just
+     under the location bar), so a short map (a phone in landscape is this layout too) still has room. */
+  margin-top: calc(-1 * (var(--map-ctrl-h) + 8px));
+  max-height: calc(var(--vvh) - var(--map-ctrl-top) - var(--menu-bottom-reserve));
+}
+.app.wide .fab-hint {
+  display: none;
+}
+.app.wide .maplibregl-ctrl-top-right {
+  top: var(--map-ctrl-top) !important;
+  right: calc(var(--sar) + 8px) !important;
 }
 .app.wide .toast {
   left: calc(var(--rail-w) + var(--col-w) / 2);
@@ -1918,13 +1956,6 @@ small {
 }
 .app.narrow.fab-bl .point-chip {
   left: calc(var(--sal) + 80px);
-}
-.app.wide.fab-bl .point-chip,
-.app.wide.fab-bl .sheet {
-  left: calc(var(--rail-w) + 80px);
-}
-.app.wide.fab-bl:not(.screen-map) .sheet {
-  left: calc(var(--rail-w) + var(--col-w) + 80px);
 }
 .chip-ico {
   font-size: 22px;

@@ -90,6 +90,22 @@ export function LayerFab() {
   void CORNER_ORDER
   void corner
 
+  // Desktop places ☰ directly under the map's zoom / compass column: publish that column's real height
+  // as --map-ctrl-h on .app (the CSS default is a fallback), like --topbar-h and --playbar-h.
+  useEffect(() => {
+    const app = document.querySelector<HTMLElement>('.app')
+    const col = document.querySelector<HTMLElement>('.maplibregl-ctrl-top-right')
+    if (!app || !col) return
+    const apply = () => app.style.setProperty('--map-ctrl-h', `${col.offsetHeight}px`)
+    apply()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
+    ro?.observe(col)
+    return () => {
+      ro?.disconnect()
+      app.style.removeProperty('--map-ctrl-h')
+    }
+  }, [])
+
   const on = (id: LayerId) => pendingState[id] ?? layers[id]
   const imagery = on('radar') ? 'radar' : on('satellite') ? 'satellite' : 'none'
   const overlay = OVERLAYS.find((o) => on(o.id))?.id ?? 'none'
