@@ -9,7 +9,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 import { summarise } from './lib/cpu-profile.mjs'
-import { allowLocation, expandPlayback, openMap, setLayers, settle } from './lib/ui.mjs'
+import { allowLocation, expandPlayback, openMap, openMore, setLayers, settle } from './lib/ui.mjs'
 
 const args = process.argv.slice(2)
 const BASE = (args.find((a) => !a.startsWith('--')) || 'http://localhost:4173/').replace(/\/?$/, '/')
@@ -26,6 +26,7 @@ const browser = HEADED
   : await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: PHL.lat, longitude: PHL.lng }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => {
+  window.__perfMarks = true // the app records one 'particles' and one 'nowcast-redraw' measure per frame
   try { localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: false, nowcast: false })) } catch {}
 })
 const page = await ctx.newPage()
@@ -35,6 +36,11 @@ await page.goto(BASE, { waitUntil: 'load' })
 await allowLocation(page)
 const until = async (fn, ms = 60000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(200) } return false }
 await until(() => window.__store?.get().conditions.state === 'ready')
+if (QA_PATH) {
+  // qa visits the More pages before the map section.
+  await openMore(page, 'Rivers & gauges')
+  await openMore(page, 'Station observations')
+}
 await openMap(page)
 if (QA_PATH) {
   // qa.mjs's state before its window: rivers on, the map over the place at z9.5, rain → flood → nowcast.
@@ -52,6 +58,12 @@ await page.getByRole('button', { name: 'Close layer menu' }).click()
 await settle(page, 12000)
 await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
 await expandPlayback(page)
+if (QA_PATH) {
+  // qa steps the scrubber one frame back before playing.
+  await page.getByRole('slider', { name: 'Playback time' }).focus()
+  await page.keyboard.press('ArrowLeft')
+  await settle(page, 300)
+}
 
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Profiler.enable')
@@ -68,17 +80,28 @@ for (let w = 1; w <= WINDOWS; w++) {
     window.__ltObs = new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__lt.push({ t: Math.round(e.startTime), d: Math.round(e.duration), attr: e.attribution?.map((a) => `${a.containerType}${a.containerName ? ':' + a.containerName : ''}${a.containerSrc ? ':' + a.containerSrc.slice(-40) : ''}`).join(',') })))
     window.__ltObs.observe({ type: 'longtask', buffered: false })
     window.__t0 = performance.now()
+    window.__renders = 0
+    window.__onRender = () => window.__renders++
+    window.__map.on('render', window.__onRender)
+    performance.clearMeasures()
   })
   await cdp.send('Profiler.start')
   await page.getByRole('button', { name: 'Pause' }).click()
   await settle(page, 3000)
   const { profile } = await cdp.send('Profiler.stop')
-  const lt = await page.evaluate(() => { window.__ltObs.disconnect(); return { tasks: window.__lt.map((e) => ({ ...e, t: e.t - Math.round(window.__t0) })), heap: Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1048576) } })
+  const lt = await page.evaluate(() => {
+    window.__ltObs.disconnect()
+    window.__map.off('render', window.__onRender)
+    const sum = (name) => { const e = performance.getEntriesByName(name, 'measure'); return { n: e.length, ms: Math.round(e.reduce((a, b) => a + b.duration, 0)) } }
+    const playing = Object.keys(window.__map.style.sourceCaches ?? {}).filter((id) => window.__map.getSource(id)?._playing)
+    return { tasks: window.__lt.map((e) => ({ ...e, t: e.t - Math.round(window.__t0) })), heap: Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1048576), renders: window.__renders, particles: sum('particles'), redraws: sum('nowcast-redraw'), playing }
+  })
   const s = summarise(profile, 15)
   writeFileSync(`${OUT}/window-${w}.cpuprofile`, JSON.stringify(profile))
   const particles = await page.evaluate(() => window.__particles ?? null)
-  report.push({ window: w, longTasks: lt.tasks, heapMB: lt.heap, busyMs: s.total, particles, top: s.top })
-  console.log(`window ${w}: long tasks ${lt.tasks.length ? lt.tasks.map((t) => `${t.d} ms at +${t.t} ms${t.attr ? ' (' + t.attr + ')' : ''}`).join('; ') : 'none'} · JS busy ${s.total} ms of 3 000 · heap ${lt.heap} MB${particles ? ` · particles ${particles.active}/${particles.count}, ${particles.avgMs} ms per frame, ${particles.skipped} skipped` : ''}`)
+  report.push({ window: w, longTasks: lt.tasks, heapMB: lt.heap, busyMs: s.total, particles, renders: lt.renders, particleLoop: lt.particles, nowcastRedraws: lt.redraws, playingSources: lt.playing, top: s.top })
+  console.log(`window ${w}: map renders ${lt.renders} · particle loop ${lt.particles.n}× ${lt.particles.ms} ms · nowcast redraws ${lt.redraws.n}× ${lt.redraws.ms} ms · playing sources ${lt.playing.length}
+  long tasks ${lt.tasks.length ? lt.tasks.map((t) => `${t.d} ms at +${t.t} ms${t.attr ? ' (' + t.attr + ')' : ''}`).join('; ') : 'none'} · JS busy ${s.total} ms of 3 000 · heap ${lt.heap} MB${particles ? ` · particles ${particles.active}/${particles.count}, ${particles.avgMs} ms per frame, ${particles.skipped} skipped` : ''}`)
   for (const t of s.top) console.log(`    ${String(t.ms).padStart(7)} ms  ${t.fn}`)
 }
 writeFileSync(`${OUT}/report.json`, JSON.stringify({ base: BASE, headed: HEADED, at: new Date().toISOString(), report }, null, 1))
