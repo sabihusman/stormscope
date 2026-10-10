@@ -111,6 +111,10 @@ const desktop = [
   { w: 1920, h: 1080, screen: 'now', corner: 'bl', note: 'side column open' },
   { w: 1920, h: 1080, screen: 'map', note: 'column closed, default corner' },
   { w: 844, h: 390, screen: 'map', insets: [0, 21], note: 'phone landscape = wide layout, insets 0/21' },
+  { w: 932, h: 430, screen: 'map', insets: [0, 21], note: 'large iPhone landscape, insets 0/21' },
+  // Either side of the 120 px lift threshold (room = playbar top − button top − 8; button top 192, bar 114 px): vh 424 → ≈ 110 px, vh 444 → ≈ 130 px.
+  { w: 1024, h: 424, screen: 'map', note: 'at the threshold: ~110 px of room, expect lifted' },
+  { w: 1024, h: 444, screen: 'map', note: 'at the threshold: ~130 px of room, expect tied' },
 ]
 for (const c of desktop) {
   const { ctx, page, done } = await session(c)
@@ -135,8 +139,9 @@ for (const c of desktop) {
     // Tied to the button when there is room; lifted to the control column's top when the space between the
     // button and the playback bar is under 120 px (a phone in landscape). Both branches are asserted.
     const room = (g.playbar ? g.playbar.top : g.vh) - g.fab.top - 8
-    if (room >= 120) check(`${label}: ${room} px of room → panel top within 16 px of the button's top`, Math.abs(g.menu.top - g.fab.top) <= 16, `panel top ${g.menu.top} · button top ${g.fab.top}`)
-    else check(`${label}: only ${room} px under the button → panel lifted to the control column's top, still clear of the location bar`, Math.abs(g.menu.top - g.ctrl.top) <= 16 && g.menu.top >= g.topbar.bottom, `panel top ${g.menu.top} · controls top ${g.ctrl.top} · topbar bottom ${g.topbar.bottom}`)
+    const panelH = g.menu.bottom - g.menu.top
+    if (room >= 120) check(`${label}: ${room} px of room → panel top within 16 px of the button's top`, Math.abs(g.menu.top - g.fab.top) <= 16, `room ${room} px · panel top ${g.menu.top} · button top ${g.fab.top} · panel height ${panelH} px`)
+    else check(`${label}: only ${room} px under the button → panel lifted to the control column's top, still clear of the location bar`, Math.abs(g.menu.top - g.ctrl.top) <= 16 && g.menu.top >= g.topbar.bottom, `room ${room} px · panel top ${g.menu.top} · controls top ${g.ctrl.top} · topbar bottom ${g.topbar.bottom} · panel height ${panelH} px`)
     check(`${label}: first row visible, last row reachable, scroll contained`, g.first.top >= g.menu.top && g.first.bottom <= g.menu.bottom && g.lastReachable && g.overscroll === 'contain', `content ${g.scroll}`)
   }
   await page.screenshot({ path: `${OUT}/${label.replace(/[^a-z0-9]+/gi, '-')}.png` })
