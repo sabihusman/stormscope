@@ -58,10 +58,18 @@ const geometry = (page) =>
     let first = null
     let lastReachable = null
     let scroll = null
+    let min = null
+    let overlaysVisible = null
     if (menu) {
       const rows = [...menu.querySelectorAll('.fab-group-label, .fab-item, .legend-rows, .fab-hint')].filter((r) => r.offsetParent !== null)
       const f = rows[0].getBoundingClientRect()
       first = { top: Math.round(f.top), bottom: Math.round(f.bottom) }
+      // Minimum useful height, measured: panel top → bottom of the third forecast overlay + the panel's bottom padding.
+      const mb0 = menu.getBoundingClientRect()
+      const overlays = [...menu.querySelectorAll('[data-overlay]')]
+      const third = overlays.at(-1)
+      min = third ? Math.round(third.getBoundingClientRect().bottom - mb0.top + menu.scrollTop + parseFloat(getComputedStyle(menu).paddingBottom)) : null
+      overlaysVisible = overlays.length === 3 && overlays.every((o) => { const b = o.getBoundingClientRect(); return b.top >= mb0.top - 0.5 && b.bottom <= mb0.bottom + 0.5 })
       menu.scrollTop = menu.scrollHeight
       const l = rows.at(-1).getBoundingClientRect()
       const mb = menu.getBoundingClientRect()
@@ -69,7 +77,7 @@ const geometry = (page) =>
       scroll = `${menu.scrollHeight}/${menu.clientHeight}`
       menu.scrollTop = 0
     }
-    return { vw: innerWidth, vh: innerHeight, menu: box('.fab-menu'), first, lastReachable, scroll, overscroll: menu ? getComputedStyle(menu).overscrollBehaviorY : null, topbar: box('.topbar'), fab: box('.fab-main'), map: box('.map-root'), ctrl: box('.maplibregl-ctrl-top-right'), playbar: box('.playbar'), nav: box('.nav'), column: box('.screen') }
+    return { vw: innerWidth, vh: innerHeight, menu: box('.fab-menu'), first, lastReachable, scroll, min, overlaysVisible, app: window.__layersPanel ?? null, overscroll: menu ? getComputedStyle(menu).overscrollBehaviorY : null, topbar: box('.topbar'), fab: box('.fab-main'), map: box('.map-root'), ctrl: box('.maplibregl-ctrl-top-right'), playbar: box('.playbar'), nav: box('.nav'), column: box('.screen') }
   })
 const inside = (a, b) => a.left >= b.left && a.right <= b.right && a.top >= b.top && a.bottom <= b.bottom
 const overlap = (a, b) => !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
@@ -112,11 +120,11 @@ const desktop = [
   { w: 1920, h: 1080, screen: 'map', note: 'column closed, default corner' },
   { w: 844, h: 390, screen: 'map', insets: [0, 21], note: 'phone landscape = wide layout, insets 0/21' },
   { w: 932, h: 430, screen: 'map', insets: [0, 21], note: 'large iPhone landscape, insets 0/21' },
-  // Either side of the 120 px lift threshold (room = playbar top − button top − 8; button top 192, bar 114 px): vh 424 → ≈ 110 px, vh 444 → ≈ 130 px.
-  { w: 1024, h: 424, screen: 'map', note: 'at the threshold: ~110 px of room, expect lifted' },
-  { w: 1024, h: 444, screen: 'map', note: 'at the threshold: ~130 px of room, expect tied' },
 ]
-for (const c of desktop) {
+// Two more cases are derived after the first ones: just below and just above the measured minimum useful height
+// (room moves 1:1 with the viewport height on the Map screen with the full bar).
+let probe = null
+const runDesktop = async (c) => {
   const { ctx, page, done } = await session(c)
   const g0 = await geometry(page)
   const label = `desktop ${c.w}x${c.h} ${c.note}${c.corner ? ', saved corner ' + c.corner : ''}`
@@ -136,18 +144,34 @@ for (const c of desktop) {
     // The PANEL (not only the button) stays inside the visible map: its left edge at or right of the map's, and
     // it never overlaps the side column or the nav rail, whatever the column state; and it is tied to ☰.
     check(`${label}: panel fully inside the visible map area, clear of the side column and the nav rail`, g.menu.left >= g.map.left && inside(g.menu, g.map) && !overlap(g.menu, g.column) && !overlap(g.menu, g.nav), `panel ${fmt(g.menu)} · map ${fmt(g.map)} · column ${fmt(g.column)} · rail ${fmt(g.nav)}`)
-    // Tied to the button when there is room; lifted to the control column's top when the space between the
-    // button and the playback bar is under 120 px (a phone in landscape). Both branches are asserted.
+    // Tied to the button when the room under it is at least the measured minimum useful height (panel top →
+    // third forecast overlay + padding); lifted to the control column's top otherwise. Both branches asserted.
     const room = (g.playbar ? g.playbar.top : g.vh) - g.fab.top - 8
     const panelH = g.menu.bottom - g.menu.top
-    if (room >= 120) check(`${label}: ${room} px of room → panel top within 16 px of the button's top`, Math.abs(g.menu.top - g.fab.top) <= 16, `room ${room} px · panel top ${g.menu.top} · button top ${g.fab.top} · panel height ${panelH} px`)
-    else check(`${label}: only ${room} px under the button → panel lifted to the control column's top, still clear of the location bar`, Math.abs(g.menu.top - g.ctrl.top) <= 16 && g.menu.top >= g.topbar.bottom, `room ${room} px · panel top ${g.menu.top} · controls top ${g.ctrl.top} · topbar bottom ${g.topbar.bottom} · panel height ${panelH} px`)
+    const lifted = room < g.min
+    const summary = `room ${room} px · min ${g.min} px · panel top ${g.menu.top} · panel height ${panelH} px · ${lifted ? 'LIFTED' : 'TIED'}${g.app ? ` (app: room ${g.app.room}, min ${g.app.min}, lifted ${g.app.lifted})` : ''}`
+    if (!lifted) check(`${label}: room ${room} ≥ min ${g.min} → panel top within 16 px of the button's top`, Math.abs(g.menu.top - g.fab.top) <= 16 && g.app?.lifted === false, `${summary} · button top ${g.fab.top}`)
+    else check(`${label}: room ${room} < min ${g.min} → panel lifted to the control column's top, still clear of the location bar`, Math.abs(g.menu.top - g.ctrl.top) <= 16 && g.menu.top >= g.topbar.bottom && g.app?.lifted === true, `${summary} · controls top ${g.ctrl.top} · topbar bottom ${g.topbar.bottom}`)
+    if (c.expect) check(`${label}: branch is ${c.expect.toUpperCase()} as expected`, (c.expect === 'lifted') === lifted, summary)
+    if (lifted && panelH < g.min) console.log(`INFO  ${label}: even the lifted panel (${panelH} px) cannot fit the three forecast overlays (${g.min} px) — reported, not failed; overlays visible: ${g.overlaysVisible}`)
+    else check(`${label}: all three forecast-overlay buttons fully visible without scrolling`, g.overlaysVisible === true, `panel height ${panelH} px · min ${g.min} px`)
     check(`${label}: first row visible, last row reachable, scroll contained`, g.first.top >= g.menu.top && g.first.bottom <= g.menu.bottom && g.lastReachable && g.overscroll === 'contain', `content ${g.scroll}`)
+    if (c.probe) probe = { w: c.w, h: c.h, room, min: g.min }
   }
   await page.screenshot({ path: `${OUT}/${label.replace(/[^a-z0-9]+/gi, '-')}.png` })
   done()
   await ctx.close()
 }
+for (const c of desktop) await runDesktop(c)
+// A probe at a short height (room ≈ 260 px) measures the minimum where the threshold cases will run; the two
+// cases then sit 6 px either side of it (room moves 1:1 with the viewport height on Map with the full bar).
+await runDesktop({ w: 1280, h: 580, screen: 'map', note: 'probe for the minimum', probe: true })
+if (probe) {
+  const below = probe.h - probe.room + probe.min - 6
+  const above = probe.h - probe.room + probe.min + 6
+  await runDesktop({ w: probe.w, h: below, screen: 'map', note: `just below the minimum (${probe.min} px)`, expect: 'lifted' })
+  await runDesktop({ w: probe.w, h: above, screen: 'map', note: `just above the minimum (${probe.min} px)`, expect: 'tied' })
+} else check('a probe case for the lift threshold was measured', false)
 
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)
