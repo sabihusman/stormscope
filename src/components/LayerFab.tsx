@@ -16,8 +16,6 @@ const POINTS: { id: LayerId; label: string; icon: string }[] = [
 
 const CORNER_ORDER: FabCorner[] = ['br', 'bl', 'tl', 'tr']
 const DRAG_THRESHOLD_PX = 12
-/** Wide layouts: below this much room between ☰ and the playback bar, the panel is lifted to the control column's top. */
-const LIFT_BELOW_PX = 120
 
 /**
  * Layers only: background imagery (radar | satellite | none), one forecast overlay at a time,
@@ -33,7 +31,8 @@ export function LayerFab() {
   const rainHorizon = useApp((s) => s.rainHorizon)
   const [open, setOpen] = useState(false)
   // Wide layouts: the panel is tied to the button; when the space between the button and the playback bar
-  // is short (a phone in landscape), it is lifted to the control column's top instead (CSS .lifted).
+  // is below the panel's minimum useful height (measured: down to the third forecast overlay), it is lifted
+  // to the control column's top instead (CSS .lifted). A phone in landscape is the usual case.
   const [lifted, setLifted] = useState(false)
   const stackRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -50,7 +49,15 @@ export function LayerFab() {
       }
       const bar = document.querySelector('.playbar')
       const bottomEdge = bar ? bar.getBoundingClientRect().top : window.innerHeight
-      setLifted(bottomEdge - el.getBoundingClientRect().top - 8 < LIFT_BELOW_PX)
+      const room = bottomEdge - el.getBoundingClientRect().top - 8
+      // The minimum useful height is measured from the rendered panel: its top down to the bottom of the third
+      // forecast-overlay button, plus the panel's bottom padding (so all three overlays show without scrolling).
+      const menu = el.querySelector<HTMLElement>('.fab-menu')
+      const third = menu?.querySelector<HTMLElement>('[data-overlay="nowcast"]')
+      const min = menu && third ? third.getBoundingClientRect().bottom - menu.getBoundingClientRect().top + menu.scrollTop + parseFloat(getComputedStyle(menu).paddingBottom) : 0
+      const lift = room < min
+      ;(window as unknown as { __layersPanel?: object }).__layersPanel = { room: Math.round(room), min: Math.round(min), lifted: lift }
+      setLifted(lift)
     }
     measure()
     window.addEventListener('resize', measure)
@@ -175,7 +182,7 @@ export function LayerFab() {
             const err = layerErrors[l.id]
             const active = overlay === l.id
             return (
-              <button key={l.id} role="radio" aria-checked={active} className={`fab-item ${active ? 'on' : ''} ${err ? 'err' : ''}`} onClick={() => toggle(l.id, !active)} title={err ? `Unavailable: ${err}. Tap to retry.` : undefined}>
+              <button key={l.id} role="radio" aria-checked={active} data-overlay={l.id} className={`fab-item ${active ? 'on' : ''} ${err ? 'err' : ''}`} onClick={() => toggle(l.id, !active)} title={err ? `Unavailable: ${err}. Tap to retry.` : undefined}>
                 <span aria-hidden="true">{l.icon}</span>
                 <span className="fab-label">
                   {l.id === 'rainfall' ? `Rain next ${rainHorizon} h` : l.label}
