@@ -16,6 +16,8 @@ const POINTS: { id: LayerId; label: string; icon: string }[] = [
 
 const CORNER_ORDER: FabCorner[] = ['br', 'bl', 'tl', 'tr']
 const DRAG_THRESHOLD_PX = 12
+/** Wide layouts: below this much room between ☰ and the playback bar, the panel is lifted to the control column's top. */
+const LIFT_BELOW_PX = 120
 
 /**
  * Layers only: background imagery (radar | satellite | none), one forecast overlay at a time,
@@ -30,6 +32,35 @@ export function LayerFab() {
   const satProduct = useApp((s) => s.satProduct)
   const rainHorizon = useApp((s) => s.rainHorizon)
   const [open, setOpen] = useState(false)
+  // Wide layouts: the panel is tied to the button; when the space between the button and the playback bar
+  // is short (a phone in landscape), it is lifted to the control column's top instead (CSS .lifted).
+  const [lifted, setLifted] = useState(false)
+  const stackRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = stackRef.current
+    if (!open || !el) {
+      setLifted(false)
+      return
+    }
+    const measure = () => {
+      const app = document.querySelector('.app')
+      if (!app?.classList.contains('wide')) {
+        setLifted(false)
+        return
+      }
+      const bar = document.querySelector('.playbar')
+      const bottomEdge = bar ? bar.getBoundingClientRect().top : window.innerHeight
+      setLifted(bottomEdge - el.getBoundingClientRect().top - 8 < LIFT_BELOW_PX)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    ro?.observe(document.body)
+    return () => {
+      window.removeEventListener('resize', measure)
+      ro?.disconnect()
+    }
+  }, [open])
   const timers = useRef<Partial<Record<LayerId, number>>>({})
   const [pendingState, setPending] = useState<Partial<Record<LayerId, boolean>>>({})
 
@@ -111,7 +142,7 @@ export function LayerFab() {
   const overlay = OVERLAYS.find((o) => on(o.id))?.id ?? 'none'
 
   return (
-    <div className={`fab-stack ${open ? 'open' : ''} ${offset ? 'dragging' : ''}`}>
+    <div ref={stackRef} className={`fab-stack ${open ? 'open' : ''} ${offset ? 'dragging' : ''} ${lifted ? 'lifted' : ''}`}>
       {open && (
         <div className="fab-menu" role="group" aria-label="Map layers">
           <div className="fab-group-label">Background</div>

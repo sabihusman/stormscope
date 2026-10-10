@@ -1912,6 +1912,12 @@ small {
   /* Tied to the button: the panel's top is the button's top, and it runs down to the playback bar. */
   max-height: calc(var(--vvh) - var(--fab-stack-top) - var(--menu-bottom-reserve));
 }
+.app.wide .fab-stack.lifted .fab-menu {
+  /* Short map (a phone in landscape is this layout): under 120 px between the button and the playback bar,
+     LayerFab lifts the panel's top to the control column's top (just under the location bar) instead. */
+  margin-top: calc(-1 * (var(--map-ctrl-h) + 8px));
+  max-height: calc(var(--vvh) - var(--map-ctrl-top) - var(--menu-bottom-reserve));
+}
 .app.wide .fab-hint {
   display: none;
 }
