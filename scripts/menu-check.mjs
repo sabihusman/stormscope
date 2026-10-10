@@ -132,7 +132,11 @@ for (const c of desktop) {
     // The PANEL (not only the button) stays inside the visible map: its left edge at or right of the map's, and
     // it never overlaps the side column or the nav rail, whatever the column state; and it is tied to ☰.
     check(`${label}: panel fully inside the visible map area, clear of the side column and the nav rail`, g.menu.left >= g.map.left && inside(g.menu, g.map) && !overlap(g.menu, g.column) && !overlap(g.menu, g.nav), `panel ${fmt(g.menu)} · map ${fmt(g.map)} · column ${fmt(g.column)} · rail ${fmt(g.nav)}`)
-    check(`${label}: panel top within 16 px of the button's top`, Math.abs(g.menu.top - g.fab.top) <= 16, `panel top ${g.menu.top} · button top ${g.fab.top}`)
+    // Tied to the button when there is room; lifted to the control column's top when the space between the
+    // button and the playback bar is under 120 px (a phone in landscape). Both branches are asserted.
+    const room = (g.playbar ? g.playbar.top : g.vh) - g.fab.top - 8
+    if (room >= 120) check(`${label}: ${room} px of room → panel top within 16 px of the button's top`, Math.abs(g.menu.top - g.fab.top) <= 16, `panel top ${g.menu.top} · button top ${g.fab.top}`)
+    else check(`${label}: only ${room} px under the button → panel lifted to the control column's top, still clear of the location bar`, Math.abs(g.menu.top - g.ctrl.top) <= 16 && g.menu.top >= g.topbar.bottom, `panel top ${g.menu.top} · controls top ${g.ctrl.top} · topbar bottom ${g.topbar.bottom}`)
     check(`${label}: first row visible, last row reachable, scroll contained`, g.first.top >= g.menu.top && g.first.bottom <= g.menu.bottom && g.lastReachable && g.overscroll === 'contain', `content ${g.scroll}`)
   }
   await page.screenshot({ path: `${OUT}/${label.replace(/[^a-z0-9]+/gi, '-')}.png` })
