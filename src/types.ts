@@ -151,6 +151,24 @@ export interface PlaceForecast {
   }
   /** Hourly from the current hour, 48 h. */
   hourly: HourPoint[]
+  /** The place's IANA timezone and the UTC offset Open-Meteo resolved for the response (days roll over at local midnight). */
+  timezone: string
+  utcOffsetSec: number
+  /** Daily, 7 days from today in the place's timezone; empty when the response carried none. */
+  daily: DayPoint[]
+}
+
+export interface DayPoint {
+  /** Local midnight of the day (ms epoch). */
+  time: number
+  /** The local calendar date, YYYY-MM-DD. */
+  date: string
+  code: number | null
+  maxC: number | null
+  minC: number | null
+  precipMm: number | null
+  /** Maximum precipitation probability over the day, %. */
+  precipProb: number | null
 }
 
 // ---- NWS active alerts for a point ----

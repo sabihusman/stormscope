@@ -8,7 +8,8 @@ import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
 import { go, setLayer, startPickOnMap, store, useApp, wantFlood } from '../state/store'
 import { REPLAY_IN_URL } from '../state/DataController'
-import type { NwsAlert } from '../types'
+import type { DayPoint, NwsAlert } from '../types'
+import { ErrorBoundary } from './ErrorBoundary'
 import { PlaceRow } from './PlaceRow'
 
 interface Props {
@@ -34,6 +35,9 @@ export function NowScreen({ onLocate, locating }: Props) {
           <AlertsCard />
           <ConditionsCard />
           <HourlyCard />
+          <ErrorBoundary kind="panel" name="7-day forecast">
+            <DailyCard />
+          </ErrorBoundary>
           <MapWindow />
           <div className="now-actions">
             <button className="btn primary" onClick={() => go('trip')}>
@@ -169,6 +173,82 @@ function ConditionsCard() {
         {r.stale ? ' · stale' : ''}
         {r.error ? ` · last refresh failed: ${r.error}` : ''}
       </small>
+    </div>
+  )
+}
+
+/** Local calendar date (YYYY-MM-DD) of a moment in an IANA zone. */
+function localDate(ms: number, timeZone: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms))
+  } catch {
+    return new Date(ms).toISOString().slice(0, 10)
+  }
+}
+/** Day label for a local date: Today, Tomorrow, then the weekday (the date string is read as a calendar date, no zone shift). */
+function dayLabel(day: DayPoint, today: string): string {
+  const [y, m, d] = day.date.split('-').map(Number)
+  const asUtc = Date.UTC(y, m - 1, d)
+  if (day.date === today) return 'Today'
+  if (asUtc - Date.UTC(...(today.split('-').map(Number).map((v, i) => (i === 1 ? v - 1 : v)) as [number, number, number])) === 86_400_000) return 'Tomorrow'
+  return new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' }).format(new Date(asUtc))
+}
+
+/** Seven days from today in the place's zone, from the same Open-Meteo call as the current conditions. */
+function DailyCard() {
+  const r = useApp((s) => s.conditions)
+  const units = useApp((s) => s.units)
+  const now = useNow()
+  const retry = () => store.set((x) => ({ refreshNonce: x.refreshNonce + 1 }))
+  const days = r.data?.daily ?? []
+  const loading = (r.state === 'loading' || r.state === 'idle') && !r.data
+  const today = r.data ? localDate(now, r.data.timezone) : ''
+  const traceMm = 0.1
+  return (
+    <div className={`card now-card daily ${r.stale ? 'stale' : ''}`} aria-busy={loading}>
+      <h4>Next 7 days</h4>
+      {loading ? (
+        <>
+          <div className="skeleton w100" />
+          <div className="skeleton w80" />
+          <div className="skeleton w90" />
+        </>
+      ) : !r.data ? (
+        <p className="err-text">
+          7-day forecast unavailable — {r.error ?? 'not loaded'}{' '}
+          <button className="btn small" onClick={retry}>
+            Retry
+          </button>
+        </p>
+      ) : !days.length ? (
+        <p className="err-text">
+          7-day forecast unavailable — no daily data in the response{' '}
+          <button className="btn small" onClick={retry}>
+            Retry
+          </button>
+        </p>
+      ) : (
+        <ol className="day-rows" aria-label="Daily forecast">
+          {days.slice(0, 7).map((d) => {
+            const w = wmo(d.code, true)
+            const amount = d.precipMm != null && d.precipMm >= traceMm ? U.precip(d.precipMm, units, units === 'imperial' ? 2 : 1) : ''
+            return (
+              <li key={d.date} data-date={d.date}>
+                <span className="day-name">{dayLabel(d, today)}</span>
+                <span className="day-i" aria-hidden="true" title={w.label}>
+                  {w.icon}
+                </span>
+                <span className="day-hl">
+                  <strong>{U.temp(d.maxC, units)}</strong> <span className="lo">/ {U.temp(d.minC, units)}</span>
+                </span>
+                <span className="day-p">{d.precipProb != null ? `${Math.round(d.precipProb)} %` : ''}</span>
+                <span className="day-amt">{amount}</span>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+      {r.data && <small className="muted">Open-Meteo daily · days in {r.data.timezone.replace(/_/g, ' ')} time</small>}
     </div>
   )
 }

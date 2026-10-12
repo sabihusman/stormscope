@@ -123,6 +123,17 @@ interface OmCurrentResponse {
 interface OmPlaceResponse {
   latitude: number
   longitude: number
+  timezone?: string
+  utc_offset_seconds?: number
+  /** Daily block (requested with the same call); local midnights as unixtime in the resolved zone. */
+  daily?: {
+    time: number[]
+    weather_code?: (number | null)[]
+    temperature_2m_max?: (number | null)[]
+    temperature_2m_min?: (number | null)[]
+    precipitation_sum?: (number | null)[]
+    precipitation_probability_max?: (number | null)[]
+  }
   current: {
     time: number
     is_day: number
@@ -151,18 +162,37 @@ interface OmPlaceResponse {
 }
 
 /**
- * Current conditions + 48 h hourly for one place (the Now screen). One location = one call
- * against the shared budget. The block grid cannot feed this: it carries no temperature.
+ * Current conditions + 48 h hourly + 7 daily for one place (the Now screen), in ONE call: the daily block
+ * rides on the same request (Open-Meteo's forecast endpoint takes current, hourly and daily together;
+ * `forecast_hours` bounds the hourly block and `forecast_days` the daily one — confirmed 2026-10-11:
+ * 49 hourly + 7 daily rows in one response). `timezone=auto` resolves the place's zone, so the daily
+ * days roll over at local midnight; `timeformat=unixtime` keeps every timestamp absolute. One location =
+ * one call against the shared budget. The block grid cannot feed this: it carries no temperature.
  */
 export async function fetchPlaceForecast(p: LngLat, signal?: AbortSignal): Promise<PlaceForecast> {
   const url =
     `${OPEN_METEO_URL}?latitude=${p.lat.toFixed(4)}&longitude=${p.lng.toFixed(4)}` +
     `&current=temperature_2m,apparent_temperature,weather_code,precipitation,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,is_day` +
     `&hourly=temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover` +
-    `&forecast_hours=48&past_hours=1&timeformat=unixtime&timezone=GMT&wind_speed_unit=ms&models=best_match`
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&forecast_days=7` +
+    `&forecast_hours=48&past_hours=1&timeformat=unixtime&timezone=auto&wind_speed_unit=ms&models=best_match`
   const j = await budgeted(1, () => fetchJSON<OmPlaceResponse>(url, { signal, timeoutMs: 20_000 }))
   const h = j.hourly
   const nowSec = j.current.time
+  const utcOffsetSec = j.utc_offset_seconds ?? 0
+  // Parsed defensively: a response without a usable daily block leaves `daily` empty and the rest intact.
+  const d = j.daily
+  const daily = Array.isArray(d?.time)
+    ? d.time.map((t, i) => ({
+        time: t * 1000,
+        date: new Date((t + utcOffsetSec) * 1000).toISOString().slice(0, 10),
+        code: d.weather_code?.[i] ?? null,
+        maxC: d.temperature_2m_max?.[i] ?? null,
+        minC: d.temperature_2m_min?.[i] ?? null,
+        precipMm: d.precipitation_sum?.[i] ?? null,
+        precipProb: d.precipitation_probability_max?.[i] ?? null,
+      }))
+    : []
   const hourly = h.time
     .map((t, i) => ({
       time: t * 1000,
@@ -194,6 +224,9 @@ export async function fetchPlaceForecast(p: LngLat, signal?: AbortSignal): Promi
       isDay: j.current.is_day !== 0,
     },
     hourly,
+    timezone: j.timezone ?? 'UTC',
+    utcOffsetSec,
+    daily,
   }
 }
 

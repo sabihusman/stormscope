@@ -1549,6 +1549,48 @@ small {
 .now-card.stale {
   border-color: rgba(250, 204, 21, 0.5);
 }
+/* 7-day forecast: compact rows — day · icon · high / low · chance · amount (amount only above a trace). */
+.day-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.day-rows li {
+  display: grid;
+  grid-template-columns: 5.2em 1.6em 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 2px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.day-rows li:first-child {
+  border-top: 0;
+}
+.day-rows .day-name {
+  font-weight: 600;
+}
+.day-rows .day-i {
+  font-size: 17px;
+  text-align: center;
+}
+.day-rows .day-hl .lo {
+  color: var(--muted);
+}
+.day-rows .day-p,
+.day-rows .day-amt {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  min-width: 3.2em;
+  text-align: right;
+}
+.day-rows .day-amt:empty {
+  min-width: 0;
+}
 .hour-strip {
   list-style: none;
   margin: 0;
