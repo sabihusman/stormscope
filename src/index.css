@@ -1549,6 +1549,12 @@ small {
 .now-card.stale {
   border-color: rgba(250, 204, 21, 0.5);
 }
+/* Air monitors legend: a stale / offline site is a grey outline, never a colour that could read as "good". */
+.legend-swatch i.dot.monitor-stale {
+  background: transparent;
+  border: 2px solid #94a3b8;
+  box-sizing: border-box;
+}
 /* Air quality tile: the EPA category colour as a badge, the attribution in small print. */
 .tile.aqi .aqi-line {
   display: flex;

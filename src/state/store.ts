@@ -1,6 +1,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import type { AlertsData, FloodResult, HourlyGrid, LayerId, Place, PlaceForecast, RadarData, RainHorizon, Resource, RiverGauge, StationObs } from '../types'
 import type { AirQualityPoint } from '../api/airQuality'
+import type { MonitorSitesResponse } from '../api/airnow'
 import type { NowcastResult, RainfallCellsResult } from '../workers/client'
 export type { LayerId } from '../types'
 import type { Flowline } from '../api/nhd'
@@ -133,6 +134,8 @@ export interface AppState {
   alerts: Resource<AlertsData>
   /** Modeled air quality (US AQI) at the place — Open-Meteo / CAMS, an estimate (the Now tile). */
   airQuality: Resource<AirQualityPoint>
+  /** EPA AirNow monitoring sites in the map view, with their latest readings (the Air monitors layer). */
+  monitors: Resource<MonitorSitesResponse>
 
   /** Forecast blocks by key. Blocks persist across pans; only missing ones are fetched. */
   blocks: Record<string, Block>
@@ -207,6 +210,7 @@ export const store = createStore<AppState>({
     station: true,
     nowcast: false,
     airquality: false,
+    monitors: false,
     ...savedLayers,
   },
   rainHorizon: 24,
@@ -237,6 +241,7 @@ export const store = createStore<AppState>({
   conditions: emptyResource(),
   alerts: emptyResource(),
   airQuality: emptyResource(),
+  monitors: emptyResource(),
   blocks: {},
   visibleBlocks: [],
   blockLevel: 1,

@@ -28,7 +28,7 @@ export function LegendRows() {
   const rainHorizon = useApp((s) => s.rainHorizon)
   const units = useApp((s) => s.units)
   const satProduct = useApp((s) => s.satProduct)
-  const anyOverlay = layers.radar || layers.satellite || layers.rainfall || layers.flood || layers.rivers || layers.nowcast || layers.airquality
+  const anyOverlay = layers.radar || layers.satellite || layers.rainfall || layers.flood || layers.rivers || layers.nowcast || layers.airquality || layers.monitors
   if (!anyOverlay) return null
   const rainStops = RAIN_STOPS.map((s) => ({ color: s.color, label: s.value === RAIN_STOPS[0].value ? 'trace' : U.precipLabel(s.value, units) + (s === RAIN_STOPS[RAIN_STOPS.length - 1] ? '+' : '') }))
   return (
@@ -77,6 +77,22 @@ export function LegendRows() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+      {layers.monitors && (
+        <div className="legend-row monitors-legend">
+          <div className="legend-title">Air monitors (EPA AirNow)</div>
+          <div className="legend-ramp dots">
+            <div className="legend-swatch" data-monitor="fresh">
+              <i className="dot" style={{ background: AQI_CATEGORIES[1].color }} />
+              <small>reading under 2 h, EPA colour</small>
+            </div>
+            <div className="legend-swatch" data-monitor="stale">
+              <i className="dot monitor-stale" />
+              <small>stale or offline</small>
+            </div>
+          </div>
+          <small className="muted">Measured · preliminary data courtesy of EPA AirNow and the reporting agencies</small>
         </div>
       )}
       {layers.nowcast && (

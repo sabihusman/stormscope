@@ -13,6 +13,7 @@ const OVERLAYS: { id: LayerId; label: string; icon: string }[] = [
 const POINTS: { id: LayerId; label: string; icon: string }[] = [
   { id: 'rivers', label: 'River gauges', icon: '📈' },
   { id: 'station', label: 'Station', icon: '🌡' },
+  { id: 'monitors', label: 'Air monitors (AirNow)', icon: '🏭' },
 ]
 
 const CORNER_ORDER: FabCorner[] = ['br', 'bl', 'tl', 'tr']
