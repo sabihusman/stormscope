@@ -64,7 +64,7 @@ export function LegendRows() {
             ))}
           </div>
           <small className="muted">Good · Moderate · Unhealthy for Sensitive Groups · Unhealthy · Very Unhealthy · Hazardous</small>
-          <small className="muted aqi-attrib">A 25 km disc around each monitor with a reading under 2 h; no shading = no monitor, no estimate · {AQI_ATTRIBUTION}</small>
+          <small className="muted aqi-attrib">A 25 km disc around each monitor with a reading under 2 h; overlaps show the worse reading; no shading = no monitor, no estimate · {AQI_ATTRIBUTION}</small>
         </div>
       )}
       {layers.rivers && (

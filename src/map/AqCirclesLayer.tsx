@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { CanvasSource } from 'maplibre-gl'
 
-import { aqiCategory } from '../lib/aqi'
+import { AQI_CATEGORIES, aqiCategory } from '../lib/aqi'
 import { freshMonitors, MEASURED_WITHIN_M } from '../lib/airnowHere'
 import { store, useApp } from '../state/store'
 import { firstSymbolLayer, useMap } from './MapView'
@@ -20,9 +20,12 @@ const latOf = (y: number) => ((2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 1
 /**
  * Measured air quality on the map: for every AirNow monitor with a reading of the selected pollutant under
  * two hours old, a 25 km disc in the EPA colour of that reading, semi-transparent. Nothing anywhere else —
- * no estimate, no interpolation. Overlaps blend with per-channel MAX ("lighten"), so an overlap is never
- * darker than either disc alone (the tests sample the pixels). Drawn once per data change on a Mercator
- * canvas covering the discs, shown as a canvas source under the symbol layers; it pans with the map.
+ * no estimate, no interpolation. Where discs overlap, the overlap shows the MORE SEVERE EPA category: the
+ * discs are painted in ascending category rank (Good … Hazardous) with plain source-over at full alpha, so
+ * the worse disc covers the better one, and the whole canvas is shown at one opacity — an overlap looks
+ * exactly like the worse disc alone, and a same-category overlap is identical to a single disc. Drawn once
+ * per data change on a Mercator canvas covering the discs, shown as a canvas source under the symbol
+ * layers; it pans with the map.
  */
 export function AqCirclesLayer() {
   const map = useMap()
@@ -36,8 +39,10 @@ export function AqCirclesLayer() {
     const canvas = canvasRef.current ?? document.createElement('canvas')
     canvasRef.current = canvas
     canvas.className = 'aq-circles-canvas'
-    const list = freshMonitors(sites ?? [], pollutant)
-    ;(window as unknown as { __aqCircles?: object }).__aqCircles = { pollutant, discs: list.map((m) => ({ id: m.site.id, aqi: m.reading.aqi, color: aqiCategory(m.reading.aqi)?.color ?? null })) }
+    // Ascending category rank: the worse reading is painted last and wins every overlap.
+    const rank = (aqi: number | null) => { const c = aqiCategory(aqi); return c ? AQI_CATEGORIES.indexOf(c) : -1 }
+    const list = freshMonitors(sites ?? [], pollutant).sort((a, b) => rank(a.reading.aqi) - rank(b.reading.aqi))
+    ;(window as unknown as { __aqCircles?: object }).__aqCircles = { pollutant, discs: list.map((m) => ({ id: m.site.id, aqi: m.reading.aqi, rank: rank(m.reading.aqi), color: aqiCategory(m.reading.aqi)?.color ?? null })) }
     if (!list.length) {
       if (map.getLayer(SRC)) map.removeLayer(SRC)
       if (map.getSource(SRC)) map.removeSource(SRC)
@@ -61,14 +66,13 @@ export function AqCirclesLayer() {
     canvas.height = h
     const ctx = canvas.getContext('2d')!
     ctx.clearRect(0, 0, w, h)
-    ctx.globalCompositeOperation = 'lighten'
+    ctx.globalCompositeOperation = 'source-over'
     for (const d of discs) {
       ctx.fillStyle = d.color
       ctx.beginPath()
       ctx.arc((d.x - x0) / res, (y1 - d.y) / res, d.rM / res, 0, Math.PI * 2)
       ctx.fill()
     }
-    ctx.globalCompositeOperation = 'source-over'
     const coords: [[number, number], [number, number], [number, number], [number, number]] = [
       [lngOf(x0), latOf(y1)],
       [lngOf(x1), latOf(y1)],
