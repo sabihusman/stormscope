@@ -1,5 +1,9 @@
 # Build log
 
+## Oct 12 — disc overlaps show the more severe category
+
+The per-channel maximum compositing is gone. `AqCirclesLayer` now paints the discs in ascending EPA category rank (Good < Moderate < Unhealthy for Sensitive Groups < Unhealthy < Very Unhealthy < Hazardous — compared by rank, never by colour channels) with plain source-over at full alpha, so the worse disc covers the better one, and the whole canvas is shown at one opacity: an overlap looks exactly like the worse disc alone, and a same-category overlap is identical to a single disc. Legend note: "overlaps show the worse reading". Mock fixture: Good, Unhealthy-for-Sensitive-Groups, Very Unhealthy and Hazardous PM2.5 sites placed so each overlap in the tests has a sample point inside exactly the intended discs. `monitors-check.mjs` 24/24, with pixel samples: Moderate + Unhealthy → red; Good + Unhealthy → red; Very Unhealthy + Hazardous → maroon; three discs → the worst (red); two Moderate discs → identical to one; one disc and blank areas unchanged.
+
 ## Oct 12 — air quality from EPA AirNow monitors only (replaces the modeled phase 1)
 
 **No modeled data anywhere:** the Open-Meteo / CAMS tile, overlay, client, mock and suite from the previous entry are removed (`src/lib/aqi.ts` — the EPA categories, breakpoints and colours — stays). Everything air-quality now comes from EPA AirNow monitoring sites through the monitor service contract (`src/api/airnow.ts`, unchanged: `GET <service>/sites?bbox=…`, readings with AirNow's AQI and the END of the observation hour). The service itself is still to be created on the server the user chooses; until then the app shows "Monitor service not set up yet" and makes no request.
