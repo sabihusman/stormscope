@@ -66,8 +66,8 @@ const geometry = (page) =>
       first = { top: Math.round(f.top), bottom: Math.round(f.bottom) }
       // Minimum useful height, measured: panel top → bottom of the third forecast overlay + the panel's bottom padding.
       const mb0 = menu.getBoundingClientRect()
-      const overlays = [...menu.querySelectorAll('[data-overlay]')]
-      const third = overlays.at(-1)
+      const overlays = [...menu.querySelectorAll('[data-overlay]')].slice(0, 3)
+      const third = menu.querySelector('[data-overlay="nowcast"]')
       min = third ? Math.round(third.getBoundingClientRect().bottom - mb0.top + menu.scrollTop + parseFloat(getComputedStyle(menu).paddingBottom)) : null
       overlaysVisible = overlays.length === 3 && overlays.every((o) => { const b = o.getBoundingClientRect(); return b.top >= mb0.top - 0.5 && b.bottom <= mb0.bottom + 0.5 })
       menu.scrollTop = menu.scrollHeight

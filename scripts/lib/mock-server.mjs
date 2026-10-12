@@ -87,7 +87,61 @@ function omSeries(locIdx, field, nHours, startSec) {
   void startSec
   return out
 }
-const omOptions = { timezone: 'GMT', omitDaily: false }
+const omOptions = { timezone: 'GMT', omitDaily: false, aqi: null }
+/**
+ * The monitor service (phase 2) for the mocked suites: four AirNow-style sites around the focus —
+ *   fresh:  PM2.5 + ozone, readings 30 min old (PM2.5 AQI 62 Moderate, ozone AQI 41 Good);
+ *   stale:  PM2.5 + ozone, readings 3 h old;
+ *   offline: PM2.5 site with no readings in the report;
+ *   ozone-only: a fresh ozone reading (AQI 55), measures ozone only.
+ * Times are the END of the observation hour, as the service contract defines.
+ */
+function monitorSites(url, focus) {
+  const q = new URL(url).searchParams
+  const now = Date.now()
+  const H = 3_600_000
+  const site = (id, name, dLat, dLng, parameters, readings) => ({ id, name, agency: 'Polk Co. Air Quality Division (mock)', lngLat: { lat: focus.lat + dLat, lng: focus.lng + dLng }, parameters, readings })
+  const sites = [
+    site('mock-fresh', 'Public Works (mock)', -0.07, 0.06, ['PM2.5', 'OZONE'], [
+      { parameter: 'PM2.5', value: 17.3, unit: 'UG/M3', aqi: 62, time: now - 30 * 60_000 },
+      { parameter: 'OZONE', value: 44, unit: 'PPB', aqi: 41, time: now - 30 * 60_000 },
+    ]),
+    site('mock-stale', 'Sheldahl (mock)', 0.17, 0.02, ['PM2.5', 'OZONE'], [
+      { parameter: 'PM2.5', value: 9.1, unit: 'UG/M3', aqi: 38, time: now - 3 * H },
+      { parameter: 'OZONE', value: 40, unit: 'PPB', aqi: 37, time: now - 3 * H },
+    ]),
+    site('mock-offline', 'East High (mock)', -0.1, 0.1, ['PM2.5'], []),
+    site('mock-ozone-only', 'Carpenter (mock)', -0.06, 0.05, ['OZONE'], [{ parameter: 'OZONE', value: 59, unit: 'PPB', aqi: 55, time: now - 25 * 60_000 }]),
+  ]
+  const bbox = (q.get('bbox') ?? '').split(',').map(Number)
+  const inView = bbox.length === 4 && bbox.every(Number.isFinite) ? sites.filter((s) => s.lngLat.lng >= bbox[0] && s.lngLat.lng <= bbox[2] && s.lngLat.lat >= bbox[1] && s.lngLat.lat <= bbox[3]) : sites
+  return { fetchedAt: now, sites: inView }
+}
+/**
+ * Open-Meteo Air Quality: current US AQI (overall + per pollutant) for one or many locations. Values cycle
+ * through the six EPA categories by location index (30, 75, 125, 175, 250, 350) so a map grid shows every
+ * colour; `omOptions.aqi` forces the overall value (the Now tile per category). PM2.5 carries the overall
+ * value, ozone 60 % of it, the rest lower, so PM2.5 is the dominant pollutant.
+ */
+function airQuality(url) {
+  const q = new URL(url).searchParams
+  const lats = (q.get('latitude') ?? '0').split(',').map(Number)
+  const lngs = (q.get('longitude') ?? '0').split(',').map(Number)
+  const fields = (q.get('current') ?? '').split(',').filter(Boolean)
+  const nowH = Math.floor(Date.now() / 1000 / HOUR) * HOUR
+  const SAMPLE = [30, 75, 125, 175, 250, 350]
+  const locs = lats.map((lat, i) => {
+    const aqi = omOptions.aqi ?? SAMPLE[(i + Math.abs(Math.round(lat * 10)) + Math.abs(Math.round((lngs[i] ?? 0) * 10))) % SAMPLE.length]
+    const cur = { time: nowH, interval: 3600 }
+    for (const f of fields) {
+      if (f === 'us_aqi' || f === 'us_aqi_pm2_5') cur[f] = aqi
+      else if (f === 'us_aqi_ozone') cur[f] = Math.round(aqi * 0.6)
+      else cur[f] = Math.round(aqi * 0.3)
+    }
+    return { latitude: lat, longitude: lngs[i] ?? lngs[0], generationtime_ms: 0.2, utc_offset_seconds: 0, timezone: 'GMT', timezone_abbreviation: 'GMT', elevation: 280, current_units: Object.fromEntries([['time', 'unixtime'], ...fields.map((f) => [f, 'USAQI'])]), current: cur }
+  })
+  return locs.length === 1 ? locs[0] : locs
+}
 /** UTC offset in seconds of an IANA zone at a moment. */
 function tzOffsetSec(tz, at = Date.now()) {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(at))
@@ -402,12 +456,14 @@ function terrainTile() {
  * Install the mocks on a Playwright context. `focus` is the geolocation the session uses.
  * Returns { live: string[] } — URLs that fell through to the network (should stay empty in replay).
  */
-export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false } = {}) {
+export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], failStatus = 429, alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false, aqi = null } = {}) {
   const live = []
   // timezone: the IANA zone the mock's Open-Meteo answers resolve for `timezone=auto` (daily days roll over at
-  // that zone's midnight); omitDaily: answer without the daily block (the 7-day tile's own error state).
+  // that zone's midnight); omitDaily: answer without the daily block (the 7-day tile's own error state);
+  // aqi: force the overall US AQI the air-quality mock returns (the Now tile per EPA category).
   omOptions.timezone = timezone
   omOptions.omitDaily = omitDaily
+  omOptions.aqi = aqi
   // delayHosts: { host: ms } — the answer is held that long (live latency, for races such as Clear while a
   // hazards / road fetch is in flight).
   // liveTiles: the APIs are answered locally but the tile hosts (basemap, radar, satellite, terrain)
@@ -428,6 +484,8 @@ export async function installMocks(context, { har = null, record = false, focus 
     try {
       if (/open-meteo\.com\/v1\/(forecast|era5)/.test(url)) return route.fulfill(json(openMeteo(url)))
       if (host === 'archive-api.open-meteo.com' || host === 'historical-forecast-api.open-meteo.com') return route.fulfill(json(openMeteo(url)))
+      if (host === 'air-quality-api.open-meteo.com') return route.fulfill(json(airQuality(url)))
+      if (host === 'monitors.stormscope.test') return route.fulfill(json(monitorSites(url, focus)))
       if (host === 'geocoding-api.open-meteo.com') return route.fulfill(json({ results: [geocode(new URL(url).searchParams.get('name') ?? '')] }))
       if (host === 'nominatim.openstreetmap.org') return route.fulfill(json(url.includes('/reverse') ? { name: 'Johnston', display_name: 'Johnston, Polk County, Iowa, United States', address: { city: 'Johnston', state: 'Iowa', country: 'United States' } } : []))
       if (host === 'api.rainviewer.com') return route.fulfill(json(rainviewer()))
@@ -455,6 +513,7 @@ export async function installMocks(context, { har = null, record = false, focus 
   })
   // failHosts: hosts that answer 429 (to exercise the app's rate-limit / unavailable wording). Registered
   // last so Playwright runs it first.
-  if (failHosts.length) await context.route((u) => failHosts.includes(new URL(u).host), (route) => route.fulfill({ status: 429, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ error: true, reason: 'Minutely API request limit exceeded (harness)' }) }))
+  // failStatus: 429 by default (the app retries and keeps its loading state); 500 for a hard error state.
+  if (failHosts.length) await context.route((u) => failHosts.includes(new URL(u).host), (route) => route.fulfill({ status: failStatus, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ error: true, reason: failStatus === 429 ? 'Minutely API request limit exceeded (harness)' : `Server error ${failStatus} (harness)` }) }))
   return { live }
 }

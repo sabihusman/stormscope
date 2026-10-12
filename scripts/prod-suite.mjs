@@ -63,6 +63,8 @@ const SUITES = [
   { name: 'playbar', script: 'playbar-check.mjs' },
   { name: 'flood-tile', script: 'flood-tile-check.mjs' },
   { name: 'daily', script: 'daily-check.mjs' },
+  { name: 'aqi', script: 'aqi-check.mjs' },
+  { name: 'monitors', script: 'monitors-check.mjs' },
   { name: 'trip', script: 'trip-check.mjs' },
   { name: 'playback', script: 'playback-loop-diag.mjs', args: ['--headless', '--assert'] },
   { name: 'qa', script: 'qa.mjs' },
