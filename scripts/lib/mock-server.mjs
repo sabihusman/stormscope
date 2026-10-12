@@ -87,6 +87,13 @@ function omSeries(locIdx, field, nHours, startSec) {
   void startSec
   return out
 }
+const omOptions = { timezone: 'GMT', omitDaily: false }
+/** UTC offset in seconds of an IANA zone at a moment. */
+function tzOffsetSec(tz, at = Date.now()) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(at))
+  const g = (t) => Number(parts.find((p) => p.type === t).value)
+  return Math.round((Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - at) / 1000)
+}
 function openMeteo(url) {
   const u = new URL(url)
   const q = u.searchParams
@@ -123,6 +130,33 @@ function openMeteo(url) {
     if (curFields.length) {
       loc.current = { time: nowH, interval: 900 }
       for (const f of curFields) loc.current[f] = omSeries(i, f, 1, nowH)[0]
+    }
+    // Daily (only with `daily=`): days from today's local midnight in the resolved zone, aggregated from the
+    // same hourly series (weather code at local noon, max / min temperature, precipitation sum, max probability).
+    const dailyFields = (q.get('daily') ?? '').split(',').filter(Boolean)
+    if (dailyFields.length && !omOptions.omitDaily) {
+      const tz = q.get('timezone') === 'auto' ? omOptions.timezone : (q.get('timezone') ?? 'GMT')
+      const off = tzOffsetSec(tz)
+      loc.timezone = tz
+      loc.utc_offset_seconds = off
+      const nDays = Number(q.get('forecast_days') ?? 7)
+      const localMidnight = Math.floor((Date.now() / 1000 + off) / 86400) * 86400 - off
+      const days = Array.from({ length: nDays }, (_, k) => localMidnight + k * 86400)
+      const hoursAll = { temperature_2m: omSeries(i, 'temperature_2m', nDays * 24, localMidnight), precipitation: omSeries(i, 'precipitation', nDays * 24, localMidnight), precipitation_probability: omSeries(i, 'precipitation_probability', nDays * 24, localMidnight), weather_code: omSeries(i, 'weather_code', nDays * 24, localMidnight) }
+      const day = (k) => (arr) => arr.slice(k * 24, k * 24 + 24)
+      loc.daily_units = Object.fromEntries([['time', 'unixtime'], ...dailyFields.map((f) => [f, 'x'])])
+      loc.daily = { time: days }
+      for (const f of dailyFields) {
+        loc.daily[f] = days.map((_, k) => {
+          const d = day(k)
+          if (f === 'weather_code') return d(hoursAll.weather_code)[12] ?? 0
+          if (f === 'temperature_2m_max') return Math.max(...d(hoursAll.temperature_2m))
+          if (f === 'temperature_2m_min') return Math.min(...d(hoursAll.temperature_2m))
+          if (f === 'precipitation_sum') return Math.round(d(hoursAll.precipitation).reduce((a, b) => a + (b ?? 0), 0) * 10) / 10
+          if (f === 'precipitation_probability_max') return Math.max(...d(hoursAll.precipitation_probability).map((v) => v ?? 0))
+          return null
+        })
+      }
     }
     return loc
   })
@@ -368,8 +402,12 @@ function terrainTile() {
  * Install the mocks on a Playwright context. `focus` is the geolocation the session uses.
  * Returns { live: string[] } — URLs that fell through to the network (should stay empty in replay).
  */
-export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], alerts = [], liveTiles = false, delayHosts = {} } = {}) {
+export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false } = {}) {
   const live = []
+  // timezone: the IANA zone the mock's Open-Meteo answers resolve for `timezone=auto` (daily days roll over at
+  // that zone's midnight); omitDaily: answer without the daily block (the 7-day tile's own error state).
+  omOptions.timezone = timezone
+  omOptions.omitDaily = omitDaily
   // delayHosts: { host: ms } — the answer is held that long (live latency, for races such as Clear while a
   // hazards / road fetch is in flight).
   // liveTiles: the APIs are answered locally but the tile hosts (basemap, radar, satellite, terrain)
