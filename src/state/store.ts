@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import type { AlertsData, FloodResult, HourlyGrid, LayerId, Place, PlaceForecast, RadarData, RainHorizon, Resource, RiverGauge, StationObs } from '../types'
+import type { AirQualityPoint } from '../api/airQuality'
 import type { NowcastResult, RainfallCellsResult } from '../workers/client'
 export type { LayerId } from '../types'
 import type { Flowline } from '../api/nhd'
@@ -130,6 +131,8 @@ export interface AppState {
   conditions: Resource<PlaceForecast>
   /** Active NWS alerts for the place. */
   alerts: Resource<AlertsData>
+  /** Modeled air quality (US AQI) at the place — Open-Meteo / CAMS, an estimate (the Now tile). */
+  airQuality: Resource<AirQualityPoint>
 
   /** Forecast blocks by key. Blocks persist across pans; only missing ones are fetched. */
   blocks: Record<string, Block>
@@ -203,6 +206,7 @@ export const store = createStore<AppState>({
     rivers: true,
     station: true,
     nowcast: false,
+    airquality: false,
     ...savedLayers,
   },
   rainHorizon: 24,
@@ -232,6 +236,7 @@ export const store = createStore<AppState>({
   station: emptyResource(),
   conditions: emptyResource(),
   alerts: emptyResource(),
+  airQuality: emptyResource(),
   blocks: {},
   visibleBlocks: [],
   blockLevel: 1,
@@ -377,10 +382,11 @@ export function setLayer(id: LayerId, on: boolean) {
     } catch {
       /* ignore */
     }
-    // Forecast overlays (rain / flood / nowcast) are one at a time: they stack into an unreadable quilt.
-    if (on && (id === 'rainfall' || id === 'flood' || id === 'nowcast')) {
-      for (const other of ['rainfall', 'flood', 'nowcast'] as LayerId[]) if (other !== id) layers[other] = false
-      if (id !== 'flood') extra = { ...extra, animLayer: id }
+    // Forecast overlays (rain / flood / nowcast / air quality) are one at a time: they stack into an unreadable quilt.
+    const OVERLAYS: LayerId[] = ['rainfall', 'flood', 'nowcast', 'airquality']
+    if (on && OVERLAYS.includes(id)) {
+      for (const other of OVERLAYS) if (other !== id) layers[other] = false
+      if (id === 'rainfall' || id === 'nowcast') extra = { ...extra, animLayer: id }
     }
     // Keep the timeline pointed at an enabled animated layer.
     let animLayer = (extra.animLayer as AnimLayer | undefined) ?? s.animLayer

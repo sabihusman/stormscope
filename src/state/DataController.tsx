@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { fetchRadar, RAINVIEWER_URL } from '../api/rainviewer'
 import { fetchSatFrames, GIBS_WMTS, SAT_LAYERS, satelliteFor } from '../api/gibs'
 import { fetchHourlyGrid, fetchOpenMeteoCurrent, fetchPlaceForecast, OPEN_METEO_URL } from '../api/openMeteo'
+import { AIR_QUALITY_URL, fetchAirQualityPoint } from '../api/airQuality'
 import { fetchFlowlines, NHD_URL } from '../api/nhd'
 import { fetchNwpsDetails, fetchNwpsGauges, NWPS_URL, nwpsValid, type NwpsGaugeDetail, type NwpsGaugeSummary } from '../api/nwps'
 import { fetchUsgsLatest, fetchUsgsNames, fetchUsgsRecentMedianFlow, USGS_OGC, type UsgsLatest } from '../api/usgsWater'
@@ -34,6 +35,8 @@ export const REFRESH = {
   conditions: 10 * MIN,
   /** Active NWS alerts for the place: refreshed while the app is open, not only on place change. */
   alerts: 3 * MIN,
+  /** Modeled air quality at the place (CAMS updates a few times a day; one location per refresh). */
+  airQuality: 30 * MIN,
 }
 
 /** Replays are known from the URL before the bootstrap lands in the store. */
@@ -54,14 +57,14 @@ const US_BOXES = [
 ]
 export const likelyUS = (p: LngLat) => US_BOXES.some((b) => inBBox(p, b))
 
-function ready<T>(data: T, source: string, sourceUrl: string, dataTime?: number): Resource<T> {
+export function ready<T>(data: T, source: string, sourceUrl: string, dataTime?: number): Resource<T> {
   // Served while offline ⇒ it came from the service-worker cache: flag it stale straight away.
   return { state: 'ready', data, error: null, stale: !navigator.onLine, freshness: { fetchedAt: Date.now(), dataTime, source, sourceUrl } }
 }
-function failed<T>(prev: Resource<T>, e: unknown): Resource<T> {
+export function failed<T>(prev: Resource<T>, e: unknown): Resource<T> {
   return { ...prev, state: prev.data ? 'ready' : 'error', error: describeError(e), stale: !!prev.data }
 }
-function loading<T>(prev: Resource<T>): Resource<T> {
+export function loading<T>(prev: Resource<T>): Resource<T> {
   // A retry with no data yet keeps the last error visible (e.g. "Rate limited") instead of a blank spinner.
   return { ...prev, state: prev.data ? 'ready' : 'loading', error: prev.data ? null : prev.error }
 }
@@ -864,6 +867,24 @@ export function DataController() {
       }
     },
     REFRESH.alerts,
+    !!place && !replayActive,
+    [placeKey, nonce],
+  )
+
+  // ---- Modeled air quality at the place (Open-Meteo / CAMS): the Now tile. One location per refresh. ----
+  usePolling(
+    async () => {
+      if (!place) return
+      const prev = store.get().airQuality
+      setResource('airQuality', prev.data && haversine(prev.data.lngLat, place.lngLat) > 2000 ? { ...prev, data: null, state: 'loading', error: null } : loading(prev))
+      try {
+        const a = await fetchAirQualityPoint(place.lngLat)
+        setResource('airQuality', ready(a, 'Open-Meteo air quality (CAMS)', AIR_QUALITY_URL, a.time))
+      } catch (e) {
+        setResource('airQuality', failed(store.get().airQuality, e))
+      }
+    },
+    REFRESH.airQuality,
     !!place && !replayActive,
     [placeKey, nonce],
   )

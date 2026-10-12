@@ -5,6 +5,7 @@ import { RadarLayer } from './map/RadarLayer'
 import { SatelliteLayer } from './map/SatelliteLayer'
 import { RainfallLayer } from './map/RainfallLayer'
 import { FloodLayer } from './map/FloodLayer'
+import { AirQualityLayer } from './map/AirQualityLayer'
 import { RiversLayer } from './map/RiversLayer'
 import { StationLayer } from './map/StationLayer'
 import { NowcastLayer, WindParticles } from './map/NowcastLayer'
@@ -112,6 +113,7 @@ export default function App() {
         <LayerGuard name="Rivers" layer="rivers"><RiversLayer /></LayerGuard>
         <LayerGuard name="Station" layer="station"><StationLayer /></LayerGuard>
         <LayerGuard name="Nowcast" layer="nowcast"><NowcastLayer /></LayerGuard>
+        <LayerGuard name="Air quality" layer="airquality"><AirQualityLayer /></LayerGuard>
         <LayerGuard name="Wind particles" layer="nowcast"><WindParticles /></LayerGuard>
         {journeyTo && (
           <Suspense fallback={null}>

@@ -13,7 +13,7 @@ const WINDOW_MS = 60_000
 const MINUTE_BUDGET = 550
 const recent: { t: number; w: number }[] = []
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-async function budgeted<T>(weight: number, run: () => Promise<T>): Promise<T> {
+export async function budgeted<T>(weight: number, run: () => Promise<T>): Promise<T> {
   for (;;) {
     const now = Date.now()
     while (recent.length && now - recent[0].t > WINDOW_MS) recent.shift()

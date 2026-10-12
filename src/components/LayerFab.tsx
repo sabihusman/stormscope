@@ -8,6 +8,7 @@ const OVERLAYS: { id: LayerId; label: string; icon: string }[] = [
   { id: 'rainfall', label: 'Rain next 24 h', icon: '🌧' },
   { id: 'flood', label: 'Flood risk', icon: '🌊' },
   { id: 'nowcast', label: 'Next 2 h wind & cloud', icon: '💨' },
+  { id: 'airquality', label: 'Air quality (US AQI, model)', icon: '🌫' },
 ]
 const POINTS: { id: LayerId; label: string; icon: string }[] = [
   { id: 'rivers', label: 'River gauges', icon: '📈' },

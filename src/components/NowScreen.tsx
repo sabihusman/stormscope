@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useNow, useOnline, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
+import { aqiCategory, AQI_ATTRIBUTION, POLLUTANTS } from '../lib/aqi'
 import { floodHere, floodKeyFor, riskWord } from '../lib/floodHere'
 import { clock, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
@@ -437,10 +438,45 @@ function Tiles() {
         <span>{o ? `${o.name.split(/,| Airport/)[0]} · ${timeAgo(o.observedAt, now)}` : station.state === 'loading' ? 'loading…' : station.error ?? 'not loaded'}</span>
         {o && <small className="muted">{U.pressure(o.pressureHpa, units)} · {o.humidityPct != null ? `${Math.round(o.humidityPct)} %` : '—'}</small>}
       </button>
+      <AirTile />
       <button className="card tile" onClick={() => go('more', 'settings')}>
         <small>ℹ Sources &amp; settings</small>
         <span>units, freshness ›</span>
       </button>
     </div>
+  )
+}
+
+/** Modeled US AQI at the place (Open-Meteo / CAMS). Tapping shows the air-quality overlay on the map. */
+function AirTile() {
+  const r = useApp((s) => s.airQuality)
+  const wide = useWide()
+  const a = r.data
+  const cat = aqiCategory(a?.aqi)
+  const dominant = a?.dominant ? POLLUTANTS.find((p) => p.key === a.dominant) : null
+  const open = () => {
+    setLayer('airquality', true)
+    if (!wide) go('map')
+  }
+  return (
+    <button className={`card tile aqi ${cat ? `aqi-${cat.key}` : ''}`} onClick={open} aria-busy={r.state === 'loading' && !a} data-aqi={cat?.key ?? ''}>
+      <small>🌫 Air quality</small>
+      {a && cat ? (
+        <>
+          <span className="aqi-line">
+            <b className="aqi-badge" style={{ background: cat.color, color: cat.text }}>
+              {Math.round(a.aqi!)}
+            </b>{' '}
+            {cat.name}
+          </span>
+          <small className="muted">
+            {dominant ? `${dominant.short} dominant · ` : ''}Estimate (model)
+          </small>
+        </>
+      ) : (
+        <span className={r.state === 'error' ? 'err-text' : ''}>{r.state === 'loading' || r.state === 'idle' ? 'loading…' : `unavailable — ${r.error ?? 'not loaded'}`}</span>
+      )}
+      <small className="muted aqi-attrib">{AQI_ATTRIBUTION}</small>
+    </button>
   )
 }
