@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { fetchRadar, RAINVIEWER_URL } from '../api/rainviewer'
 import { fetchSatFrames, GIBS_WMTS, SAT_LAYERS, satelliteFor } from '../api/gibs'
 import { fetchHourlyGrid, fetchOpenMeteoCurrent, fetchPlaceForecast, OPEN_METEO_URL } from '../api/openMeteo'
-import { AIR_QUALITY_URL, fetchAirQualityPoint } from '../api/airQuality'
+import { AIRNOW_CREDIT, fetchMonitorSites } from '../api/airnow'
 import { fetchFlowlines, NHD_URL } from '../api/nhd'
 import { fetchNwpsDetails, fetchNwpsGauges, NWPS_URL, nwpsValid, type NwpsGaugeDetail, type NwpsGaugeSummary } from '../api/nwps'
 import { fetchUsgsLatest, fetchUsgsNames, fetchUsgsRecentMedianFlow, USGS_OGC, type UsgsLatest } from '../api/usgsWater'
@@ -35,8 +35,8 @@ export const REFRESH = {
   conditions: 10 * MIN,
   /** Active NWS alerts for the place: refreshed while the app is open, not only on place change. */
   alerts: 3 * MIN,
-  /** Modeled air quality at the place (CAMS updates a few times a day; one location per refresh). */
-  airQuality: 30 * MIN,
+  /** EPA AirNow sites around the place (observations update once an hour; the service caches). */
+  monitorsNear: 15 * MIN,
 }
 
 /** Replays are known from the URL before the bootstrap lands in the store. */
@@ -871,20 +871,21 @@ export function DataController() {
     [placeKey, nonce],
   )
 
-  // ---- Modeled air quality at the place (Open-Meteo / CAMS): the Now tile. One location per refresh. ----
+  // ---- EPA AirNow sites around the place (±0.3°, ≈ 33 km): the Now tab's measured air-quality lines. ----
   usePolling(
     async () => {
       if (!place) return
-      const prev = store.get().airQuality
-      setResource('airQuality', prev.data && haversine(prev.data.lngLat, place.lngLat) > 2000 ? { ...prev, data: null, state: 'loading', error: null } : loading(prev))
+      const prev = store.get().monitorsNear
+      setResource('monitorsNear', { ...prev, data: null, state: 'loading', error: null })
       try {
-        const a = await fetchAirQualityPoint(place.lngLat)
-        setResource('airQuality', ready(a, 'Open-Meteo air quality (CAMS)', AIR_QUALITY_URL, a.time))
+        const { lng, lat } = place.lngLat
+        const r = await fetchMonitorSites({ west: lng - 0.3, south: lat - 0.3, east: lng + 0.3, north: lat + 0.3 })
+        setResource('monitorsNear', ready(r, AIRNOW_CREDIT, '', r.fetchedAt))
       } catch (e) {
-        setResource('airQuality', failed(store.get().airQuality, e))
+        setResource('monitorsNear', failed(store.get().monitorsNear, e))
       }
     },
-    REFRESH.airQuality,
+    REFRESH.monitorsNear,
     !!place && !replayActive,
     [placeKey, nonce],
   )

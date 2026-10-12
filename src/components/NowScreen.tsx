@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useNow, useOnline, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
-import { aqiCategory, AQI_ATTRIBUTION, POLLUTANTS } from '../lib/aqi'
+import { AIRNOW_CREDIT, MONITOR_SERVICE_NOT_SET, type MonitorParameter } from '../api/airnow'
+import { aqiCategory } from '../lib/aqi'
+import { nearestMeasured } from '../lib/airnowHere'
 import { floodHere, floodKeyFor, riskWord } from '../lib/floodHere'
 import { clock, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
@@ -38,6 +40,9 @@ export function NowScreen({ onLocate, locating }: Props) {
           <HourlyCard />
           <ErrorBoundary kind="panel" name="7-day forecast">
             <DailyCard />
+          </ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Air quality">
+            <AirNowCard />
           </ErrorBoundary>
           <MapWindow />
           <div className="now-actions">
@@ -438,7 +443,6 @@ function Tiles() {
         <span>{o ? `${o.name.split(/,| Airport/)[0]} · ${timeAgo(o.observedAt, now)}` : station.state === 'loading' ? 'loading…' : station.error ?? 'not loaded'}</span>
         {o && <small className="muted">{U.pressure(o.pressureHpa, units)} · {o.humidityPct != null ? `${Math.round(o.humidityPct)} %` : '—'}</small>}
       </button>
-      <AirTile />
       <button className="card tile" onClick={() => go('more', 'settings')}>
         <small>ℹ Sources &amp; settings</small>
         <span>units, freshness ›</span>
@@ -447,36 +451,60 @@ function Tiles() {
   )
 }
 
-/** Modeled US AQI at the place (Open-Meteo / CAMS). Tapping shows the air-quality overlay on the map. */
-function AirTile() {
-  const r = useApp((s) => s.airQuality)
-  const wide = useWide()
-  const a = r.data
-  const cat = aqiCategory(a?.aqi)
-  const dominant = a?.dominant ? POLLUTANTS.find((p) => p.key === a.dominant) : null
-  const open = () => {
-    setLayer('airquality', true)
-    if (!wide) go('map')
-  }
+/**
+ * Measured air quality at the place from EPA AirNow monitors: one line per pollutant. Measured = a monitor
+ * measuring it within 25 km with a reading under 2 h (the AQI, category and colour, "at <station>, N km away,
+ * N min ago"); otherwise "No monitor within 25 km" and no number — never an estimate.
+ */
+function AirNowCard() {
+  const r = useApp((s) => s.monitorsNear)
+  const place = useApp((s) => s.place)
+  const units = useApp((s) => s.units)
+  const now = useNow()
+  const retry = () => store.set((x) => ({ refreshNonce: x.refreshNonce + 1 }))
+  const rows: { key: MonitorParameter; label: string }[] = [
+    { key: 'OZONE', label: 'Ozone' },
+    { key: 'PM2.5', label: 'Smoke (PM2.5)' },
+  ]
+  const notSet = r.error === MONITOR_SERVICE_NOT_SET
   return (
-    <button className={`card tile aqi ${cat ? `aqi-${cat.key}` : ''}`} onClick={open} aria-busy={r.state === 'loading' && !a} data-aqi={cat?.key ?? ''}>
-      <small>🌫 Air quality</small>
-      {a && cat ? (
-        <>
-          <span className="aqi-line">
-            <b className="aqi-badge" style={{ background: cat.color, color: cat.text }}>
-              {Math.round(a.aqi!)}
-            </b>{' '}
-            {cat.name}
-          </span>
-          <small className="muted">
-            {dominant ? `${dominant.short} dominant · ` : ''}Estimate (model)
-          </small>
-        </>
+    <div className={`card now-card airnow ${r.stale ? 'stale' : ''}`} aria-busy={r.state === 'loading' && !r.data}>
+      <h4>Air quality · measured (EPA AirNow)</h4>
+      {!r.data && (r.state === 'loading' || r.state === 'idle') ? (
+        <div className="skeleton w80" />
+      ) : !r.data ? (
+        <p className={notSet ? 'muted' : 'err-text'}>
+          {notSet ? MONITOR_SERVICE_NOT_SET : `Monitors unavailable — ${r.error ?? 'not loaded'}`}{' '}
+          {!notSet && (
+            <button className="btn small" onClick={retry}>
+              Retry
+            </button>
+          )}
+        </p>
       ) : (
-        <span className={r.state === 'error' ? 'err-text' : ''}>{r.state === 'loading' || r.state === 'idle' ? 'loading…' : `unavailable — ${r.error ?? 'not loaded'}`}</span>
+        <ul className="aq-lines" aria-label="Measured air quality">
+          {rows.map((p) => {
+            const m = place ? nearestMeasured(r.data!.sites, p.key, place.lngLat, now) : null
+            const cat = m ? aqiCategory(m.reading.aqi) : null
+            return (
+              <li key={p.key} data-pollutant={p.key} data-state={m ? 'measured' : 'none'}>
+                <span className="aq-label">{p.label}</span>
+                {m && cat ? (
+                  <span className="aq-value">
+                    <b className="aqi-badge" style={{ background: cat.color, color: cat.text }}>
+                      {Math.round(m.reading.aqi!)}
+                    </b>{' '}
+                    {cat.name} <small className="muted">at {m.site.name}, {U.distance(m.distanceM, units)} away, {timeAgo(m.reading.time, now)}</small>
+                  </span>
+                ) : (
+                  <span className="aq-value muted">No monitor within 25 km</span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
       )}
-      <small className="muted aqi-attrib">{AQI_ATTRIBUTION}</small>
-    </button>
+      <small className="muted aqi-attrib">{AIRNOW_CREDIT}</small>
+    </div>
   )
 }

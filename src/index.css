@@ -1555,11 +1555,31 @@ small {
   border: 2px solid #94a3b8;
   box-sizing: border-box;
 }
-/* Air quality tile: the EPA category colour as a badge, the attribution in small print. */
-.tile.aqi .aqi-line {
+/* Measured air quality on Now: one line per pollutant; the EPA category colour as a badge. */
+.aq-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.aq-lines li {
+  display: grid;
+  grid-template-columns: 7.5em 1fr;
   align-items: center;
   gap: 8px;
+  min-height: 30px;
+  font-size: 14px;
+}
+.aq-lines .aq-label {
+  font-weight: 600;
+}
+.aq-lines .aq-value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .aqi-badge {
   display: inline-block;

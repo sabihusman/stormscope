@@ -1,6 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import type { AlertsData, FloodResult, HourlyGrid, LayerId, Place, PlaceForecast, RadarData, RainHorizon, Resource, RiverGauge, StationObs } from '../types'
-import type { AirQualityPoint } from '../api/airQuality'
 import type { MonitorSitesResponse } from '../api/airnow'
 import type { NowcastResult, RainfallCellsResult } from '../workers/client'
 export type { LayerId } from '../types'
@@ -132,8 +131,12 @@ export interface AppState {
   conditions: Resource<PlaceForecast>
   /** Active NWS alerts for the place. */
   alerts: Resource<AlertsData>
-  /** Modeled air quality (US AQI) at the place — Open-Meteo / CAMS, an estimate (the Now tile). */
-  airQuality: Resource<AirQualityPoint>
+  /** EPA AirNow sites around the place (±0.3°), for the Now tab's measured air-quality lines. */
+  monitorsNear: Resource<MonitorSitesResponse>
+  /** The pollutant the 25 km monitor circles show: ozone or smoke (PM2.5), one at a time. */
+  aqPollutant: 'OZONE' | 'PM2.5'
+  /** The circles layer needs the sites in view even when the dots toggle is off. */
+  monitorsWanted: boolean
   /** EPA AirNow monitoring sites in the map view, with their latest readings (the Air monitors layer). */
   monitors: Resource<MonitorSitesResponse>
 
@@ -209,7 +212,7 @@ export const store = createStore<AppState>({
     rivers: true,
     station: true,
     nowcast: false,
-    airquality: false,
+    aqcircles: false,
     monitors: false,
     ...savedLayers,
   },
@@ -240,7 +243,9 @@ export const store = createStore<AppState>({
   station: emptyResource(),
   conditions: emptyResource(),
   alerts: emptyResource(),
-  airQuality: emptyResource(),
+  monitorsNear: emptyResource(),
+  aqPollutant: 'PM2.5',
+  monitorsWanted: false,
   monitors: emptyResource(),
   blocks: {},
   visibleBlocks: [],
@@ -388,7 +393,7 @@ export function setLayer(id: LayerId, on: boolean) {
       /* ignore */
     }
     // Forecast overlays (rain / flood / nowcast / air quality) are one at a time: they stack into an unreadable quilt.
-    const OVERLAYS: LayerId[] = ['rainfall', 'flood', 'nowcast', 'airquality']
+    const OVERLAYS: LayerId[] = ['rainfall', 'flood', 'nowcast']
     if (on && OVERLAYS.includes(id)) {
       for (const other of OVERLAYS) if (other !== id) layers[other] = false
       if (id === 'rainfall' || id === 'nowcast') extra = { ...extra, animLayer: id }
@@ -398,6 +403,12 @@ export function setLayer(id: LayerId, on: boolean) {
     if (!layers[animLayer]) animLayer = (['radar', 'satellite', 'rainfall', 'nowcast'] as AnimLayer[]).find((l) => layers[l]) ?? animLayer
     return { ...extra, layers, animLayer, layerErrors }
   })
+}
+
+/** The measured air-quality circles: a pollutant turns them on (one at a time), null turns them off. */
+export function setAqPollutant(p: 'OZONE' | 'PM2.5' | null) {
+  if (p) store.set({ aqPollutant: p })
+  setLayer('aqcircles', !!p)
 }
 
 export function setJourneyTo(to: Place) {

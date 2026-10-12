@@ -47,7 +47,9 @@ export function describeSite(site: MonitorSite, place: { lng: number; lat: numbe
  */
 export function MonitorSitesLayer() {
   const map = useMap()
-  const enabled = useApp((s) => s.layers.monitors)
+  // The sites load while the dots are on, or while the circles layer wants them (it draws from the same sites).
+  const enabled = useApp((s) => s.layers.monitors || s.monitorsWanted)
+  const dots = useApp((s) => s.layers.monitors)
   const nonce = useApp((s) => s.refreshNonce)
   const cache = useRef<Map<string, { at: number; sites: MonitorSite[] }>>(new Map())
 
@@ -58,6 +60,7 @@ export function MonitorSitesLayer() {
       id: SRC,
       type: 'circle',
       source: SRC,
+      layout: { visibility: store.get().layers.monitors ? 'visible' : 'none' },
       paint: {
         'circle-radius': 7,
         'circle-color': ['case', ['==', ['get', 'style'], 'fresh'], ['get', 'color'], 'rgba(0,0,0,0)'],
@@ -140,6 +143,12 @@ export function MonitorSitesLayer() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, enabled, nonce])
+
+  // The dots toggle shows / hides the dots; the data keeps loading while the circles want it.
+  useEffect(() => {
+    if (!map || !map.getLayer(SRC)) return
+    map.setLayoutProperty(SRC, 'visibility', dots ? 'visible' : 'none')
+  }, [map, dots, enabled])
 
   return null
 }

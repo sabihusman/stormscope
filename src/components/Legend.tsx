@@ -28,7 +28,8 @@ export function LegendRows() {
   const rainHorizon = useApp((s) => s.rainHorizon)
   const units = useApp((s) => s.units)
   const satProduct = useApp((s) => s.satProduct)
-  const anyOverlay = layers.radar || layers.satellite || layers.rainfall || layers.flood || layers.rivers || layers.nowcast || layers.airquality || layers.monitors
+  const aqPollutant = useApp((s) => s.aqPollutant)
+  const anyOverlay = layers.radar || layers.satellite || layers.rainfall || layers.flood || layers.rivers || layers.nowcast || layers.aqcircles || layers.monitors
   if (!anyOverlay) return null
   const rainStops = RAIN_STOPS.map((s) => ({ color: s.color, label: s.value === RAIN_STOPS[0].value ? 'trace' : U.precipLabel(s.value, units) + (s === RAIN_STOPS[RAIN_STOPS.length - 1] ? '+' : '') }))
   return (
@@ -51,9 +52,9 @@ export function LegendRows() {
       )}
       {layers.rainfall && <Ramp stops={rainStops} title={`Rain next ${rainHorizon} h (${U.precipUnit(units)})`} />}
       {layers.flood && <Ramp stops={FLOOD_STOPS.slice(1)} title="Flood risk" />}
-      {layers.airquality && (
+      {layers.aqcircles && (
         <div className="legend-row aqi-legend">
-          <div className="legend-title">Air quality · US AQI (EPA categories)</div>
+          <div className="legend-title">{aqPollutant === 'OZONE' ? 'Ozone' : 'Smoke (PM2.5)'} · measured, US AQI (EPA categories)</div>
           <div className="legend-ramp" aria-label="AQI categories">
             {AQI_CATEGORIES.map((c) => (
               <div key={c.key} className="legend-swatch" data-aqi={c.key} title={`${c.name}: ${c.min}–${c.max === Infinity ? '' : c.max}`}>
@@ -63,7 +64,7 @@ export function LegendRows() {
             ))}
           </div>
           <small className="muted">Good · Moderate · Unhealthy for Sensitive Groups · Unhealthy · Very Unhealthy · Hazardous</small>
-          <small className="muted aqi-attrib">{AQI_ATTRIBUTION} · ~45 km grid</small>
+          <small className="muted aqi-attrib">A 25 km disc around each monitor with a reading under 2 h; no shading = no monitor, no estimate · {AQI_ATTRIBUTION}</small>
         </div>
       )}
       {layers.rivers && (

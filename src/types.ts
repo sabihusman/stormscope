@@ -1,6 +1,6 @@
 import type { BBox, LngLat } from './lib/geo'
 
-export type LayerId = 'radar' | 'satellite' | 'rainfall' | 'flood' | 'rivers' | 'station' | 'nowcast' | 'airquality' | 'monitors'
+export type LayerId = 'radar' | 'satellite' | 'rainfall' | 'flood' | 'rivers' | 'station' | 'nowcast' | 'aqcircles' | 'monitors'
 
 export type RainHorizon = 6 | 12 | 24 | 48
 

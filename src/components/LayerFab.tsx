@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { setFabCorner, setLayer, setSatProduct, store, useApp, type FabCorner } from '../state/store'
+import { setAqPollutant, setFabCorner, setLayer, setSatProduct, store, useApp, type FabCorner } from '../state/store'
 import { LegendRows } from './Legend'
 import type { LayerId } from '../types'
 
@@ -8,7 +8,6 @@ const OVERLAYS: { id: LayerId; label: string; icon: string }[] = [
   { id: 'rainfall', label: 'Rain next 24 h', icon: '🌧' },
   { id: 'flood', label: 'Flood risk', icon: '🌊' },
   { id: 'nowcast', label: 'Next 2 h wind & cloud', icon: '💨' },
-  { id: 'airquality', label: 'Air quality (US AQI, model)', icon: '🌫' },
 ]
 const POINTS: { id: LayerId; label: string; icon: string }[] = [
   { id: 'rivers', label: 'River gauges', icon: '📈' },
@@ -30,6 +29,7 @@ export function LayerFab() {
   const corner = useApp((s) => s.fabCorner)
   const layerErrors = useApp((s) => s.layerErrors)
   const satProduct = useApp((s) => s.satProduct)
+  const aqPollutant = useApp((s) => s.aqPollutant)
   const rainHorizon = useApp((s) => s.rainHorizon)
   const [open, setOpen] = useState(false)
   // Wide layouts: the panel is tied to the button; when the space between the button and the playback bar
@@ -193,6 +193,22 @@ export function LayerFab() {
               </button>
             )
           })}
+          <div className="fab-group-label">Air quality (AirNow monitors, measured)</div>
+          <div className="segmented small" role="radiogroup" aria-label="Air quality pollutant">
+            {([
+              ['off', 'Off'],
+              ['OZONE', 'Ozone'],
+              ['PM2.5', 'Smoke (PM2.5)'],
+            ] as const).map(([id, label]) => {
+              const active = id === 'off' ? !on('aqcircles') : on('aqcircles') && aqPollutant === id
+              return (
+                <button key={id} role="radio" aria-checked={active} data-aq={id} className={active ? 'on' : ''} onClick={() => setAqPollutant(id === 'off' ? null : id)}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          {layerErrors.aqcircles && <small className="fab-err">unavailable — {layerErrors.aqcircles}</small>}
           <div className="fab-group-label">Points</div>
           {POINTS.map((l) => {
             const err = layerErrors[l.id]
