@@ -49,7 +49,6 @@ export const QA_DAILY_CAP = Number(process.env.QA_OM_CAP ?? 350)
 // cap cascades into another.
 export const HOST_CAPS = {
   'api.open-meteo.com': 60, // Oct 9: pwa 5 + flows 9 + nonus 3 + satellite 1 + rivers 1 + journey 4 + hazards 11 + road 6 (+7 blocked) = 47
-  'air-quality-api.open-meteo.com': 40, // Oct 11: 1 location per place (Now tile) + ≤ 64 per map load of the overlay; locations also count in the Open-Meteo day budget
   'archive-api.open-meteo.com': 5, // replays are cached; only re-recording calls this
   'historical-forecast-api.open-meteo.com': 5,
   'geocoding-api.open-meteo.com': 10, // flows 1 + nonus 1 + journey 1
