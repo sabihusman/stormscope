@@ -1,5 +1,13 @@
 # Build log
 
+## Oct 11 — 7-day forecast on Now
+
+**Data:** the daily block rides on the same Open-Meteo call Now already makes (`fetchPlaceForecast`), not a second request: `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&forecast_days=7` added to the current + hourly request, and `timezone=GMT` replaced by `timezone=auto` so days roll over at the place's local midnight (timestamps stay `unixtime`, so the hourly series is unchanged). Variable names confirmed against the current Open-Meteo docs (Daily Parameter Definition table), and one live call confirmed the combined response: 49 hourly rows (`forecast_hours=48` still bounds the hourly block), 7 daily rows, `daily.time[0]` = local midnight in the resolved zone, `timezone` + `utc_offset_seconds` returned. A place change therefore still costs one Open-Meteo location. The response's zone and offset are kept on `PlaceForecast`; `daily` is parsed defensively (no block → empty).
+
+**UI (`NowScreen.tsx` `DailyCard`, after the hourly strip):** rows of day · icon (weather_code via `wmo`) · high / low · max chance · amount when ≥ 0.1 mm; "Today" / "Tomorrow" by comparing the row's local date with today's date in the place's zone, then the short weekday; units follow the setting; 32 px rows on a phone. Loading = skeletons, error = the conditions card's wording with Retry (same resource, so a 429 under retry shows skeletons on both); a response without daily shows the card's own unavailable state while the conditions card stands; the card has its own error boundary. No tap action.
+
+**Tests:** `daily-check.mjs` 18/18 (in prod-suite), see README.
+
 ## Oct 10 — CVzWpx2B promoted to production (the layers-panel fixes)
 
 Gate: the mocked dry run of preview iryrkwl8l (bundle CVzWpx2B, commit e822f57) was green with the machine otherwise idle — 23/23 suites, walkthrough 130 s, headed playback diags green on phone and desktop, zero live calls, secret revoked. Promoted at 07:20 UTC with `vercel promote <preview-url> --yes` (the CLI's "promote an existing deployment to current": it created production deployment `dpl_3q7czgd88z2Be7g77mDWJj36u5dg` (stormscope-24k84utfa) from the preview's build, no rebuild — the alias serves the same `index-CVzWpx2B.js`, confirmed cache-busted and plain within 10 s). Previous production `dpl_46XGr4Tbtzpzou6MDJZ1XatVySqB` (DyDvRSBo) is the rollback target in ROLLBACK.md. Repository backed up to `~/stormscope-backup-2026-10-10.bundle` (all branches). Smoke on production: see below.
