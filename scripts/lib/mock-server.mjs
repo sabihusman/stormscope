@@ -122,6 +122,13 @@ function monitorSites(url, focus) {
       { parameter: 'OZONE', value: 40, unit: 'PPB', aqi: 37, time: now - 3 * H },
     ]),
     site('mock-offline', 'East High (mock)', -0.1, 0.1, ['PM2.5'], []),
+    // Overlap fixtures (PM2.5 only, all fresh): a Good disc meeting the Unhealthy edge-in disc; an Unhealthy-for-
+    // Sensitive-Groups disc that reaches into the fresh ∩ edge-in lens (three discs); Very Unhealthy and
+    // Hazardous discs off to the south-west meeting each other only.
+    site('mock-good', 'Good NE (mock)', 0.3, 0.3, ['PM2.5'], [{ parameter: 'PM2.5', value: 5, unit: 'UG/M3', aqi: 21, time: now - 20 * 60_000 }]),
+    site('mock-usg', 'USG west (mock)', 0.08, -0.2, ['PM2.5'], [{ parameter: 'PM2.5', value: 45, unit: 'UG/M3', aqi: 125, time: now - 20 * 60_000 }]),
+    site('mock-vu', 'Very unhealthy SW (mock)', -0.3, -0.3, ['PM2.5'], [{ parameter: 'PM2.5', value: 180, unit: 'UG/M3', aqi: 250, time: now - 20 * 60_000 }]),
+    site('mock-haz', 'Hazardous SW (mock)', -0.3, -0.44, ['PM2.5'], [{ parameter: 'PM2.5', value: 300, unit: 'UG/M3', aqi: 350, time: now - 20 * 60_000 }]),
   ]
   const bbox = (q.get('bbox') ?? '').split(',').map(Number)
   const inView = bbox.length === 4 && bbox.every(Number.isFinite) ? sites.filter((s) => s.lngLat.lng >= bbox[0] && s.lngLat.lng <= bbox[2] && s.lngLat.lat >= bbox[1] && s.lngLat.lat <= bbox[3]) : sites

@@ -100,7 +100,7 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   const { ctx, page, done, calls, until } = await session()
   await openMap(page)
   // A view that holds every fixture site (±0.25° around the place).
-  await page.evaluate(() => { const p = window.__store.get().place.lngLat; window.__map.jumpTo({ center: [p.lng, p.lat], zoom: 8.6 }) })
+  await page.evaluate(() => { const p = window.__store.get().place.lngLat; window.__map.jumpTo({ center: [p.lng, p.lat], zoom: 8.2 }) })
   await page.waitForTimeout(400)
   const callsBefore = calls.length // the Now tab already asked the service for the sites around the place
   await page.getByRole('button', { name: 'Open layer menu' }).click()
@@ -110,26 +110,38 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await page.waitForTimeout(300)
   const legendSmoke = await page.locator('.aqi-legend').innerText().catch(() => '')
   const swatches = await page.evaluate(() => [...document.querySelectorAll('.aqi-legend .legend-swatch')].map((s) => getComputedStyle(s.querySelector('i')).backgroundColor))
-  check('Smoke on: the legend shows the six EPA colours with breakpoints and says 25 km discs, no shading = no monitor', swatches.join('|') === 'rgb(0, 228, 0)|rgb(255, 255, 0)|rgb(255, 126, 0)|rgb(255, 0, 0)|rgb(143, 63, 151)|rgb(126, 0, 35)' && /Smoke \(PM2\.5\) · measured/.test(legendSmoke) && /25 km disc/.test(legendSmoke) && /no shading = no monitor/.test(legendSmoke), legendSmoke.split('\n')[0])
+  check('Smoke on: the legend shows the six EPA colours with breakpoints and says 25 km discs, no shading = no monitor', swatches.join('|') === 'rgb(0, 228, 0)|rgb(255, 255, 0)|rgb(255, 126, 0)|rgb(255, 0, 0)|rgb(143, 63, 151)|rgb(126, 0, 35)' && /Smoke \(PM2\.5\) · measured/.test(legendSmoke) && /25 km disc/.test(legendSmoke) && /overlaps show the worse reading/.test(legendSmoke) && /no shading = no monitor/.test(legendSmoke), legendSmoke.split('\n')[0])
   await page.getByRole('button', { name: 'Close layer menu' }).click()
   await until(() => window.__store.get().monitors.state === 'ready' && window.__aqCircles && window.__aqCircles.discs.length > 0, 20000)
   await page.waitForTimeout(600)
   const d = await discs(page)
   const ids = (d?.discs ?? []).map((x) => x.id).sort().join(',')
-  check('Smoke view: discs for the monitors with a PM2.5 reading under 2 h only — fresh, the 24.5 km site (1 h 55 min old) and the 25.5 km site; not the ozone-only, 2 h 05, 3 h or offline sites', d?.pollutant === 'PM2.5' && ids === 'mock-edge-in,mock-edge-out,mock-fresh', ids)
-  check('Disc colours are the EPA colours of the readings (62 → yellow, 160 → red, 90 → yellow)', (d?.discs ?? []).every((x) => (x.id === 'mock-edge-in' ? x.color === '#FF0000' : x.color === '#FFFF00')), JSON.stringify(d?.discs))
+  check('Smoke view: discs for the monitors with a PM2.5 reading under 2 h only — fresh, the 24.5 km site (1 h 55 min old), the 25.5 km site and the four overlap fixtures; not the ozone-only, 2 h 05, 3 h or offline sites', d?.pollutant === 'PM2.5' && ids === 'mock-edge-in,mock-edge-out,mock-fresh,mock-good,mock-haz,mock-usg,mock-vu', ids)
+  const EXPECT = { 'mock-fresh': '#FFFF00', 'mock-edge-in': '#FF0000', 'mock-edge-out': '#FFFF00', 'mock-good': '#00E400', 'mock-usg': '#FF7E00', 'mock-vu': '#8F3F97', 'mock-haz': '#7E0023' }
+  check('Disc colours are the EPA colours of the readings, and the discs are ordered by category rank (worse painted last)', (d?.discs ?? []).every((x) => x.color === EXPECT[x.id]) && (d?.discs ?? []).every((x, i, a) => i === 0 || a[i - 1].rank <= x.rank), JSON.stringify((d?.discs ?? []).map((x) => `${x.id}:${x.rank}`)))
   check("One request to the monitor service for the map view (bbox), besides the Now tab's request around the place", calls.length - callsBefore === 1 && /\/sites\?bbox=-?\d/.test(calls[calls.length - 1]), `${calls.length - callsBefore} view call(s), ${callsBefore} before`)
   // Pixels: inside the fresh disc (yellow), in the overlap of the fresh (yellow) and edge-in (red) discs, far from any monitor.
-  const fresh = { lng: FOCUS.lng + 0.06, lat: FOCUS.lat - 0.07 }
-  const edgeIn = { lng: FOCUS.lng, lat: FOCUS.lat + 24.5 / 111.2 }
-  const pInside = await pixel(page, fresh.lng, fresh.lat)
-  const pOverlap = await pixel(page, (fresh.lng + edgeIn.lng) / 2, (fresh.lat + edgeIn.lat) / 2)
-  const pBlank = await pixel(page, FOCUS.lng + 0.9, FOCUS.lat)
-  const pEdgeOutOnly = await pixel(page, FOCUS.lng, FOCUS.lat - 25.5 / 111.2)
-  check('Inside the fresh disc the canvas is the EPA yellow at full alpha (the layer draws it at 45 % opacity)', pInside && pInside[0] === 255 && pInside[1] === 255 && pInside[2] === 0 && pInside[3] === 255, JSON.stringify(pInside))
-  check('Overlap of the yellow and red discs is never darker than either: every channel ≥ both discs (per-channel max)', pOverlap && pOverlap[3] === 255 && pOverlap[0] >= 255 && pOverlap[1] >= 255 && pOverlap[2] >= 0, JSON.stringify(pOverlap))
-  check('Far from any monitor (100 km east): no shading at all (alpha 0) — no estimate, no interpolation', pBlank && pBlank[3] === 0, JSON.stringify(pBlank))
-  check('The 25.5 km site still draws its own disc on the map (it is a real monitor; it just does not count for the place)', pEdgeOutOnly && pEdgeOutOnly[3] === 255, JSON.stringify(pEdgeOutOnly))
+  // Pixel samples (offsets from the place in degrees; 1° lat ≈ 111 km, 1° lng ≈ 83 km here). Each point lies inside
+  // exactly the discs named; the canvas holds solid EPA colours at full alpha (the layer shows it at 45 %).
+  const at = (dLat, dLng) => pixel(page, FOCUS.lng + dLng, FOCUS.lat + dLat)
+  const YELLOW = [255, 255, 0, 255], RED = [255, 0, 0, 255], MAROON = [126, 0, 35, 255]
+  const same = (a, b) => !!a && a.join(',') === b.join(',')
+  const pInside = await at(-0.07, 0.25) // fresh (Moderate) only
+  const pModUnh = await at(0.075, 0.12) // fresh (Moderate) ∩ edge-in (Unhealthy)
+  const pGoodUnh = await at(0.26, 0.15) // good (Good) ∩ edge-in (Unhealthy)
+  const pVuHaz = await at(-0.3, -0.37) // vu (Very Unhealthy) ∩ haz (Hazardous)
+  const pThree = await at(0.08, 0.03) // fresh (Moderate) ∩ edge-in (Unhealthy) ∩ usg (USG)
+  const pSame = await at(-0.15, 0.03) // fresh (Moderate 62) ∩ edge-out (Moderate 90)
+  const pBlank = await at(0, 0.9) // 75 km east of everything
+  const pEdgeOut = await at(-25.5 / 111.2, 0) // the 25.5 km site's own disc
+  check('A point under one disc only (fresh, Moderate) is the EPA yellow at full alpha', same(pInside, YELLOW), JSON.stringify(pInside))
+  check('Moderate + Unhealthy overlap shows Unhealthy (red), not yellow', same(pModUnh, RED), JSON.stringify(pModUnh))
+  check('Good + Unhealthy overlap shows Unhealthy (red)', same(pGoodUnh, RED), JSON.stringify(pGoodUnh))
+  check('Very Unhealthy + Hazardous overlap shows Hazardous (maroon)', same(pVuHaz, MAROON), JSON.stringify(pVuHaz))
+  check('Three discs overlapping (Moderate, Unhealthy, Unhealthy for Sensitive Groups) show the worst of the three (red)', same(pThree, RED), JSON.stringify(pThree))
+  check('Same-category overlap (two Moderate discs) is identical to a single Moderate disc', same(pSame, YELLOW) && same(pSame, pInside), JSON.stringify(pSame))
+  check('Far from any monitor: no shading at all (alpha 0) — no estimate, no interpolation', pBlank && pBlank[3] === 0, JSON.stringify(pBlank))
+  check('The 25.5 km site still draws its own disc on the map (it is a real monitor; it just does not count for the place)', same(pEdgeOut, YELLOW), JSON.stringify(pEdgeOut))
   // Switch to Ozone: the ozone-only site appears, the PM2.5-only sites go.
   await page.getByRole('button', { name: 'Open layer menu' }).click()
   await page.locator('[data-aq="OZONE"]').click()
@@ -150,7 +162,7 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await page.waitForTimeout(600)
   const f = await features(page)
   const by = Object.fromEntries((f ?? []).map((p) => [p.id, p]))
-  check('Sites toggle on: a dot at every site in view (7), the legend row with both dot styles', Object.keys(by).length === 7 && legendDots === 'fresh,stale', `${Object.keys(by).length} dots · legend ${legendDots}`)
+  check('Sites toggle on: a dot at every site in view (11), the legend row with both dot styles', Object.keys(by).length === 11 && legendDots === 'fresh,stale', `${Object.keys(by).length} dots · legend ${legendDots}`)
   check('Fresh site dot in its EPA colour (worst fresh reading, PM2.5 62 → yellow); 2 h 05 and 3 h sites and the offline site are grey outlines', by['mock-fresh']?.style === 'fresh' && by['mock-fresh']?.color === '#FFFF00' && ['mock-stale-edge', 'mock-stale', 'mock-offline'].every((id) => by[id]?.style === 'stale' && by[id]?.color === '#94a3b8'), JSON.stringify(['mock-fresh', 'mock-stale-edge', 'mock-stale', 'mock-offline'].map((id) => by[id])))
   const t = await tap(page, 'mock-ozone-only')
   check('Tap on the ozone-only site: name, "Measures: ozone", the reading with its age, the distance from the place', /Carpenter \(mock\)/.test(t) && /Measures: ozone$/m.test(t) && !/PM2\.5/.test(t) && /ozone: AQI 55 Moderate · 59 PPB · 25 min ago/.test(t) && /(km|mi) from your place/.test(t), t.replace(/\n/g, ' | ').slice(0, 200))
