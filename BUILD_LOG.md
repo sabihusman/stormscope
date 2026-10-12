@@ -1,5 +1,17 @@
 # Build log
 
+## Oct 12 — air quality from EPA AirNow monitors only (replaces the modeled phase 1)
+
+**No modeled data anywhere:** the Open-Meteo / CAMS tile, overlay, client, mock and suite from the previous entry are removed (`src/lib/aqi.ts` — the EPA categories, breakpoints and colours — stays). Everything air-quality now comes from EPA AirNow monitoring sites through the monitor service contract (`src/api/airnow.ts`, unchanged: `GET <service>/sites?bbox=…`, readings with AirNow's AQI and the END of the observation hour). The service itself is still to be created on the server the user chooses; until then the app shows "Monitor service not set up yet" and makes no request.
+
+**Map:** a switch in the layers panel, "Air quality (AirNow monitors, measured)": Off / Ozone / Smoke (PM2.5), one at a time. `AqCirclesLayer` draws, for every monitor measuring the selected pollutant with a reading under 2 h, a 25 km disc in the EPA colour of that reading, as a Mercator canvas source at 45 % opacity. Overlaps are composed with per-channel MAX (canvas "lighten"), so an overlap is never darker than either disc; everywhere else the canvas is transparent — no estimate, no interpolation. The legend shows the six EPA swatches and says "25 km disc around each monitor with a reading under 2 h; no shading = no monitor". The sites toggle ("Air monitors (AirNow)", Points group) is unchanged: fresh dots in EPA colours, grey outlined dots for stale or offline, tap details with pollutants, readings with age, distance from the place; the dots' data also feeds the discs.
+
+**Now tab:** one line per pollutant (Ozone, Smoke (PM2.5)). Measured = a monitor measuring it within 25 km with a reading under 2 h: the AQI as an EPA-coloured badge, the category, "at <station>, N km away, N min ago". Otherwise "No monitor within 25 km", no number. Sites around the place (±0.3°) are polled every 15 min, replay-gated. Credited "EPA AirNow and the reporting air quality agencies · preliminary data".
+
+**Colours:** EPA's six categories and breakpoints with the standard RGB colours of Table 2, EPA-403/B-26-003 (May 2026). **Tests:** `monitors-check.mjs` 20 checks (in prod-suite), including pixel sampling of the disc canvas for the overlap and blank-area rules.
+
+**Johnston, Iowa (public AirNow files, Oct 12):** nearest ozone monitor Carpenter, Des Moines, 9.0 km; nearest PM2.5 monitor Public Works, Des Moines, 8.2 km; both within 25 km with readings under 2 h.
+
 ## Oct 12 — air monitors (EPA AirNow sites): the client, ahead of the server
 
 **Why a server after all:** AirNow's public files (`files.airnowtech.org/airnow/today/monitoring_site_locations.dat`, 3.2 MB, and `HourlyData_<UTC hour>.dat`, ≈ 0.7 MB an hour) are readable from the browser (CORS `*`, no key), but they carry raw hourly concentrations, not AQI — AirNow's site AQI is NowCast over the last 12 hours — so colouring a monitor correctly needs the keyed API (`/aq/data/` with `dataType=B` returns AirNow's AQI per site). The user decides which server hosts the key; nothing server-side was created.
