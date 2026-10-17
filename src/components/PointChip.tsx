@@ -7,6 +7,8 @@ import { bearingLabel, sampleBlocks } from '../lib/gridSample'
 import { clock, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
 import { compass } from '../map/StationLayer'
+import { openMonitor, siteStyle } from '../map/MonitorSitesLayer'
+import { aqiCategory } from '../lib/aqi'
 import { go, setJourneyTo, setPlace, store, useApp, useVisibleBlocks, type Selection } from '../state/store'
 
 /** Headline for the chip, by selection kind. */
@@ -73,6 +75,54 @@ export function PointChip() {
       <button className="icon-btn" onClick={() => store.set({ selection: null })} aria-label="Dismiss">
         ×
       </button>
+    </div>
+  )
+}
+
+/**
+ * More than one monitor dot under a tap (neighbours closer than the 44 px target): a small list in the
+ * chip's place — name, the worst reading under 2 h with its EPA badge, the distance from the place — nearest
+ * to the tap first. Picking one opens its chip; × or a map tap dismisses it.
+ */
+export function MonitorChooser() {
+  const chooser = useApp((s) => s.dotChooser)
+  const sites = useApp((s) => s.monitors.data?.sites)
+  const place = useApp((s) => s.place)
+  const units = useApp((s) => s.units)
+  const now = useNow()
+  if (!chooser) return null
+  const list = chooser.ids.map((id) => sites?.find((x) => x.id === id)).filter((x): x is NonNullable<typeof x> => !!x)
+  if (!list.length) return null
+  return (
+    <div className="dot-chooser" role="dialog" aria-label="Monitors under your tap">
+      <div className="chooser-title">
+        <strong>{list.length} monitors here</strong>
+        <button className="icon-btn" onClick={() => store.set({ dotChooser: null })} aria-label="Dismiss">
+          ×
+        </button>
+      </div>
+      <ul>
+        {list.map((site) => {
+          const st = siteStyle(site, now)
+          const cat = aqiCategory(st.aqi)
+          return (
+            <li key={site.id}>
+              <button className="chooser-row" data-site={site.id} onClick={() => openMonitor(site)}>
+                <b className={`aqi-badge${st.aqi == null ? ' none' : ''}`} style={cat ? { background: cat.color, color: cat.text } : undefined}>
+                  {st.aqi == null ? '—' : Math.round(st.aqi)}
+                </b>
+                <span className="chooser-body">
+                  <strong>{site.name}</strong>
+                  <small className="muted">
+                    {cat ? `${cat.name} · ` : 'no reading under 2 h · '}
+                    {place ? `${U.distance(haversine(place.lngLat, site.lngLat), units)} from your place` : site.agency}
+                  </small>
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

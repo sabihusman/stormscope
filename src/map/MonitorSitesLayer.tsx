@@ -51,6 +51,24 @@ export function describeSite(site: MonitorSite, place: { lng: number; lat: numbe
   return { lines, readings }
 }
 
+/** Open a monitor's chip (the tap's result, or the chooser's pick): the station selection with its readings. */
+export function openMonitor(site: MonitorSite) {
+  const s = store.get()
+  const { lines, readings } = describeSite(site, s.place?.lngLat ?? null, s.units)
+  store.set({
+    dotChooser: null,
+    selection: {
+      kind: 'station',
+      lngLat: site.lngLat,
+      title: `${site.name} · air monitor`,
+      lines,
+      readings,
+      source: AIRNOW_CREDIT,
+      updated: s.monitors.freshness?.fetchedAt ?? undefined,
+    },
+  })
+}
+
 /**
  * Every EPA AirNow monitoring site in view (phase 2). Dots in the EPA colour of the site's freshest worst
  * reading (under 2 h), grey outlined when stale or offline so a broken monitor is visible. One request per
@@ -125,38 +143,29 @@ export function MonitorSitesLayer() {
     schedule()
     map.on('moveend', schedule)
     // A tap anywhere within the 44 px square around a dot opens it (a dot is 15 px wide; a fingertip is
-    // not that precise — on Oct 17 taps 12 px off the centre fell through to the map's point chip). The
-    // nearest dot in the square wins.
+    // not that precise — on Oct 17 taps 12 px off the centre fell through to the map's point chip). One
+    // dot in the square opens; more than one (neighbours under 44 px apart, e.g. Carpenter and East High
+    // in Des Moines at the place zoom) opens the chooser listing them, nearest first — never a guess.
     const onClick = (e: MapMouseEvent) => {
       if (!map.getLayer(SRC) || map.getLayoutProperty(SRC, 'visibility') === 'none') return
       const { x, y } = e.point
       const hits = map.queryRenderedFeatures([[x - HIT_HALF_PX, y - HIT_HALF_PX], [x + HIT_HALF_PX, y + HIT_HALF_PX]], { layers: [SRC] })
       if (!hits.length) return
       const sites = store.get().monitors.data?.sites ?? []
-      let site: MonitorSite | null = null
-      let best = Infinity
+      const under: { site: MonitorSite; d: number }[] = []
       for (const f of hits) {
-        const cand = sites.find((s) => s.id === (f.properties as { id: string }).id)
-        if (!cand) continue
-        const p = map.project([cand.lngLat.lng, cand.lngLat.lat])
-        const d = Math.hypot(p.x - x, p.y - y)
-        if (d < best) { best = d; site = cand }
+        const id = (f.properties as { id: string }).id
+        if (under.some((u) => u.site.id === id)) continue
+        const site = sites.find((s) => s.id === id)
+        if (!site) continue
+        const p = map.project([site.lngLat.lng, site.lngLat.lat])
+        under.push({ site, d: Math.hypot(p.x - x, p.y - y) })
       }
-      if (!site) return
+      if (!under.length) return
       e.preventDefault()
-      const s = store.get()
-      const { lines, readings } = describeSite(site, s.place?.lngLat ?? null, s.units)
-      store.set({
-        selection: {
-          kind: 'station',
-          lngLat: site.lngLat,
-          title: `${site.name} · air monitor`,
-          lines,
-          readings,
-          source: AIRNOW_CREDIT,
-          updated: s.monitors.freshness?.fetchedAt ?? undefined,
-        },
-      })
+      under.sort((a, b) => a.d - b.d)
+      if (under.length === 1) openMonitor(under[0].site)
+      else store.set({ selection: null, dotChooser: { lngLat: { lng: e.lngLat.lng, lat: e.lngLat.lat }, ids: under.map((u) => u.site.id) } })
     }
     const enter = () => (map.getCanvas().style.cursor = 'pointer')
     const leave = () => (map.getCanvas().style.cursor = '')

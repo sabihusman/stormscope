@@ -1613,6 +1613,60 @@ small {
   font-size: 14px;
   padding: 1px 7px;
 }
+/* Several monitor dots under one tap: the chooser in the chip's place. */
+.dot-chooser {
+  position: absolute;
+  left: calc(var(--sal) + 12px);
+  right: calc(var(--sar) + 12px);
+  bottom: calc(var(--sab) + var(--dock-h) + 40px);
+  z-index: 27;
+  padding: 8px 6px 6px 12px;
+  border-radius: 14px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.dot-chooser .chooser-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dot-chooser ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.dot-chooser .chooser-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 6px 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.dot-chooser .chooser-row:hover,
+.dot-chooser .chooser-row:focus-visible {
+  background: var(--line);
+}
+.dot-chooser .chooser-body {
+  display: grid;
+  line-height: 1.25;
+}
+.dot-chooser .aqi-badge {
+  font-size: 14px;
+  padding: 1px 7px;
+}
+.dot-chooser .aqi-badge.none,
 .popup-readings .aqi-badge.none {
   background: transparent;
   border: 1.5px solid var(--muted);

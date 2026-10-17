@@ -10,7 +10,7 @@ import { MonitorSitesLayer } from './map/MonitorSitesLayer'
 import { RiversLayer } from './map/RiversLayer'
 import { StationLayer } from './map/StationLayer'
 import { NowcastLayer, WindParticles } from './map/NowcastLayer'
-import { PointChip } from './components/PointChip'
+import { MonitorChooser, PointChip } from './components/PointChip'
 // Journey overlays: code-split with the journey pipeline and mounted only once a destination exists.
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
@@ -139,6 +139,7 @@ export default function App() {
       {screen === 'map' && !pickMode && (
         <>
           <ErrorBoundary kind="panel" name="Point"><PointChip /></ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Monitor chooser"><MonitorChooser /></ErrorBoundary>
           {hasSelection && sheet !== 'peek' && <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>}
         </>
       )}

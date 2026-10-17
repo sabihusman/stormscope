@@ -152,8 +152,8 @@ export function MapView({ children }: { children: ReactNode }) {
       // set their own selection and stop propagation via `defaultPrevented`.
       if (e.defaultPrevented) return
       const s = store.get()
-      if (s.selection) {
-        store.set({ selection: null })
+      if (s.selection || s.dotChooser) {
+        store.set({ selection: null, dotChooser: null })
         return
       }
       // A point chip: the headline is built from the forecast grid by PointChip; coordinates stay in Details.

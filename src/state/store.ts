@@ -155,6 +155,8 @@ export interface AppState {
   aqPollutant: 'OZONE' | 'PM2.5'
   /** The circles layer needs the sites in view even when the dots toggle is off. */
   monitorsWanted: boolean
+  /** More than one air-monitor dot under a tap: the chooser lists them (ids into `monitors.data.sites`) instead of guessing. */
+  dotChooser: { lngLat: { lng: number; lat: number }; ids: string[] } | null
   /** EPA AirNow monitoring sites in the map view, with their latest readings (the Air monitors layer). */
   monitors: Resource<MonitorSitesResponse>
 
@@ -264,6 +266,7 @@ export const store = createStore<AppState>({
   monitorsNear: emptyResource(),
   aqPollutant: 'PM2.5',
   monitorsWanted: false,
+  dotChooser: null,
   monitors: emptyResource(),
   blocks: {},
   visibleBlocks: [],
