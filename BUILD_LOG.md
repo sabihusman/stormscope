@@ -6,6 +6,8 @@ The user chose a Vercel function. `api/sites.js` (Node runtime, ESM) answers `GE
 
 GitHub: a private repository `sabihusman/stormscope` was created and set as `origin`; the first push was declined by the account's email-privacy setting (commits carry the owner's address), left for the owner to resolve.
 
+Dry run (`preview-dry-run.mjs`, 19:37–20:04 UTC, everything mocked, machine otherwise idle) on preview ee33pog3d (bundle `index-DoCD-UPF.js`, commit 228169f): prod-suite-mock 1233 s exit 0, walkthrough-phone-mock 154 s, headed playback diags phone 62 s and desktop 61 s, zero live calls — GREEN, recorded in `e2e-shots/prod/.dry-runs.json`. Bypass secret revoked (0 entries). Not promoted.
+
 ## Oct 17 — Lx2BNpwE promoted to production (7-day forecast, AirNow monitor air quality)
 
 Promoted at 19:21 UTC by `vercel promote` of preview hi2r7hf6g (bundle `index-Lx2BNpwE.js`, commit 07c8a33; mocked dry run green on Oct 12 with zero live calls) — no `--prod` build. New production deployment `dpl_G572sG4NTXhyRwGev96gr5aWwxmr` (stormscope-79kjt7706); previous `dpl_3q7czgd88z2Be7g77mDWJj36u5dg` (stormscope-24k84utfa, bundle CVzWpx2B, commit e822f57). The alias https://stormscope-two.vercel.app served `index-Lx2BNpwE.js` on ten fetches, plain and cache-busted, within a minute (the first three cache-busted fetches during propagation still returned CVzWpx2B).
