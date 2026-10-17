@@ -1,5 +1,15 @@
 # Build log
 
+## Oct 17 — Lx2BNpwE promoted to production (7-day forecast, AirNow monitor air quality)
+
+Promoted at 19:21 UTC by `vercel promote` of preview hi2r7hf6g (bundle `index-Lx2BNpwE.js`, commit 07c8a33; mocked dry run green on Oct 12 with zero live calls) — no `--prod` build. New production deployment `dpl_G572sG4NTXhyRwGev96gr5aWwxmr` (stormscope-79kjt7706); previous `dpl_3q7czgd88z2Be7g77mDWJj36u5dg` (stormscope-24k84utfa, bundle CVzWpx2B, commit e822f57). The alias https://stormscope-two.vercel.app served `index-Lx2BNpwE.js` on ten fetches, plain and cache-busted, within a minute (the first three cache-busted fetches during propagation still returned CVzWpx2B).
+
+**Smoke on production, read-only, mocked, no secret, no live calls** (every run reported "no external requests"): menu-check 84/84 · playbar-check 51/51 · daily-check 18/18 · monitors-check 24/24.
+
+**Rollback:** `MSYS_NO_PATHCONV=1 NODE_OPTIONS=--use-system-ca vercel rollback dpl_3q7czgd88z2Be7g77mDWJj36u5dg --yes`, then confirm the alias serves `assets/index-CVzWpx2B.js` (ROLLBACK.md, commit b209ff9).
+
+Note: the AirNow monitor service is not created yet (the server choice is pending), so the Air quality card and layers on production show "Monitor service not set up yet". The checkout had no uncommitted work at release time; the backup bundle and an (empty) WIP patch are in `C:\Users\sabih\Projects\`.
+
 ## Oct 12 — disc overlaps show the more severe category
 
 The per-channel maximum compositing is gone. `AqCirclesLayer` now paints the discs in ascending EPA category rank (Good < Moderate < Unhealthy for Sensitive Groups < Unhealthy < Very Unhealthy < Hazardous — compared by rank, never by colour channels) with plain source-over at full alpha, so the worse disc covers the better one, and the whole canvas is shown at one opacity: an overlap looks exactly like the worse disc alone, and a same-category overlap is identical to a single disc. Legend note: "overlaps show the worse reading". Mock fixture: Good, Unhealthy-for-Sensitive-Groups, Very Unhealthy and Hazardous PM2.5 sites placed so each overlap in the tests has a sample point inside exactly the intended discs. `monitors-check.mjs` 24/24, with pixel samples: Moderate + Unhealthy → red; Good + Unhealthy → red; Very Unhealthy + Hazardous → maroon; three discs → the worst (red); two Moderate discs → identical to one; one disc and blank areas unchanged.
