@@ -22,10 +22,15 @@ export function parseBbox(s) {
   return { west, south, east, north }
 }
 
-/** AirNow's "UTC" field ("2026-10-12T02:00") is the START of the observation hour; the reading covers that hour. */
-export function hourEndMs(utc) {
+/**
+ * AirNow's "UTC" field ("2026-10-17T20:00") labels the hour the reading is reported for, and that label is
+ * the END of the observation hour: on Oct 17, 2026 the records labelled 20:00 UTC were already published at
+ * 20:29 UTC (AirNow posts an hour's data 10–30 min after it ends), so a label cannot be the start of an hour
+ * still in progress. The reading's time is the label itself; ages count from it.
+ */
+export function readingTimeMs(utc) {
   const t = Date.parse(String(utc).replace(/Z?$/, 'Z'))
-  return Number.isFinite(t) ? t + 3_600_000 : null
+  return Number.isFinite(t) ? t : null
 }
 
 /**
@@ -41,7 +46,7 @@ export function sitesFromRecords(records) {
     const lat = Number(r.Latitude), lng = Number(r.Longitude)
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
     const id = String(r.FullAQSCode ?? r.IntlAQSCode ?? `${lat.toFixed(4)},${lng.toFixed(4)}`)
-    const time = hourEndMs(r.UTC)
+    const time = readingTimeMs(r.UTC)
     if (time == null) continue
     let site = bySite.get(id)
     if (!site) {

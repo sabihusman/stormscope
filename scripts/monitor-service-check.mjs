@@ -1,9 +1,9 @@
 // The monitor service's pure logic (api/_lib/airnow.js), without network or key:
 //   bbox snapping and validation; AirNow records → sites with the latest reading per parameter, times at the
-//   END of the observation hour, parameter names normalised (PM25 → PM2.5, O3 → OZONE); the site list merged so
+//   END of the observation hour (AirNow's hour label, no hour added), parameter names normalised (PM25 → PM2.5, O3 → OZONE); the site list merged so
 //   an offline monitor is still listed; the upstream query shape (last three hours, OZONE,PM25, bbox, JSON).
 //   node scripts/monitor-service-check.mjs [base-url] [shots-dir] [--mock]   (node only; base-url ignored)
-import { hourEndMs, mergeSiteList, parseBbox, parseSiteList, quantizeBbox, sitesFromRecords, upstreamUrl } from '../api/_lib/airnow.js'
+import { readingTimeMs, mergeSiteList, parseBbox, parseSiteList, quantizeBbox, sitesFromRecords, upstreamUrl } from '../api/_lib/airnow.js'
 
 const results = []
 const check = (name, ok, ev = '') => {
@@ -28,7 +28,7 @@ const sites = sitesFromRecords([
 ])
 const pw = sites.find((s) => s.id === '840191535885')
 check('One site per AQS code, the latest reading per parameter (01:00 dropped for 02:00)', sites.length === 3 && pw && pw.readings.length === 2 && pw.readings.find((r) => r.parameter === 'PM2.5').aqi === 25 && pw.readings.find((r) => r.parameter === 'PM2.5').value === 6, JSON.stringify(pw?.readings))
-check('Reading time is the END of the observation hour (02:00 UTC → 03:00 UTC)', pw.readings[0].time === Date.UTC(2026, 9, 12, 3, 0) && hourEndMs('2026-10-12T02:00') === Date.UTC(2026, 9, 12, 3, 0), new Date(pw.readings[0].time).toISOString())
+check("Reading time is AirNow's hour label as is — the END of the observation hour (label 02:00 UTC → 02:00 UTC, no hour added)", pw.readings[0].time === Date.UTC(2026, 9, 12, 2, 0) && readingTimeMs('2026-10-12T02:00') === Date.UTC(2026, 9, 12, 2, 0) && readingTimeMs('2026-10-12T02:00Z') === Date.UTC(2026, 9, 12, 2, 0) && readingTimeMs('garbage') === null, new Date(pw.readings[0].time).toISOString())
 check('Parameter names normalised: PM25 → PM2.5, O3 → OZONE; a -999 AQI becomes null', sites.find((s) => s.id === '191531579').readings[0].parameter === 'PM2.5' && sites.find((s) => s.id === '191531579').readings[0].aqi === null && sites.find((s) => s.id === '191530030').readings[0].parameter === 'OZONE')
 check('A site lists the parameters it reported', pw.parameters.join(',') === 'PM2.5,OZONE' && sites.find((s) => s.id === '191530030').parameters.join(',') === 'OZONE')
 check('Site name, agency and coordinates carried through', pw.name === 'Public Works' && pw.agency === 'Polk Co. Air Quality Division' && pw.lngLat.lat === 41.603 && pw.lngLat.lng === -93.643)

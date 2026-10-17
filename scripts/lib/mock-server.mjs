@@ -90,7 +90,7 @@ function omSeries(locIdx, field, nHours, startSec) {
 const omOptions = { timezone: 'GMT', omitDaily: false, noMonitors: false }
 /**
  * The monitor service for the mocked suites: AirNow-style sites around the focus (Johnston, Iowa by default).
- * Readings carry the END of the observation hour. Distances from the focus (1° lat ≈ 111.2 km):
+ * Readings carry the END of the observation hour (AirNow's hour label). Distances from the focus (1° lat ≈ 111.2 km):
  *   fresh        PM2.5 + ozone, 30 min old, ≈ 9 km   (PM2.5 AQI 62 Moderate, ozone AQI 41 Good)
  *   ozone-only   ozone 25 min old, ≈ 8 km            (AQI 55 Moderate) — nothing on the Smoke view
  *   edge-in      PM2.5 + ozone, 1 h 55 min old, 24.5 km north (PM2.5 AQI 160 Unhealthy, ozone AQI 70) — counts

@@ -23,7 +23,7 @@ export interface MonitorReading {
   unit: string
   /** AirNow's AQI for the reading (NowCast for PM / 8 h for ozone, as the API reports it). */
   aqi: number | null
-  /** End of the observation hour, ms epoch (AirNow timestamps are the start of the hour; the reading covers that hour). */
+  /** The reading's time, ms epoch: AirNow's hour label, which is the end of the observation hour (ages count from it). */
   time: number
 }
 
