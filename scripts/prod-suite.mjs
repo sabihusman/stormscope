@@ -64,6 +64,7 @@ const SUITES = [
   { name: 'flood-tile', script: 'flood-tile-check.mjs' },
   { name: 'daily', script: 'daily-check.mjs' },
   { name: 'monitors', script: 'monitors-check.mjs' },
+  { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'trip', script: 'trip-check.mjs' },
   { name: 'playback', script: 'playback-loop-diag.mjs', args: ['--headless', '--assert'] },
   { name: 'qa', script: 'qa.mjs' },

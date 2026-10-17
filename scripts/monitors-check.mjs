@@ -30,7 +30,7 @@ const SERVICE = 'https://monitors.stormscope.test/v1'
 const FOCUS = { lat: 41.673, lng: -93.698 }
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 
-async function session({ service = SERVICE, noMonitors = false } = {}) {
+async function session({ service = SERVICE, noMonitors = false, notConfigured = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
   if (service) await ctx.addInitScript((u) => { try { localStorage.setItem('stormscope.monitorService', u) } catch {} }, service)
   const page = await ctx.newPage()
@@ -38,6 +38,8 @@ async function session({ service = SERVICE, noMonitors = false } = {}) {
   const calls = []
   globalThis.__qaMockedRequest = (url) => { if (/monitors\.stormscope\.test/.test(url)) calls.push(url) }
   await installMocks(ctx, { noMonitors })
+  // The function without its key: a 503 with its own message on the same-origin /api route.
+  if (notConfigured) await page.route('**/api/sites*', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Monitor service not configured: AIRNOW_API_KEY is not set' }) }))
   await page.goto(BASE, { waitUntil: 'load' })
   await allowLocation(page)
   const until = async (fn, ms = 30000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(200) } return false }
@@ -179,12 +181,12 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await ctx.close()
 }
 
-// ---- 3. No service configured.
+// ---- 3. The function without its key (same-origin /api, 503 "not configured").
 {
-  const { ctx, page, done, calls, until } = await session({ service: '' })
+  const { ctx, page, done, calls, until } = await session({ service: '', notConfigured: true })
   await until(() => window.__store.get().monitorsNear.state === 'error', 10000)
   const card = await page.locator('.now-card.airnow').innerText().catch(() => '')
-  check('No service configured: the Now card says the monitor service is not set up yet (no numbers, no "No monitor" claim) and nothing was requested', /Monitor service not set up yet/.test(card) && !/No monitor within/.test(card) && calls.length === 0, card.split('\n').slice(0, 2).join(' | '))
+  check('Function without its key: the Now card shows "Monitor service not configured: AIRNOW_API_KEY is not set" (no numbers, no "No monitor" claim); the mocked external service was not called', /Monitor service not configured: AIRNOW_API_KEY is not set/.test(card) && !/No monitor within/.test(card) && calls.length === 0, card.split('\n').slice(0, 2).join(' | '))
   await openNow(page)
   done()
   await ctx.close()
