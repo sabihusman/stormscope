@@ -77,6 +77,39 @@ export function PointChip() {
   )
 }
 
+/**
+ * A tapped air monitor in the sheet: the "Measures" line, one row per reading with the AQI badge in its EPA
+ * colour, the category, the raw value, the reading's local time and age (stale past 2 h), then the distance
+ * and the agency. The readings' text lines stay in `lines` for the chip.
+ */
+function MonitorRows({ sel, now }: { sel: Selection; now: number }) {
+  const readings = sel.readings ?? []
+  const rest = sel.lines.filter((l) => !readings.some((r) => r.line === l))
+  return (
+    <>
+      <ul className="popup-lines">{rest.slice(0, 1).map((l, i) => <li key={i}>{l}</li>)}</ul>
+      <ul className="popup-readings" aria-label="Readings">
+        {readings.map((r) => (
+          <li key={r.label} data-reading={r.label} data-stale={r.stale ? 'true' : undefined}>
+            <b className={`aqi-badge${r.aqi == null ? ' none' : ''}`} style={r.color ? { background: r.color, color: r.text ?? undefined } : undefined}>
+              {r.aqi == null ? '—' : Math.round(r.aqi)}
+            </b>
+            <span>
+              <strong>{r.label}</strong> {r.category ?? 'no AQI'}
+              {r.value ? ` · ${r.value}` : ''}
+            </span>
+            <small className="muted">
+              {clock(r.time)} · {timeAgo(r.time, now)}
+              {r.stale ? ' (stale)' : ''}
+            </small>
+          </li>
+        ))}
+      </ul>
+      <ul className="popup-lines">{rest.slice(1).map((l, i) => <li key={i}>{l}</li>)}</ul>
+    </>
+  )
+}
+
 /** The sheet body for a selection: point conditions + 24 h strip, or the tapped object's facts, plus actions. */
 export function PointDetails() {
   const sel = useApp((s) => s.selection)
@@ -103,13 +136,14 @@ export function PointDetails() {
           {rel ? ` · ${rel}` : ''}
         </small>
       </div>
-      {!isPoint && (
+      {!isPoint && !sel.readings?.length && (
         <ul className="popup-lines">
           {sel.lines.map((l, i) => (
             <li key={i}>{l}</li>
           ))}
         </ul>
       )}
+      {!isPoint && !!sel.readings?.length && <MonitorRows sel={sel} now={now} />}
       {c && w && (
         <div className="cond-main">
           <span className="cond-temp">{U.temp(c.tempC, units)}</span>

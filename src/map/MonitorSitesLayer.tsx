@@ -4,9 +4,9 @@ import { AIRNOW_CREDIT, fetchMonitorSites, isFresh, type MonitorParameter, type 
 import { aqiCategory } from '../lib/aqi'
 import { describeError } from '../lib/fetch'
 import { haversine } from '../lib/geo'
-import { timeAgo } from '../lib/time'
+import { clock, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
-import { setResource, store, useApp } from '../state/store'
+import { setResource, store, useApp, type SelectionReading } from '../state/store'
 import { failed, loading, ready } from '../state/DataController'
 import { useMap } from './MapView'
 
@@ -27,19 +27,28 @@ export function siteStyle(site: MonitorSite, now = Date.now()): { style: 'fresh'
   return { style: 'fresh', color: cat?.color ?? STALE_STROKE, aqi: worst.aqi }
 }
 
-/** The tap card's lines: what the site measures, each reading with its age, the distance from the place. */
-export function describeSite(site: MonitorSite, place: { lng: number; lat: number } | null, units: 'metric' | 'imperial', now = Date.now()): string[] {
+/**
+ * The tap card: what the site measures, each reading (AQI and category, raw value, the reading's local time
+ * and age, stale past 2 h) as a text line and as a structured row for the sheet's colour badges, the
+ * distance from the place, the agency.
+ */
+export function describeSite(site: MonitorSite, place: { lng: number; lat: number } | null, units: 'metric' | 'imperial', now = Date.now()): { lines: string[]; readings: SelectionReading[] } {
   const lines: string[] = []
+  const readings: SelectionReading[] = []
   lines.push(`Measures: ${site.parameters.map((p) => PARAM_NAMES[p] ?? p).join(', ') || 'unknown'}`)
   for (const r of site.readings) {
     const cat = aqiCategory(r.aqi)
-    const age = timeAgo(r.time, now)
-    lines.push(`${PARAM_NAMES[r.parameter] ?? r.parameter}: ${r.aqi != null ? `AQI ${Math.round(r.aqi)} ${cat?.name ?? ''}` : 'no AQI'}${r.value != null ? ` · ${r.value} ${r.unit}` : ''} · ${age}${isFresh(r, now) ? '' : ' (stale)'}`)
+    const label = PARAM_NAMES[r.parameter] ?? r.parameter
+    const value = r.value != null ? `${r.value} ${r.unit}` : ''
+    const stale = !isFresh(r, now)
+    const line = `${label}: ${r.aqi != null ? `AQI ${Math.round(r.aqi)} ${cat?.name ?? ''}` : 'no AQI'}${value ? ` · ${value}` : ''} · ${clock(r.time)} · ${timeAgo(r.time, now)}${stale ? ' (stale)' : ''}`
+    lines.push(line)
+    readings.push({ line, label, aqi: r.aqi, category: cat?.name ?? null, color: cat?.color ?? null, text: cat?.text ?? null, value, time: r.time, stale })
   }
   if (!site.readings.length) lines.push('No readings in the last report (offline)')
   if (place) lines.push(`${U.distance(haversine(place, site.lngLat), units)} from your place`)
   lines.push(`${site.agency}`)
-  return lines
+  return { lines, readings }
 }
 
 /**
@@ -136,12 +145,14 @@ export function MonitorSitesLayer() {
       if (!site) return
       e.preventDefault()
       const s = store.get()
+      const { lines, readings } = describeSite(site, s.place?.lngLat ?? null, s.units)
       store.set({
         selection: {
           kind: 'station',
           lngLat: site.lngLat,
           title: `${site.name} · air monitor`,
-          lines: describeSite(site, s.place?.lngLat ?? null, s.units),
+          lines,
+          readings,
           source: AIRNOW_CREDIT,
           updated: s.monitors.freshness?.fetchedAt ?? undefined,
         },

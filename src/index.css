@@ -1595,6 +1595,29 @@ small {
   font-size: 10px;
   line-height: 1.3;
 }
+/* A tapped monitor's readings in the details sheet: one row per pollutant with the EPA-coloured AQI badge. */
+.popup-readings {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.popup-readings li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.popup-readings .aqi-badge {
+  font-size: 14px;
+  padding: 1px 7px;
+}
+.popup-readings .aqi-badge.none {
+  background: transparent;
+  border: 1.5px solid var(--muted);
+  color: var(--muted);
+}
 .aqi-legend .legend-swatch small {
   font-size: 10px;
 }

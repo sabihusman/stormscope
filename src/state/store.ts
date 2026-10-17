@@ -49,11 +49,29 @@ export interface RecentPlace {
 }
 export type AnimLayer = 'radar' | 'satellite' | 'rainfall' | 'nowcast'
 
+/** One pollutant reading of a tapped air monitor, for the details sheet (the AQI badge in its EPA colour, the local time and age). */
+export interface SelectionReading {
+  /** The same reading as text, as it appears in `lines` (the chip shows it; the sheet shows the badge row instead). */
+  line: string
+  label: string
+  aqi: number | null
+  category: string | null
+  /** EPA category colour and a legible text colour on it; null without an AQI. */
+  color: string | null
+  text: string | null
+  /** Raw value with its unit, or ''. */
+  value: string
+  time: number
+  stale: boolean
+}
+
 export interface Selection {
   kind: 'gauge' | 'flood' | 'rain' | 'station' | 'point' | 'journey'
   lngLat: { lng: number; lat: number }
   title: string
   lines: string[]
+  /** Air-monitor readings as structured rows (the sheet renders them with colour badges in place of their text lines). */
+  readings?: SelectionReading[]
   source?: string
   updated?: number
 }
