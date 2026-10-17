@@ -59,15 +59,41 @@ const pixel = (page, lng, lat) =>
     if (px < 0 || py < 0 || px >= e.w || py >= e.h) return [0, 0, 0, 0]
     return [...c.getContext('2d').getImageData(px, py, 1, 1).data]
   }, [lng, lat])
+/**
+ * Tap a dot the way a finger does: a real touch (the context has touch) 9 px right and 8 px below the dot's
+ * centre — 12 px off, inside a 44 px target but outside the 15 px dot — with whatever chip is on screen left
+ * as is and the discs on; then the chip's Details button. Until Oct 17 this helper cleared the selection
+ * through the store and mouse-clicked the exact centre, which no finger does, and passed on a build where a
+ * tap 12 px off fell through to the map's point chip.
+ */
+const FINGER = { dx: 9, dy: 8 }
 const tap = async (page, id) => {
-  const pt = await page.evaluate((id) => { const m = window.__map; const f = m.querySourceFeatures('air-monitors').find((x) => x.properties.id === id); if (!f) return null; const p = m.project(f.geometry.coordinates); return { x: p.x, y: p.y } }, id)
-  if (!pt) return ''
-  await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
-  await page.mouse.click(pt.x, pt.y)
+  // Zoom in on the dot first, as a user does before tapping one dot among neighbours (the fixture's
+  // Public Works and Carpenter are 1 km apart: 3 px at the city zoom, 60 px at zoom 13).
+  await page.evaluate((id) => { const s = window.__store.get().monitors.data?.sites.find((x) => x.id === id); if (s) window.__map.jumpTo({ center: [s.lngLat.lng, s.lngLat.lat], zoom: 13 }) }, id)
+  await page.waitForTimeout(800)
+  // The dot's screen position once the view has settled (the jump re-centres the place and reloads the sites in view).
+  let pt = null
+  for (let i = 0; i < 30 && !pt; i++) {
+    pt = await page.evaluate((id) => { const m = window.__map; if (m.isMoving() || window.__store.get().monitors.state !== 'ready') return null; const f = m.querySourceFeatures('air-monitors').find((x) => x.properties.id === id); if (!f) return null; const p = m.project(f.geometry.coordinates); return { x: p.x, y: p.y } }, id)
+    if (!pt) await page.waitForTimeout(200)
+  }
+  if (!pt) {
+    const why = await page.evaluate(() => ({ moving: window.__map.isMoving(), zoom: window.__map.getZoom(), state: window.__store.get().monitors.state, err: window.__store.get().monitors.error ?? null, ids: window.__map.querySourceFeatures('air-monitors').map((f) => f.properties.id).filter((v, i, a) => a.indexOf(v) === i) }))
+    return { chip: '', text: '', rows: [], missing: `${id}: ${JSON.stringify(why)}` }
+  }
+  const box = await page.locator('.maplibregl-canvas').boundingBox()
+  await page.touchscreen.tap(box.x + pt.x + FINGER.dx, box.y + pt.y + FINGER.dy)
   await page.waitForTimeout(500)
+  const chip = await page.locator('.point-chip').innerText().catch(() => '')
   await page.getByRole('button', { name: 'Details' }).click().catch(() => {})
   await page.waitForTimeout(400)
-  return page.locator('.sheet-body').innerText().catch(() => page.locator('.point-chip').innerText().catch(() => ''))
+  const text = await page.locator('.sheet-body').innerText().catch(() => '')
+  const rows = await page.evaluate(() => [...document.querySelectorAll('.sheet-body .popup-readings li')].map((li) => ({ label: li.dataset.reading, stale: li.dataset.stale === 'true', badge: getComputedStyle(li.querySelector('.aqi-badge')).backgroundColor, text: li.innerText.replace(/\n/g, ' ') })))
+  // Put the sheet away (a user would swipe it down) so the next dot is not under it; the chip stays.
+  await page.evaluate(() => window.__store.set({ sheet: 'peek' }))
+  await page.waitForTimeout(300)
+  return { chip: chip.replace(/\n/g, ' | '), text, rows }
 }
 const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.now-card.airnow .aq-lines li')].map((li) => ({ p: li.dataset.pollutant, state: li.dataset.state, text: li.innerText.replace(/\n/g, ' '), badge: li.querySelector('.aqi-badge') ? getComputedStyle(li.querySelector('.aqi-badge')).backgroundColor : null })))
 
@@ -167,9 +193,13 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   check('Sites toggle on: a dot at every site in view (11), the legend row with both dot styles', Object.keys(by).length === 11 && legendDots === 'fresh,stale', `${Object.keys(by).length} dots · legend ${legendDots}`)
   check('Fresh site dot in its EPA colour (worst fresh reading, PM2.5 62 → yellow); 2 h 05 and 3 h sites and the offline site are grey outlines', by['mock-fresh']?.style === 'fresh' && by['mock-fresh']?.color === '#FFFF00' && ['mock-stale-edge', 'mock-stale', 'mock-offline'].every((id) => by[id]?.style === 'stale' && by[id]?.color === '#94a3b8'), JSON.stringify(['mock-fresh', 'mock-stale-edge', 'mock-stale', 'mock-offline'].map((id) => by[id])))
   const t = await tap(page, 'mock-ozone-only')
-  check('Tap on the ozone-only site: name, "Measures: ozone", the reading with its age, the distance from the place', /Carpenter \(mock\)/.test(t) && /Measures: ozone$/m.test(t) && !/PM2\.5/.test(t) && /ozone: AQI 55 Moderate · 59 PPB · 25 min ago/.test(t) && /(km|mi) from your place/.test(t), t.replace(/\n/g, ' | ').slice(0, 200))
+  check('A finger tap 12 px off the ozone-only dot (discs on, no chip cleared) opens that monitor in the chip — not the map\'s "This point" chip', /Carpenter \(mock\) · air monitor/.test(t.chip) && !/This point/.test(t.chip), t.chip.slice(0, 120))
+  check('Details: the name, "Measures: ozone" (no PM2.5), the distance from the place, the agency', /Carpenter \(mock\)/.test(t.text) && /Measures: ozone$/m.test(t.text) && !/PM2\.5/.test(t.text) && /(km|mi) from your place/.test(t.text), t.text.replace(/\n/g, ' | ').slice(0, 200))
+  const r = t.rows[0]
+  check('Details: one reading row — the AQI badge 55 in EPA yellow, "Moderate", 59 PPB, the reading\'s local clock time, "25 min ago"', t.rows.length === 1 && r?.label === 'ozone' && r.badge === 'rgb(255, 255, 0)' && /^55 ozone Moderate · 59 PPB \d{1,2}:\d{2}(\s?[AP]M)? · 25 min ago$/.test(r.text) && !r.stale, JSON.stringify(r))
   const ts = await tap(page, 'mock-stale-edge')
-  check('Tap on the 2 h 05 site: its reading marked stale', /2 h ago \(stale\)/.test(ts), ts.replace(/\n/g, ' | ').slice(0, 160))
+  const rs = ts.rows[0]
+  check('Tap on the 2 h 05 site (with the previous chip still up): its reading row marked stale, "2 h ago (stale)"', /mock-stale-edge|Stale edge|air monitor/i.test(ts.chip) && !/This point/.test(ts.chip) && rs?.stale === true && /2 h ago \(stale\)$/.test(rs.text), ts.missing ? `dot not found — ${ts.missing}` : `${ts.chip.slice(0, 60)} — ${JSON.stringify(rs)}`)
   await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
   await page.getByRole('button', { name: 'Open layer menu' }).click()
   await page.getByText('Air monitors (AirNow)').click()
