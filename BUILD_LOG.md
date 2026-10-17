@@ -1,5 +1,11 @@
 # Build log
 
+## Oct 17 — the monitor service: a Vercel function in this project
+
+The user chose a Vercel function. `api/sites.js` (Node runtime, ESM) answers `GET /api/sites?bbox=…` from AirNow's bounding-box observation service (`/aq/data/`, last three UTC hours, OZONE + PM25, dataType B, JSON, verbose) merged with AirNow's public site list (so offline monitors stay listed); the pure logic is in `api/_lib/airnow.js` and unit-tested by `monitor-service-check.mjs` (10/10, in prod-suite). The key is read only from `AIRNOW_API_KEY` (not set yet: `vercel env ls` lists no variables; the owner adds it); without it the function answers 503 "Monitor service not configured: AIRNOW_API_KEY is not set" and the Now card shows that text, never "No monitor". Limits: client bbox snapped to 0.25°, `s-maxage=600, stale-while-revalidate=1200`, a 10 min in-memory cache — one AirNow request per tile per 10 minutes at most. `vercel.json`'s SPA rewrite now excludes `/api/`. The client's default service URL is the same origin (`/api`); the mocked suites keep pointing at the mock host, and the no-key case is a mocked 503 on `/api/sites`.
+
+GitHub: a private repository `sabihusman/stormscope` was created and set as `origin`; the first push was declined by the account's email-privacy setting (commits carry the owner's address), left for the owner to resolve.
+
 ## Oct 17 — Lx2BNpwE promoted to production (7-day forecast, AirNow monitor air quality)
 
 Promoted at 19:21 UTC by `vercel promote` of preview hi2r7hf6g (bundle `index-Lx2BNpwE.js`, commit 07c8a33; mocked dry run green on Oct 12 with zero live calls) — no `--prod` build. New production deployment `dpl_G572sG4NTXhyRwGev96gr5aWwxmr` (stormscope-79kjt7706); previous `dpl_3q7czgd88z2Be7g77mDWJj36u5dg` (stormscope-24k84utfa, bundle CVzWpx2B, commit e822f57). The alias https://stormscope-two.vercel.app served `index-Lx2BNpwE.js` on ten fetches, plain and cache-busted, within a minute (the first three cache-busted fetches during propagation still returned CVzWpx2B).
