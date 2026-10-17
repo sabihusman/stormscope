@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useNow, useOnline, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
-import { AIRNOW_CREDIT, MONITOR_SERVICE_NOT_SET, type MonitorParameter } from '../api/airnow'
+import { AIRNOW_CREDIT, isServiceNotConfigured, type MonitorParameter } from '../api/airnow'
 import { aqiCategory } from '../lib/aqi'
 import { nearestMeasured } from '../lib/airnowHere'
 import { floodHere, floodKeyFor, riskWord } from '../lib/floodHere'
@@ -466,7 +466,7 @@ function AirNowCard() {
     { key: 'OZONE', label: 'Ozone' },
     { key: 'PM2.5', label: 'Smoke (PM2.5)' },
   ]
-  const notSet = r.error === MONITOR_SERVICE_NOT_SET
+  const notSet = isServiceNotConfigured(r.error)
   return (
     <div className={`card now-card airnow ${r.stale ? 'stale' : ''}`} aria-busy={r.state === 'loading' && !r.data}>
       <h4>Air quality · measured (EPA AirNow)</h4>
@@ -474,7 +474,7 @@ function AirNowCard() {
         <div className="skeleton w80" />
       ) : !r.data ? (
         <p className={notSet ? 'muted' : 'err-text'}>
-          {notSet ? MONITOR_SERVICE_NOT_SET : `Monitors unavailable — ${r.error ?? 'not loaded'}`}{' '}
+          {notSet ? r.error : `Monitors unavailable — ${r.error ?? 'not loaded'}`}{' '}
           {!notSet && (
             <button className="btn small" onClick={retry}>
               Retry
