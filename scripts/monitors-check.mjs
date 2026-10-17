@@ -214,6 +214,7 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await page.waitForTimeout(500)
   const chooser = await page.evaluate(() => ({ rows: [...document.querySelectorAll('.dot-chooser .chooser-row')].map((b) => ({ id: b.dataset.site, text: b.innerText.replace(/\n/g, ' ') })), title: document.querySelector('.dot-chooser .chooser-title')?.innerText ?? '', chip: !!document.querySelector('.point-chip'), sel: window.__store.get().selection?.title ?? null }))
   check('A finger tap there opens a chooser listing both monitors with their badges and distances (no chip, no guessed monitor)', chooser.rows.length === 2 && chooser.rows.every((r) => ['mock-fresh', 'mock-ozone-only'].includes(r.id)) && /2 monitors here/.test(chooser.title) && !chooser.chip && chooser.sel === null && chooser.rows.every((r) => /(km|mi) from your place/.test(r.text)), JSON.stringify(chooser).slice(0, 220))
+  await page.screenshot({ path: `${OUT}/tap-chooser-open.png` })
   await page.locator('.dot-chooser .chooser-row[data-site="mock-ozone-only"]').click()
   await page.waitForTimeout(400)
   const picked = await page.evaluate(() => ({ chooser: !!document.querySelector('.dot-chooser'), chip: document.querySelector('.point-chip')?.innerText.replace(/\n/g, ' | ') ?? '' }))
