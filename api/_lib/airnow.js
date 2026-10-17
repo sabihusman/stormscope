@@ -38,7 +38,7 @@ export function readingTimeMs(utc) {
  * per parameter. Record fields used: Latitude, Longitude, UTC, Parameter, Unit, Value, AQI, SiteName,
  * AgencyName, FullAQSCode / IntlAQSCode (whichever is present).
  */
-export function sitesFromRecords(records) {
+export function sitesFromRecords(records, { all = false } = {}) {
   const bySite = new Map()
   for (const r of records ?? []) {
     const param = PARAMS[String(r.Parameter ?? '').toUpperCase().replace(/\s/g, '')] ?? PARAMS[r.Parameter]
@@ -56,11 +56,27 @@ export function sitesFromRecords(records) {
     if (!site.parameters.includes(param)) site.parameters.push(param)
     const aqi = r.AQI == null || r.AQI < 0 ? null : Number(r.AQI)
     const reading = { parameter: param, value: r.Value == null ? null : Number(r.Value), unit: String(r.Unit ?? ''), aqi: Number.isFinite(aqi) ? aqi : null, time }
+    // The agency's raw hourly concentration (−999 = missing), only when the upstream query asked for it.
+    if (r.RawConcentration != null) reading.raw = Number(r.RawConcentration) < -900 ? null : Number(r.RawConcentration)
+    if (all) {
+      // Diagnostic: every reading in the window, oldest first.
+      site.readings.push(reading)
+      site.readings.sort((a, b) => a.time - b.time || a.parameter.localeCompare(b.parameter))
+      continue
+    }
     const i = site.readings.findIndex((x) => x.parameter === param)
     if (i < 0) site.readings.push(reading)
     else if (site.readings[i].time < time) site.readings[i] = reading
   }
   return [...bySite.values()]
+}
+
+/** Diagnostic window: `end=YYYY-MM-DDTHH` (UTC hour), accepted only within the last 72 h and not in the future. */
+export function parseEndHour(s, now = Date.now()) {
+  if (!s || !/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(String(s))) return null
+  const t = Date.parse(`${s}:00:00Z`)
+  if (!Number.isFinite(t) || t > now || t < now - 72 * 3_600_000) return null
+  return t
 }
 
 /**
@@ -103,9 +119,9 @@ export function parseSiteList(text) {
 }
 
 /** The AirNow data query for a bbox: the last three hours (the latest hour is often not yet published). */
-export function upstreamUrl(bbox, now = Date.now(), key = '') {
+export function upstreamUrl(bbox, now = Date.now(), key = '', { end: endAt = null, raw = false } = {}) {
   const fmt = (t) => new Date(t).toISOString().slice(0, 13)
-  const end = Math.floor(now / 3_600_000) * 3_600_000
+  const end = Math.floor((endAt ?? now) / 3_600_000) * 3_600_000
   const start = end - 3 * 3_600_000
   const q = new URLSearchParams({
     startDate: fmt(start),
@@ -116,7 +132,7 @@ export function upstreamUrl(bbox, now = Date.now(), key = '') {
     format: 'application/json',
     verbose: '1',
     monitorType: '0',
-    includerawconcentrations: '0',
+    includerawconcentrations: raw ? '1' : '0',
     API_KEY: key,
   })
   return `https://www.airnowapi.org/aq/data/?${q.toString()}`
