@@ -502,6 +502,11 @@ export async function installMocks(context, { har = null, record = false, focus 
     live.push(url)
     return route.fallback()
   })
+  // The monitor function on the app's own origin (`/api/sites`, the client's default since Oct 17) is answered
+  // by the same fixture as the mocked external service: locally there is no function (vite preview answers
+  // 404), and on a deployed preview with AIRNOW_API_KEY set the real function would call AirNow — a mocked
+  // run must make zero live calls. Suites that set `stormscope.monitorService` still exercise the external path.
+  await context.route('**/api/sites*', (route, req) => { globalThis.__qaMockedRequest?.(req.url()); return route.fulfill(json(monitorSites(req.url(), focus))) })
   // failHosts: hosts that answer 429 (to exercise the app's rate-limit / unavailable wording). Registered
   // last so Playwright runs it first.
   // failStatus: 429 by default (the app retries and keeps its loading state); 500 for a hard error state.
