@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl'
+import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import { AIRNOW_CREDIT, fetchMonitorSites, isFresh, type MonitorParameter, type MonitorSite } from '../api/airnow'
 import { aqiCategory } from '../lib/aqi'
 import { describeError } from '../lib/fetch'
@@ -13,6 +13,8 @@ import { useMap } from './MapView'
 const SRC = 'air-monitors'
 const CACHE_MS = 10 * 60_000
 const STALE_STROKE = '#94a3b8'
+/** Half the side of a dot's tap target: a 44 px square (fingertip size) centred on the dot. */
+export const HIT_HALF_PX = 22
 
 const PARAM_NAMES: Record<MonitorParameter, string> = { 'PM2.5': 'PM2.5', OZONE: 'ozone', PM10: 'PM10', NO2: 'NO₂', SO2: 'SO₂', CO: 'CO' }
 
@@ -113,13 +115,26 @@ export function MonitorSitesLayer() {
     }
     schedule()
     map.on('moveend', schedule)
-    const onClick = (e: MapLayerMouseEvent) => {
-      const f = e.features?.[0]
-      if (!f) return
-      e.preventDefault()
-      const id = (f.properties as { id: string }).id
-      const site = store.get().monitors.data?.sites.find((s) => s.id === id)
+    // A tap anywhere within the 44 px square around a dot opens it (a dot is 15 px wide; a fingertip is
+    // not that precise — on Oct 17 taps 12 px off the centre fell through to the map's point chip). The
+    // nearest dot in the square wins.
+    const onClick = (e: MapMouseEvent) => {
+      if (!map.getLayer(SRC) || map.getLayoutProperty(SRC, 'visibility') === 'none') return
+      const { x, y } = e.point
+      const hits = map.queryRenderedFeatures([[x - HIT_HALF_PX, y - HIT_HALF_PX], [x + HIT_HALF_PX, y + HIT_HALF_PX]], { layers: [SRC] })
+      if (!hits.length) return
+      const sites = store.get().monitors.data?.sites ?? []
+      let site: MonitorSite | null = null
+      let best = Infinity
+      for (const f of hits) {
+        const cand = sites.find((s) => s.id === (f.properties as { id: string }).id)
+        if (!cand) continue
+        const p = map.project([cand.lngLat.lng, cand.lngLat.lat])
+        const d = Math.hypot(p.x - x, p.y - y)
+        if (d < best) { best = d; site = cand }
+      }
       if (!site) return
+      e.preventDefault()
       const s = store.get()
       store.set({
         selection: {
@@ -132,12 +147,18 @@ export function MonitorSitesLayer() {
         },
       })
     }
-    map.on('click', SRC, onClick)
+    const enter = () => (map.getCanvas().style.cursor = 'pointer')
+    const leave = () => (map.getCanvas().style.cursor = '')
+    map.on('click', onClick)
+    map.on('mouseenter', SRC, enter)
+    map.on('mouseleave', SRC, leave)
     return () => {
       window.clearTimeout(timer)
       ctrl?.abort()
       map.off('moveend', schedule)
-      map.off('click', SRC, onClick)
+      map.off('click', onClick)
+      map.off('mouseenter', SRC, enter)
+      map.off('mouseleave', SRC, leave)
       if (map.getLayer(SRC)) map.removeLayer(SRC)
       if (map.getSource(SRC)) map.removeSource(SRC)
     }
