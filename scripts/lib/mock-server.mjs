@@ -171,7 +171,7 @@ function openMeteo(url) {
   const q = u.searchParams
   const lats = (q.get('latitude') ?? '0').split(',').map(Number)
   const lngs = (q.get('longitude') ?? '0').split(',').map(Number)
-  const nowH = Math.floor(Date.now() / 1000 / HOUR) * HOUR
+  const nowH = Math.floor((omOptions.now ?? Date.now()) / 1000 / HOUR) * HOUR
   let start = nowH - Number(q.get('past_hours') ?? 0) * HOUR
   let hours = Number(q.get('forecast_hours') ?? 0) + Number(q.get('past_hours') ?? 0)
   if (q.get('start_hour')) {
@@ -212,7 +212,7 @@ function openMeteo(url) {
       loc.timezone = tz
       loc.utc_offset_seconds = off
       const nDays = Number(q.get('forecast_days') ?? 7)
-      const localMidnight = Math.floor((Date.now() / 1000 + off) / 86400) * 86400 - off
+      const localMidnight = Math.floor(((omOptions.now ?? Date.now()) / 1000 + off) / 86400) * 86400 - off
       const days = Array.from({ length: nDays }, (_, k) => localMidnight + k * 86400)
       const hoursAll = { temperature_2m: omSeries(i, 'temperature_2m', nDays * 24, localMidnight), precipitation: omSeries(i, 'precipitation', nDays * 24, localMidnight), precipitation_probability: omSeries(i, 'precipitation_probability', nDays * 24, localMidnight), weather_code: omSeries(i, 'weather_code', nDays * 24, localMidnight) }
       const day = (k) => (arr) => arr.slice(k * 24, k * 24 + 24)
