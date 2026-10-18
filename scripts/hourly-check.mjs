@@ -28,14 +28,14 @@ const check = (name, ok, ev = '') => {
 const FOCUS = { lat: 41.673, lng: -93.698 }
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 
-async function session({ now = null } = {}) {
+async function session({ now = null, timezone = 'GMT' } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
   const page = await ctx.newPage()
   if (now != null) await page.clock.setFixedTime(new Date(now))
   const done = trackTraffic(page, 'hourly-check.mjs (mock)')
   const om = []
   globalThis.__qaMockedRequest = (url) => { if (/open-meteo\.com\/v1\/forecast/.test(url)) om.push(url) }
-  await installMocks(ctx, { now })
+  await installMocks(ctx, { now, timezone })
   await page.goto(BASE, { waitUntil: 'load' })
   await allowLocation(page)
   const until = async (fn, ms = 30000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(150) } return false }
@@ -101,7 +101,8 @@ const mmToIn = (mm) => mm / 25.4
 // ---- 2. Midnight labels under a fixed clock (21:00 local): cards past midnight carry the weekday.
 {
   const FIXED = (() => { const d = new Date(); d.setHours(21, 0, 0, 0); return d.getTime() })()
-  const { ctx, page, done } = await session({ now: FIXED })
+  // The place's zone is the device's here (the forecast resolves it), so "21:00" and midnight mean the device's.
+  const { ctx, page, done } = await session({ now: FIXED, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
   const r = await read(page)
   const tomorrow = new Date(FIXED + 24 * 3_600_000).toLocaleDateString([], { weekday: 'short' })
   const beforeMidnight = r.labels.slice(0, 3), afterMidnight = r.labels.slice(3)
@@ -112,6 +113,36 @@ const mmToIn = (mm) => mm / 25.4
   const dayAfter = new Date(FIXED + 48 * 3_600_000).toLocaleDateString([], { weekday: 'short' })
   check(`48 h at 21:00: "Now", then eight 3-hourly cards with "${tomorrow}", then seven with "${dayAfter}" (the last ends at 6 PM the day after tomorrow)`, r48.n === 16 && r48.labels[0] === 'Now' && r48.labels.filter((l) => l.startsWith(`${tomorrow} `)).length === 8 && r48.labels.filter((l) => l.startsWith(`${dayAfter} `)).length === 7 && /6 PM$/.test(r48.labels[15]), r48.labels.join(' | '))
   await page.screenshot({ path: `${OUT}/midnight.png` })
+  done()
+  await ctx.close()
+}
+
+// ---- 3. A place in another time zone (the forecast resolves Pacific/Honolulu, UTC−10): the card clocks, the
+// day labels and the midnight crossing follow that zone, not the device's — the same zone as the 7-day list.
+{
+  const FIXED = (() => { const d = new Date(); d.setHours(21, 0, 0, 0); return d.getTime() })() // 21:00 device time
+  const { ctx, page, done } = await session({ now: FIXED, timezone: 'Pacific/Honolulu' })
+  const r = await read(page)
+  const exp = await page.evaluate((times) => {
+    const tz = 'Pacific/Honolulu'
+    const day0 = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(times[0]))
+    return times.map((t, i) => {
+      if (i === 0) return 'Now'
+      const d = new Date(t)
+      const crossed = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d) !== day0
+      return `${crossed ? d.toLocaleDateString([], { weekday: 'short', timeZone: tz }) + ' ' : ''}${d.toLocaleTimeString([], { hour: 'numeric', timeZone: tz })}`
+    })
+  }, r.times)
+  const deviceLabels = await page.evaluate((times) => times.map((t, i) => (i === 0 ? 'Now' : new Date(t).toLocaleTimeString([], { hour: 'numeric' }))), r.times)
+  const tzOnCards = await page.evaluate(() => document.querySelector('.hour-strip li')?.dataset.tz)
+  const devTz = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
+  check(`Another zone: the forecast resolved ${tzOnCards}; the device is ${devTz} — the card clocks are in the place's zone (every label equals the Honolulu rendering, and they differ from the device-zone labels)`, tzOnCards === 'Pacific/Honolulu' && r.labels.join('|') === exp.join('|') && r.labels.slice(1).some((l, i) => l !== deviceLabels[i + 1]), `${r.labels.slice(0, 4).join(' | ')} vs device ${deviceLabels.slice(0, 4).join(' | ')}`)
+  const firstDayIdx = r.days.findIndex((d) => d)
+  const expectedIdx = exp.findIndex((l, i) => i > 0 && /^[A-Z][a-z]{2} /.test(l))
+  check('Another zone: midnight falls where Honolulu says (16:00 HST now → the day label starts on the 9th card, "12 AM"), not where the device says', firstDayIdx === expectedIdx && firstDayIdx === 8 && /12 AM$/.test(r.labels[8]), `first day label at card ${firstDayIdx}: ${r.labels[8]}`)
+  const dailyToday = await page.evaluate(() => document.querySelector('.day-rows li, .now-card.daily li')?.textContent?.trim().slice(0, 5) ?? '')
+  check('The 7-day list uses the same zone (its first row is Today in that zone)', /^Today/.test(dailyToday), dailyToday)
+  await page.screenshot({ path: `${OUT}/other-zone.png` })
   done()
   await ctx.close()
 }

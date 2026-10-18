@@ -44,8 +44,32 @@ async function session({ reducedMotion = 'no-preference', delayHosts = {} } = {}
 }
 /** Computed opacity, transform, transition duration and data-state of a selector (null when absent). */
 const probe = (page, sel) => page.evaluate((sel) => { const el = document.querySelector(sel); if (!el) return null; const cs = getComputedStyle(el); return { opacity: Number(cs.opacity), transform: cs.transform, duration: cs.transitionDuration, animation: cs.animationName, state: el.dataset.state ?? null } }, sel)
-/** Sample a selector every 20 ms for `ms`: the states and opacities seen. */
-const watch = async (page, sel, ms) => { const seen = []; const t0 = Date.now(); while (Date.now() - t0 < ms) { const p = await probe(page, sel); seen.push(p ? `${p.state}:${p.opacity.toFixed(2)}` : 'gone'); await page.waitForTimeout(20) } return seen }
+/**
+ * Arm BEFORE the action: a MutationObserver records the pop-up's data-state and computed opacity the moment it is
+ * inserted (the observer runs before the next paint, so this is the true start position whatever the latency),
+ * every data-state change, every transitionend / animationend on it, and its removal. Nothing waits a fixed time.
+ */
+const arm = (page, sel) => page.evaluate((sel) => {
+  const rec = { appeared: null, states: [], ends: [], removed: false }
+  window.__tx = rec
+  const attach = (el) => {
+    rec.appeared = { state: el.dataset.state ?? null, opacity: Number(getComputedStyle(el).opacity) }
+    el.addEventListener('transitionend', (e) => rec.ends.push({ prop: e.propertyName, state: el.dataset.state ?? null, opacity: Number(getComputedStyle(el).opacity) }))
+    el.addEventListener('animationend', (e) => rec.ends.push({ prop: 'animation:' + e.animationName, state: null, opacity: Number(getComputedStyle(el).opacity) }))
+    new MutationObserver(() => rec.states.push(el.dataset.state ?? null)).observe(el, { attributes: true, attributeFilter: ['data-state'] })
+  }
+  const existing = document.querySelector(sel)
+  if (existing) attach(existing)
+  new MutationObserver(() => { const el = document.querySelector(sel); if (el && !rec.appeared) attach(el); if (!el && rec.appeared) rec.removed = true }).observe(document.body, { childList: true, subtree: true })
+}, sel)
+/** Wait until the armed record satisfies `cond` (an expression over `r`), then return the record. */
+const settled = async (page, cond, timeout = 4000) => {
+  await page.waitForFunction((c) => { const r = window.__tx; return !!r && new Function('r', 'return ' + c)(r) }, cond, { timeout }).catch(() => {})
+  return page.evaluate(() => { const r = window.__tx; return { appeared: r.appeared, states: r.states, ends: r.ends, removed: r.removed } })
+}
+const opened = (r) => r.appeared?.state === 'opening' && r.appeared.opacity < 1 && r.ends.some((e) => e.prop === 'opacity' && e.state === 'open' && e.opacity === 1)
+const closed = (r) => r.states.includes('closing') && r.ends.some((e) => e.prop === 'opacity' && e.state === 'closing' && e.opacity === 0) && r.removed
+const brief = (r) => `appeared ${JSON.stringify(r.appeared)} states ${r.states.join('>')} ends ${r.ends.map((e) => `${e.prop}@${e.state}:${e.opacity}`).join(',')} removed ${r.removed}`
 
 // ---- 1. Transitions run and end in the right state (motion allowed).
 {
@@ -54,20 +78,26 @@ const watch = async (page, sel, ms) => { const seen = []; const t0 = Date.now();
   await openMap(page)
   // Point chip: tap the map → opening → open (opacity 1, no transform) within 300 ms; × → closing → gone within 300 ms.
   const box = await page.locator('.maplibregl-canvas').boundingBox()
-  // The watch starts with the tap (not after it), so the two-frame "opening" position is seen even under load.
-  const [openSeen] = await Promise.all([watch(page, '.point-chip', 320), page.touchscreen.tap(box.x + 120, box.y + 300)])
+  // Armed before the tap: the chip must be inserted in its "opening" start position (opacity below 1) and its opacity transition must end in the "open" state at opacity 1.
+  await arm(page, '.point-chip')
+  await page.touchscreen.tap(box.x + 120, box.y + 300)
+  const chipTx = await settled(page, "r.ends.some((e) => e.prop === 'opacity')")
   const chipOpen = await probe(page, '.point-chip')
-  check('Point chip opens with the 150 ms transition: from the start position (an "opening" sample, or "open" still below opacity 1) to opacity 1 with no transform', (openSeen.some((s) => s.startsWith('opening')) || openSeen.some((s) => /^open:0\.\d/.test(s))) && chipOpen?.state === 'open' && chipOpen.opacity === 1 && chipOpen.transform === 'none' && chipOpen.duration.startsWith('0.15s'), `${openSeen.slice(0, 6).join(' ')} … ${JSON.stringify(chipOpen)}`)
+  check('Point chip opens with the 150 ms transition: inserted at the "opening" start position (opacity < 1), the opacity transition ends in "open" at opacity 1, no transform, 150 ms', opened(chipTx) && chipOpen?.state === 'open' && chipOpen.opacity === 1 && chipOpen.transform === 'none' && chipOpen.duration.startsWith('0.15s'), `${brief(chipTx)} … ${JSON.stringify(chipOpen)}`)
+  await arm(page, '.point-chip')
   await page.getByRole('button', { name: 'Dismiss' }).tap()
-  const closeSeen = await watch(page, '.point-chip', 320)
-  check('Point chip closes with the transition: a "closing" frame, then unmounted within 300 ms', closeSeen.some((s) => s.startsWith('closing')) && closeSeen[closeSeen.length - 1] === 'gone' && !(await probe(page, '.point-chip')), closeSeen.filter((v, i, a) => a.indexOf(v) === i).join(' '))
+  const chipClose = await settled(page, 'r.removed')
+  check('Point chip closes with the transition: data-state "closing", the opacity transition ends at 0 while closing, then it is unmounted', closed(chipClose) && !(await probe(page, '.point-chip')), brief(chipClose))
   // Layers panel: open → "open" at opacity 1; close → closing → gone.
-  const [panelSeen] = await Promise.all([watch(page, '.fab-menu', 320), page.getByRole('button', { name: 'Open layer menu' }).tap()])
+  await arm(page, '.fab-menu')
+  await page.getByRole('button', { name: 'Open layer menu' }).tap()
+  const panelTx = await settled(page, "r.ends.some((e) => e.prop === 'opacity')")
   const panelOpen = await probe(page, '.fab-menu')
-  check('Layers panel opens with the transition: from the start position (an "opening" sample, or "open" still below opacity 1) to open (opacity 1, no transform, 150 ms)', (panelSeen.some((s) => s.startsWith('opening')) || panelSeen.some((s) => /^open:0\.\d/.test(s))) && panelOpen?.state === 'open' && panelOpen.opacity === 1 && panelOpen.transform === 'none' && panelOpen.duration.startsWith('0.15s'), `${panelSeen.slice(0, 5).join(' ')} … ${JSON.stringify(panelOpen)}`)
+  check('Layers panel opens with the transition: inserted at the "opening" start position, the opacity transition ends in "open" at opacity 1, no transform, 150 ms', opened(panelTx) && panelOpen?.state === 'open' && panelOpen.opacity === 1 && panelOpen.transform === 'none' && panelOpen.duration.startsWith('0.15s'), `${brief(panelTx)} … ${JSON.stringify(panelOpen)}`)
+  await arm(page, '.fab-menu')
   await page.getByRole('button', { name: 'Close layer menu' }).tap()
-  const panelClose = await watch(page, '.fab-menu', 320)
-  check('Layers panel closes with the transition, then unmounts', panelClose.some((s) => s.startsWith('closing')) && panelClose[panelClose.length - 1] === 'gone', panelClose.filter((v, i, a) => a.indexOf(v) === i).join(' '))
+  const panelClose = await settled(page, 'r.removed')
+  check('Layers panel closes with the transition ("closing", the opacity transition ends at 0), then unmounts', closed(panelClose), brief(panelClose))
   // Monitor chooser + dot pulse: Ozone discs and dots on, place zoom, finger tap between the two close dots.
   await page.getByRole('button', { name: 'Open layer menu' }).tap()
   await page.getByText('Air monitors (AirNow)').tap()
@@ -77,17 +107,19 @@ const watch = async (page, sel, ms) => { const seen = []; const t0 = Date.now();
   await until(() => !window.__map.isMoving() && window.__store.get().monitors.state === 'ready' && window.__map.querySourceFeatures('air-monitors').length > 0, 20000)
   await page.waitForTimeout(600)
   const pt = await page.evaluate(() => { const s = window.__store.get().monitors.data.sites.find((x) => x.id === 'mock-ozone-only'); const p = window.__map.project([s.lngLat.lng, s.lngLat.lat]); return { x: p.x, y: p.y } })
-  const [chooserSeen] = await Promise.all([watch(page, '.dot-chooser', 320), page.touchscreen.tap(box.x + pt.x + 9, box.y + pt.y + 8)])
+  await arm(page, '.dot-chooser')
+  await page.touchscreen.tap(box.x + pt.x + 9, box.y + pt.y + 8)
+  const chooserTx = await settled(page, "r.ends.some((e) => e.prop === 'opacity')")
   const chooserOpen = await probe(page, '.dot-chooser')
-  check('Monitor chooser opens with the transition from the start position (an "opening" sample, or "open" still below opacity 1) and ends open (opacity 1, no transform, 150 ms)', (chooserSeen.some((s) => s.startsWith('opening')) || chooserSeen.some((s) => /^open:0\.\d/.test(s))) && chooserOpen?.state === 'open' && chooserOpen.opacity === 1 && chooserOpen.transform === 'none' && chooserOpen.duration.startsWith('0.15s'), `${chooserSeen.slice(0, 3).join(' ')} … ${JSON.stringify(chooserOpen)}`)
+  check('Monitor chooser opens with the transition: inserted at the "opening" start position, the opacity transition ends in "open" at opacity 1, no transform, 150 ms', opened(chooserTx) && chooserOpen?.state === 'open' && chooserOpen.opacity === 1 && chooserOpen.transform === 'none' && chooserOpen.duration.startsWith('0.15s'), `${brief(chooserTx)} … ${JSON.stringify(chooserOpen)}`)
+  await arm(page, '.dot-pulse')
   await page.locator('.dot-chooser .chooser-row[data-site="mock-ozone-only"]').tap()
-  const pulseSeen = await watch(page, '.dot-pulse', 420)
-  const pulseProbe = pulseSeen.find((s) => s !== 'gone')
-  check('Picking a monitor: one ring pulse appears on the dot and is gone within ~340 ms', !!pulseProbe && pulseSeen[pulseSeen.length - 1] === 'gone', pulseSeen.filter((v, i, a) => a.indexOf(v) === i).join(' '))
+  const pulseTx = await settled(page, 'r.removed')
+  check('Picking a monitor: one ring pulse appears on the dot, its 300 ms animation ends, and it is removed', !!pulseTx.appeared && pulseTx.ends.some((e) => e.prop === 'animation:dot-pulse') && pulseTx.removed, brief(pulseTx))
   const pulseAnim = await page.evaluate(() => { const el = document.createElement('div'); el.className = 'dot-pulse'; document.body.appendChild(el); const a = getComputedStyle(el).animationName; const d = getComputedStyle(el).animationDuration; el.remove(); return { a, d } })
   check('The pulse is a 300 ms scale/opacity animation', pulseAnim.a === 'dot-pulse' && pulseAnim.d === '0.3s', JSON.stringify(pulseAnim))
-  const chooserAfter = await watch(page, '.dot-chooser', 320)
-  check('Picking closed the chooser with the transition (closing frame, then gone) and the chip opened', chooserAfter[chooserAfter.length - 1] === 'gone' && (await probe(page, '.point-chip'))?.state === 'open')
+  await page.waitForFunction(() => !document.querySelector('.dot-chooser') && document.querySelector('.point-chip')?.dataset.state === 'open', null, { timeout: 4000 }).catch(() => {})
+  check('Picking closed the chooser and the chip opened', !(await probe(page, '.dot-chooser')) && (await probe(page, '.point-chip'))?.state === 'open')
   await page.screenshot({ path: `${OUT}/chip-open.png` })
   done()
   await ctx.close()
