@@ -1388,6 +1388,23 @@ small {
   --fab-stack-bottom: calc(var(--nav-h) + var(--sab) + var(--dock-h) + var(--fab-margin));
   --menu-bottom-reserve: calc(var(--nav-h) + var(--sab) + var(--dock-h) + 8px);
 }
+/* Phones, ☰ in its default bottom-right corner: on the playback pill's row (bottom-right corner, the pill
+   bottom-left) while the pill is compact; when the bar expands — or the point sheet is half open — the
+   whole stack slides up above it on a transform (220 ms; Reduce Motion drops the transition). The layout
+   `bottom` is the lifted position minus the lift, so the panel's room formula (--fab-stack-bottom) stays right. */
+.app.narrow.screen-map.fab-br {
+  --bar-lift: 0px;
+  --fab-lift: max(var(--sheet-h), var(--bar-lift));
+  --fab-stack-bottom: calc(var(--nav-h) + var(--sab) + 12px + var(--fab-lift));
+}
+.app.narrow.screen-map.fab-br.playbar-open {
+  --bar-lift: calc(var(--playbar-h) + 10px);
+}
+.app.narrow.screen-map.fab-br .fab-stack {
+  bottom: calc(var(--fab-stack-bottom) - var(--fab-lift));
+  transform: translateY(calc(-1 * var(--fab-lift)));
+  transition: transform 220ms ease-out;
+}
 .app.narrow.screen-map .maplibregl-ctrl-bottom-left,
 .app.narrow.screen-map .maplibregl-ctrl-bottom-right {
   bottom: calc(var(--nav-h) + var(--sab) + var(--playbar-h) + 6px) !important;

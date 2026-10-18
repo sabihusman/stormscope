@@ -92,6 +92,8 @@ export default function App() {
     }
   }, [geo.status, geo.position])
 
+  // Phones: the expanded playback bar lifts the layers button above it (CSS .playbar-open).
+  const playbarExpanded = useApp((s) => s.playbarExpanded)
   const showPrompt = !place && (geo.status === 'prompt' || geo.status === 'locating' || geo.status === 'denied' || geo.status === 'timeout' || geo.status === 'unavailable') && !pickerOpen && !pickMode
 
   const confirmPick = () => {
@@ -104,7 +106,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} ${wide ? 'wide' : 'narrow'} ${pickMode ? 'picking' : ''}`}>
+    <div className={`app screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} ${wide ? 'wide' : 'narrow'} ${pickMode ? 'picking' : ''} ${playbarExpanded ? 'playbar-open' : ''}`}>
       <MapView>
         {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
         <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
