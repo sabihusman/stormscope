@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { usePresence } from '../hooks/usePresence'
 import { setAqPollutant, setFabCorner, setLayer, setSatProduct, store, useApp, type FabCorner } from '../state/store'
 import { LegendRows } from './Legend'
 import type { LayerId } from '../types'
@@ -32,6 +33,8 @@ export function LayerFab() {
   const aqPollutant = useApp((s) => s.aqPollutant)
   const rainHorizon = useApp((s) => s.rainHorizon)
   const [open, setOpen] = useState(false)
+  // The panel fades and slides in and out (150 ms, opacity and transform only); it stays mounted while closing.
+  const panel = usePresence(open)
   // Wide layouts: the panel is tied to the button; when the space between the button and the playback bar
   // is below the panel's minimum useful height (measured: down to the third forecast overlay), it is lifted
   // to the control column's top instead (CSS .lifted). A phone in landscape is the usual case.
@@ -152,8 +155,8 @@ export function LayerFab() {
 
   return (
     <div ref={stackRef} className={`fab-stack ${open ? 'open' : ''} ${offset ? 'dragging' : ''} ${lifted ? 'lifted' : ''}`}>
-      {open && (
-        <div className="fab-menu" role="group" aria-label="Map layers">
+      {panel.mounted && (
+        <div className="fab-menu pop" data-state={panel.state} role="group" aria-label="Map layers">
           <div className="fab-group-label">Background</div>
           <div className="segmented small imagery" role="radiogroup" aria-label="Background imagery">
             {(['radar', 'satellite', 'none'] as const).map((id) => (
