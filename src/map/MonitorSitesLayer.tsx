@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+import type { GeoJSONSource, Map as MlMap, MapMouseEvent } from 'maplibre-gl'
 import { AIRNOW_CREDIT, fetchMonitorSites, isFresh, type MonitorParameter, type MonitorSite } from '../api/airnow'
 import { aqiCategory } from '../lib/aqi'
 import { describeError } from '../lib/fetch'
@@ -52,8 +53,26 @@ export function describeSite(site: MonitorSite, place: { lng: number; lat: numbe
   return { lines, readings }
 }
 
+/** The map, while the layer is mounted — for the ring pulse on the dot that was opened. */
+let pulseMap: MlMap | null = null
+const PULSE_MS = 300
+
+/**
+ * One ring pulse around the opened dot (300 ms, scale and opacity only; with Reduce Motion the CSS drops
+ * the animation and the ring simply shows for the same 300 ms): a marker element that removes itself.
+ */
+function pulse(lngLat: { lng: number; lat: number }) {
+  if (!pulseMap) return
+  const el = document.createElement('div')
+  el.className = 'dot-pulse'
+  el.setAttribute('aria-hidden', 'true')
+  const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).addTo(pulseMap)
+  window.setTimeout(() => marker.remove(), PULSE_MS + 40)
+}
+
 /** Open a monitor's chip (the tap's result, or the chooser's pick): the station selection with its readings. */
 export function openMonitor(site: MonitorSite) {
+  pulse(site.lngLat)
   const s = store.get()
   const { lines, readings } = describeSite(site, s.place?.lngLat ?? null, s.units)
   store.set({
@@ -85,6 +104,7 @@ export function MonitorSitesLayer() {
 
   useEffect(() => {
     if (!map || !enabled) return
+    pulseMap = map
     map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
     map.addLayer({
       id: SRC,
@@ -180,6 +200,7 @@ export function MonitorSitesLayer() {
       map.off('click', onClick)
       map.off('mouseenter', SRC, enter)
       map.off('mouseleave', SRC, leave)
+      if (pulseMap === map) pulseMap = null
       if (map.getLayer(SRC)) map.removeLayer(SRC)
       if (map.getSource(SRC)) map.removeSource(SRC)
     }

@@ -1664,6 +1664,22 @@ small {
   font-size: 11px;
   pointer-events: none;
 }
+/* One ring pulse around the monitor dot that was opened (300 ms, scale and opacity only); with Reduce Motion
+   the ring simply shows, still, for the same 300 ms. */
+.dot-pulse {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 0 0 1px rgba(2, 6, 23, 0.6);
+  pointer-events: none;
+  opacity: 0.9;
+  transform: scale(0.5);
+  animation: dot-pulse 300ms ease-out forwards;
+}
+@keyframes dot-pulse {
+  to { transform: scale(1.5); opacity: 0; }
+}
 /* Several monitor dots under one tap: the chooser in the chip's place. */
 .dot-chooser {
   position: absolute;
