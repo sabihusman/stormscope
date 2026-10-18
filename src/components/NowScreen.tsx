@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNow, useOnline, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
 import { AIRNOW_CREDIT, isServiceNotConfigured, type MonitorParameter } from '../api/airnow'
@@ -326,6 +326,9 @@ type MapHandle = {
 function MapWindow() {
   const ref = useRef<HTMLCanvasElement>(null)
   const place = useApp((s) => s.place)
+  // When the still was last drawn (null until the first one): the box shows a shimmer and "Loading map…"
+  // until then, and the time of the still ("Map as of 9:42 PM") afterwards.
+  const [drawnAt, setDrawnAt] = useState<number | null>(null)
   useEffect(() => {
     const canvas = ref.current
     const m = (window as unknown as { __map?: MapHandle }).__map
@@ -351,7 +354,9 @@ function MapWindow() {
       if (!ctx) return
       ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, w, h)
       drawn++
-      ;(window as unknown as { __mapWindow?: object }).__mapWindow = { drawn, at: Date.now(), w, h }
+      const at = Date.now()
+      ;(window as unknown as { __mapWindow?: object }).__mapWindow = { drawn, at, w, h }
+      setDrawnAt(at)
     }
     m.on('idle', draw)
     // The first still: ask for one render (→ idle → draw). A size change (rotation) asks again.
@@ -370,8 +375,15 @@ function MapWindow() {
     m.easeTo({ center: [place.lngLat.lng, place.lngLat.lat], zoom: Math.max(m.getZoom(), 9), duration: 0 })
   }, [place])
   return (
-    <div className="now-map-window" role="button" tabIndex={0} aria-label="Open the map" onClick={() => go('map')} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && go('map')}>
+    <div className={`now-map-window ${drawnAt ? '' : 'loading'}`} role="button" tabIndex={0} aria-label="Open the map" onClick={() => go('map')} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && go('map')}>
       <canvas ref={ref} className="now-map-still" aria-hidden="true" />
+      {!drawnAt && (
+        <div className="map-loading" aria-live="polite">
+          <span className="shimmer" aria-hidden="true" />
+          <span className="map-loading-text">Loading map…</span>
+        </div>
+      )}
+      {drawnAt && <small className="map-asof">Map as of {clock(drawnAt)}</small>}
       <span className="chip map-open">Open map ›</span>
     </div>
   )

@@ -1626,6 +1626,44 @@ small {
 .pop[data-state='closing'] {
   pointer-events: none;
 }
+/* The Now map box before its first still: a shimmer band sliding across (transform only) and "Loading map…";
+   afterwards the time the still was taken, small, on the picture. Reduce Motion drops the animation. */
+.now-map-window .map-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  background: rgba(30, 41, 59, 0.5);
+}
+.now-map-window .map-loading .shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(148, 163, 184, 0.14) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: map-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes map-shimmer {
+  to { transform: translateX(100%); }
+}
+.now-map-window .map-loading-text {
+  position: relative;
+}
+.now-map-window .map-asof {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 16;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.55);
+  color: #e2e8f0;
+  font-size: 11px;
+  pointer-events: none;
+}
 /* Several monitor dots under one tap: the chooser in the chip's place. */
 .dot-chooser {
   position: absolute;
