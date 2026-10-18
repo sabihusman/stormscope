@@ -1,13 +1,13 @@
 # Rollback target
 
-Recorded 2026-10-17 20:35 UTC. Production was redeployed from the Vercel dashboard at 20:21 UTC (a redeploy of `dpl_G572sG4NTXhyRwGev96gr5aWwxmr`, same bundle, so that it picks up `AIRNOW_API_KEY`); the candidate preview eauvinv8w (bundle DoCD-UPF, commit 228169f) is not promoted.
+Recorded 2026-10-18, before promoting preview 791mhjxf4 (bundle 5t87xqC4, commit 06d592c) to production. Current production is the dashboard redeploy of Lx2BNpwE made 2026-10-17 20:21 UTC.
 
 | | Deployment |
 |---|---|
 | Rollback target (current production) | `dpl_EMspJRJQUDRgcttK5pVbb5QwxxdD` |
 | URL | https://stormscope-ctx32h446-sabihusman-4178s-projects.vercel.app |
 | Bundle | `index-Lx2BNpwE.js` (commit 07c8a33; redeployed 2026-10-17 20:21 UTC from the dashboard) |
-| Candidate (not promoted) | preview https://stormscope-eauvinv8w-sabihusman-4178s-projects.vercel.app, bundle `index-DoCD-UPF.js`, commit 228169f (redeploy of ee33pog3d with the key; dry run of that bundle green 2026-10-17) |
+| Being promoted over it | preview https://stormscope-791mhjxf4-sabihusman-4178s-projects.vercel.app, bundle `index-5t87xqC4.js`, commit 06d592c (dry run green 2026-10-18, phone check passed) |
 
 One-line rollback (points the production alias stormscope-two.vercel.app back at this Lx2BNpwE deployment):
 
