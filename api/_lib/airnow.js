@@ -28,8 +28,10 @@ export function parseBbox(s) {
  * the files on Oct 17, 2026; see BUILD_LOG). A completed hourly average therefore ended at label + 1 h, which
  * is the reading's time; "N min ago" and the 2 h freshness rule count from it. A row whose hour has not ended
  * at fetch time is AirNow's placeholder for the hour in progress (published 10–30 min into the hour with no
- * raw concentration and the previous hour's NowCast value repeated); `sitesFromRecords` drops it, so the latest
- * reading is always the newest COMPLETED hour.
+ * raw concentration and the previous hour's NowCast value repeated), and the same placeholder stays under a
+ * finished hour's label until the agency's measurement for it arrives (10–30 min after the hour; some stations
+ * report hours late). `sitesFromRecords` keeps only rows with a raw concentration, so the latest reading is
+ * always the newest MEASURED hour and its age the true age.
  */
 export function hourEndMs(utc) {
   const t = Date.parse(String(utc).replace(/Z?$/, 'Z'))
@@ -63,6 +65,10 @@ export function sitesFromRecords(records, now = Date.now()) {
     // instrument's detection limit and are shown as such — the AQI stays as AirNow reports it.
     const rawC = r.RawConcentration == null ? null : Number(r.RawConcentration)
     const reading = { parameter: param, value: r.Value == null ? null : Number(r.Value), unit: String(r.Unit ?? ''), aqi: Number.isFinite(aqi) ? aqi : null, time, raw: rawC == null || !Number.isFinite(rawC) || rawC <= -900 ? null : rawC }
+    // Only rows with a real measurement count: a row with no raw concentration is AirNow's placeholder (the
+    // previous hour's NowCast copied under the next label, published before the agency's hour arrives), so
+    // the newest row WITH a raw value is the station's latest reading and its age is the true age.
+    if (reading.raw == null) continue
     const i = site.readings.findIndex((x) => x.parameter === param)
     if (i < 0) site.readings.push(reading)
     else if (site.readings[i].time < time) site.readings[i] = reading

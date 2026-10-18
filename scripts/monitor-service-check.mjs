@@ -18,18 +18,18 @@ check('parseBbox accepts w,s,e,n and rejects garbage, inverted and oversized box
 
 // records → sites
 const NOW = Date.UTC(2026, 9, 12, 3, 58)
-const rec = (over) => ({ Latitude: 41.603, Longitude: -93.643, UTC: '2026-10-12T02:00', Parameter: 'PM2.5', Unit: 'UG/M3', Value: 6.0, AQI: 25, Category: { Number: 1, Name: 'Good' }, SiteName: 'Public Works', AgencyName: 'Polk Co. Air Quality Division', FullAQSCode: '840191535885', IntlAQSCode: '840191535885', ...over })
+const rec = (over) => ({ Latitude: 41.603, Longitude: -93.643, UTC: '2026-10-12T02:00', Parameter: 'PM2.5', Unit: 'UG/M3', Value: 6.0, RawConcentration: 6.3, AQI: 25, Category: { Number: 1, Name: 'Good' }, SiteName: 'Public Works', AgencyName: 'Polk Co. Air Quality Division', FullAQSCode: '840191535885', IntlAQSCode: '840191535885', ...over })
 const sites = sitesFromRecords([
   rec({ UTC: '2026-10-12T01:00', AQI: 30, Value: 7.2 }), // older hour, must lose
   rec(),
   rec({ Parameter: 'OZONE', Unit: 'PPB', Value: 54, AQI: 50 }),
-  rec({ Parameter: 'PM25', Latitude: 41.843, Longitude: -93.678, SiteName: 'Sheldahl', FullAQSCode: '191531579', AQI: -999, Value: -999 }), // AirNow's "no value"
+  rec({ Parameter: 'PM25', Latitude: 41.843, Longitude: -93.678, SiteName: 'Sheldahl', FullAQSCode: '191531579', AQI: -999, Value: -999, RawConcentration: -999 }), // AirNow's "no value"
   rec({ Parameter: 'O3', Latitude: 41.613, Longitude: -93.648, SiteName: 'Carpenter', FullAQSCode: '191530030', AQI: 55, Value: 59 }),
 ])
 const pw = sites.find((s) => s.id === '840191535885')
 check('One site per AQS code, the latest reading per parameter (01:00 dropped for 02:00)', sites.length === 3 && pw && pw.readings.length === 2 && pw.readings.find((r) => r.parameter === 'PM2.5').aqi === 25 && pw.readings.find((r) => r.parameter === 'PM2.5').value === 6, JSON.stringify(pw?.readings))
 check("Reading time: AirNow's label is the START of the measurement hour (matched against the hourly files), so the reading's time is label + 1 h (02:00 UTC → 03:00 UTC)", pw.readings[0].time === Date.UTC(2026, 9, 12, 3, 0) && hourEndMs('2026-10-12T02:00') === Date.UTC(2026, 9, 12, 3, 0) && hourEndMs('2026-10-12T02:00Z') === Date.UTC(2026, 9, 12, 3, 0) && hourEndMs('garbage') === null, new Date(pw.readings[0].time).toISOString())
-check('A completed row carries no in-progress flag and raw null when the upstream sent none', !('inProgress' in pw.readings[0]) && pw.readings[0].raw === null)
+check('A measured row carries its raw concentration and no in-progress flag', !('inProgress' in pw.readings[0]) && pw.readings[0].raw === 6.3)
 // Fixed clock 23:10 UTC: the 22:00 row (ended 23:00) is complete and 10 min old; the 23:00 row (hour in progress, raw −999, the NowCast repeated) is DROPPED — the latest is always the newest completed hour.
 const T2310 = Date.UTC(2026, 9, 17, 23, 10)
 const fixed = sitesFromRecords([rec({ UTC: '2026-10-17T22:00', Value: 4, AQI: 17, RawConcentration: 4 }), rec({ UTC: '2026-10-17T23:00', Value: 4, AQI: 17, RawConcentration: -999 }), rec({ UTC: '2026-10-17T22:00', Parameter: 'OZONE', Unit: 'PPB', Value: 30, AQI: 28, RawConcentration: 31 }), rec({ UTC: '2026-10-17T21:00', Value: 0, AQI: 0, RawConcentration: -2 })], T2310)[0]
@@ -38,8 +38,15 @@ check('Fixed clock 23:10: the in-progress 23:00 row is dropped — the latest PM
 check('Fixed clock 23:10: the completed 22:00 ozone row ended 23:00 — 10 min ago, raw 31 passed through', oz.time === Date.UTC(2026, 9, 17, 23, 0) && T2310 - oz.time === 10 * 60_000 && oz.raw === 31, new Date(oz.time).toISOString())
 const neg = sitesFromRecords([rec({ UTC: '2026-10-17T21:00', Value: 0, AQI: 0, RawConcentration: -2 })], T2310)[0].readings[0]
 check('A negative raw concentration passes through as is (the client says "below detection"); the AQI stays as reported (0)', neg.raw === -2 && neg.aqi === 0 && neg.value === 0, JSON.stringify(neg))
+// Fixed clock 04:03 UTC: the row for the hour that just ended (label 03:00) is still the placeholder (raw −999, the
+// 02:00 hour's NowCast copied), so the latest reading is the 02:00 row (ended 03:00) — its true age 63 min, not 3 min.
+const T0403 = Date.UTC(2026, 9, 18, 4, 3)
+const late = sitesFromRecords([rec({ UTC: '2026-10-18T03:00', Value: 5, AQI: 21, RawConcentration: -999 }), rec({ UTC: '2026-10-18T02:00', Value: 5, AQI: 21, RawConcentration: 6.1 }), rec({ UTC: '2026-10-18T04:00', Value: 5, AQI: 21, RawConcentration: -999 }), rec({ UTC: '2026-10-18T01:00', Value: 4, AQI: 17, RawConcentration: 4.4 })], T0403)[0]
+check('Fixed clock 04:03: the newest row WITH a raw measurement wins — the 02:00 row (ended 03:00, 63 min ago, raw 6.1); the 03:00 placeholder and the 04:00 in-progress row are skipped', late.readings.length === 1 && late.readings[0].time === Date.UTC(2026, 9, 18, 3, 0) && late.readings[0].raw === 6.1 && Math.round((T0403 - late.readings[0].time) / 60_000) === 63, JSON.stringify(late.readings))
+const onlyPh = sitesFromRecords([rec({ UTC: '2026-10-18T03:00', Value: 5, AQI: 21, RawConcentration: -999 }), rec({ UTC: '2026-10-18T02:00', Value: 5, AQI: 21, RawConcentration: undefined })], T0403)
+check('A station whose rows in the window all lack a raw value has no reading for that pollutant (it is listed from the site list as offline instead of shown with a copied value)', onlyPh.length === 1 && onlyPh[0].readings.length === 0 && onlyPh[0].parameters.includes('PM2.5'), JSON.stringify(onlyPh[0]?.readings))
 check('Freshness: a completed row is fresh until label + 3 h (time + 2 h) and stale after', (Date.UTC(2026, 9, 18, 0, 59) - oz.time < 2 * 3_600_000) && !(Date.UTC(2026, 9, 18, 1, 0, 1) - oz.time < 2 * 3_600_000))
-check('Parameter names normalised: PM25 → PM2.5, O3 → OZONE; a -999 AQI becomes null', sites.find((s) => s.id === '191531579').readings[0].parameter === 'PM2.5' && sites.find((s) => s.id === '191531579').readings[0].aqi === null && sites.find((s) => s.id === '191530030').readings[0].parameter === 'OZONE')
+check('Parameter names normalised: PM25 → PM2.5, O3 → OZONE; a row with no value and no raw (−999) is skipped — the site is listed with the parameter but no reading', sites.find((s) => s.id === '191531579').parameters.join(',') === 'PM2.5' && sites.find((s) => s.id === '191531579').readings.length === 0 && sites.find((s) => s.id === '191530030').readings[0].parameter === 'OZONE')
 check('A site lists the parameters it reported', pw.parameters.join(',') === 'PM2.5,OZONE' && sites.find((s) => s.id === '191530030').parameters.join(',') === 'OZONE')
 check('Site name, agency and coordinates carried through', pw.name === 'Public Works' && pw.agency === 'Polk Co. Air Quality Division' && pw.lngLat.lat === 41.603 && pw.lngLat.lng === -93.643)
 
