@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNow, useOnline, useWide } from '../hooks/useMisc'
+import { useHorizontalScroll } from '../hooks/useHorizontalScroll'
 import { haversine } from '../lib/geo'
 import { AIRNOW_CREDIT, isServiceNotConfigured, type MonitorParameter } from '../api/airnow'
 import { aqiCategory } from '../lib/aqi'
@@ -272,8 +273,11 @@ function HourlyCard() {
   const span = useApp((s) => s.hourlySpan)
   const h = r.data?.hourly ?? []
   const inSpan = h.slice(0, span)
-  const step = span === 48 ? 3 : 1
-  const cards = inSpan.filter((_, i) => i % step === 0)
+  // Every hour the forecast carries, for every span (Open-Meteo's hourly block runs the full 48 h; were an hour
+  // missing, the strip would simply skip it).
+  const cards = inSpan.filter((x) => x.tempC != null || x.code != null)
+  const stripRef = useRef<HTMLOListElement>(null)
+  useHorizontalScroll(stripRef, cards.length > 0)
   const rain = inSpan.reduce((a, x) => a + (x.precipMm ?? 0), 0)
   // Card clocks and days in the place's time zone (the one the forecast resolved), like the 7-day list.
   const tz = r.data?.timezone || 'UTC'
@@ -309,7 +313,7 @@ function HourlyCard() {
       {!cards.length ? (
         <div className="skeleton w100" />
       ) : (
-        <ol className="hour-strip" aria-label={`Forecast for the next ${span} hours`}>
+        <ol ref={stripRef} className="hour-strip" aria-label={`Forecast for the next ${span} hours`}>
           {cards.map((x, i) => {
             const w = wmo(x.code, true)
             const crossed = localDate(x.time, tz) !== firstDay

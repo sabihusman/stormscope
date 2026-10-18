@@ -1916,6 +1916,23 @@ small {
 .hour-strip li:first-child {
   border-color: var(--accent);
 }
+/* With a mouse the strip scrolls by wheel and by drag (useHorizontalScroll); a thin scrollbar shows there is more. */
+.app.wide .hour-strip {
+  scrollbar-width: thin;
+  cursor: grab;
+}
+.app.wide .hour-strip::-webkit-scrollbar {
+  display: block;
+  height: 6px;
+}
+.app.wide .hour-strip::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+.hour-strip.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
 /* A card past midnight carries its day ("Mon 12 AM"): wide enough to keep it on one line, so the strip's height
    never changes with the span or the time of day. */
 .hour-strip li[data-day] {
