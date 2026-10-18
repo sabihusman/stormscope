@@ -47,6 +47,7 @@ export interface RecentPlace {
   name: string
   lngLat: LngLat
 }
+export type HourlySpan = 12 | 24 | 48
 export type AnimLayer = 'radar' | 'satellite' | 'rainfall' | 'nowcast'
 
 /** One pollutant reading of a tapped air monitor, for the details sheet (the AQI badge in its EPA colour, the local time and age). */
@@ -129,6 +130,8 @@ export interface AppState {
   /** Layers that threw and were switched off by their error boundary, with the reason (cleared on re-enable). */
   layerErrors: Partial<Record<string, string>>
   rainHorizon: RainHorizon
+  /** The Now tab's "Next N hours" span (12 / 24 / 48), remembered. */
+  hourlySpan: HourlySpan
   is3D: boolean
   units: Units
   /** Which screen corner the layer button lives in. */
@@ -239,6 +242,14 @@ export const store = createStore<AppState>({
     ...savedLayers,
   },
   rainHorizon: 24,
+  hourlySpan: ((): HourlySpan => {
+    try {
+      const v = Number(localStorage.getItem('stormscope.hourlySpan'))
+      return v === 24 || v === 48 ? v : 12
+    } catch {
+      return 12
+    }
+  })(),
   is3D: false,
   units: defaultUnits(),
   fabCorner: ((): FabCorner => {
@@ -554,4 +565,14 @@ export function toast(text: string, kind: 'info' | 'warn' | 'error' = 'info') {
 
 export function setResource<K extends keyof AppState>(key: K, r: AppState[K]) {
   store.set({ [key]: r } as Partial<AppState>)
+}
+
+/** The Now tab's hourly span; remembered on this device. */
+export function setHourlySpan(hourlySpan: HourlySpan) {
+  store.set({ hourlySpan })
+  try {
+    localStorage.setItem('stormscope.hourlySpan', String(hourlySpan))
+  } catch {
+    /* private mode */
+  }
 }

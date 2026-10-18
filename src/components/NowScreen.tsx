@@ -9,7 +9,7 @@ import { clock, readingAge, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
 import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
-import { go, setLayer, startPickOnMap, store, useApp, wantFlood } from '../state/store'
+import { go, setHourlySpan, setLayer, startPickOnMap, store, useApp, wantFlood, type HourlySpan } from '../state/store'
 import { REPLAY_IN_URL } from '../state/DataController'
 import type { DayPoint, NwsAlert } from '../types'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -259,31 +259,53 @@ function DailyCard() {
   )
 }
 
+const SPANS: HourlySpan[] = [12, 24, 48]
+
+/**
+ * The next 12 / 24 / 48 hours (a remembered switch in the header): every hour for 12 and 24 h, every third
+ * hour for 48 h, from the same forecast request (it already carries 48 hours — `forecast_hours=48` — so the
+ * switch never fetches). A card past midnight shows its day ("Tue 3 AM"). The rain line sums the same span.
+ */
 function HourlyCard() {
   const r = useApp((s) => s.conditions)
   const units = useApp((s) => s.units)
+  const span = useApp((s) => s.hourlySpan)
   const h = r.data?.hourly ?? []
-  const next12 = h.slice(0, 12)
-  const rain24 = h.slice(0, 24).reduce((a, x) => a + (x.precipMm ?? 0), 0)
+  const inSpan = h.slice(0, span)
+  const step = span === 48 ? 3 : 1
+  const cards = inSpan.filter((_, i) => i % step === 0)
+  const rain = inSpan.reduce((a, x) => a + (x.precipMm ?? 0), 0)
+  const firstDay = cards.length ? new Date(cards[0].time).toDateString() : ''
   const wide = useWide()
-  // Opens the Map with the playback bar running over the next 24 h (on wide layouts the map is already beside this card).
+  // Opens the Map with the playback bar running over the same span (on wide layouts the map is already beside this card).
   const openTimeline = () => {
     if (!store.get().layers.rainfall) setLayer('rainfall', true)
-    store.set({ rainHorizon: 24, playing: true, playTime: null })
+    store.set({ rainHorizon: span, playing: true, playTime: null })
     if (!wide) go('map')
   }
   return (
-    <div className="card now-card hourly" aria-busy={!next12.length}>
-      <h4>Next 12 hours</h4>
-      {!next12.length ? (
+    <div className="card now-card hourly" aria-busy={!cards.length} data-span={span}>
+      <div className="card-head">
+        <h4>Next {span} hours</h4>
+        <div className="segmented small span-switch" role="radiogroup" aria-label="Hours ahead">
+          {SPANS.map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={n === span} data-span={n} className={n === span ? 'on' : ''} onClick={() => setHourlySpan(n)}>
+              {n} h
+            </button>
+          ))}
+        </div>
+      </div>
+      {!cards.length ? (
         <div className="skeleton w100" />
       ) : (
-        <ol className="hour-strip" aria-label="Hourly forecast">
-          {next12.map((x, i) => {
+        <ol className="hour-strip" aria-label={`Forecast for the next ${span} hours`}>
+          {cards.map((x, i) => {
             const w = wmo(x.code, true)
+            const d = new Date(x.time)
+            const crossed = d.toDateString() !== firstDay
             return (
-              <li key={x.time}>
-                <span className="hour-t">{i === 0 ? 'Now' : clock(x.time).replace(/:00/, '')}</span>
+              <li key={x.time} data-time={x.time} data-day={crossed ? d.toLocaleDateString([], { weekday: 'short' }) : undefined}>
+                <span className="hour-t">{i === 0 ? 'Now' : `${crossed ? d.toLocaleDateString([], { weekday: 'short' }) + ' ' : ''}${clock(x.time).replace(/:00/, '')}`}</span>
                 <span className="hour-i" aria-hidden="true">
                   {w.icon}
                 </span>
@@ -295,8 +317,8 @@ function HourlyCard() {
         </ol>
       )}
       {h.length > 0 && (
-        <button className="link-row" onClick={openTimeline}>
-          Rain next 24 h: <strong>{U.precip(rain24, units)}</strong> · timeline ›
+        <button className="link-row" onClick={openTimeline} data-rain-span={span}>
+          Rain next {span} h: <strong>{U.precip(rain, units)}</strong> · timeline ›
         </button>
       )}
     </div>

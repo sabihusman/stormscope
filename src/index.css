@@ -1767,6 +1767,22 @@ small {
 .credits-list a {
   color: var(--text);
 }
+/* The "Next N hours" header: the title and the 12 h | 24 h | 48 h switch on one row. */
+.now-card.hourly .card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.now-card.hourly .card-head h4 {
+  margin: 0;
+}
+.span-switch button {
+  min-width: 40px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
 /* Several monitor dots under one tap: the chooser in the chip's place. */
 .dot-chooser {
   position: absolute;
