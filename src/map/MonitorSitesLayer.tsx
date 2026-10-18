@@ -10,6 +10,7 @@ import { U } from '../lib/units'
 import { setResource, store, useApp, type SelectionReading } from '../state/store'
 import { failed, loading, ready } from '../state/DataController'
 import { useMap } from './MapView'
+import { reducedMotion } from '../hooks/usePresence'
 
 const SRC = 'air-monitors'
 const CACHE_MS = 10 * 60_000
@@ -71,7 +72,9 @@ function pulse(lngLat: { lng: number; lat: number }) {
   let gone = false
   const remove = () => { if (!gone) { gone = true; marker.remove() } }
   el.addEventListener('animationend', remove)
-  window.setTimeout(remove, PULSE_MS + 200)
+  // With Reduce Motion there is no animation: the still ring goes after the same 300 ms. Otherwise the timer is a
+  // late fallback only — the animation's own end removes the ring, even when a busy frame delays its start.
+  window.setTimeout(remove, reducedMotion() ? PULSE_MS : PULSE_MS + 1500)
 }
 
 /** Open a monitor's chip (the tap's result, or the chooser's pick): the station selection with its readings. */
