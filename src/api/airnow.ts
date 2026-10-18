@@ -25,8 +25,8 @@ export interface MonitorReading {
   aqi: number | null
   /** The reading's time, ms epoch: the END of the measurement hour (AirNow's label is the hour's start; ages count from the end). */
   time: number
-  /** The hour had not ended when the service fetched it: AirNow's NowCast row for the hour in progress, preliminary. */
-  inProgress?: boolean
+  /** The agency's raw hourly concentration as reported, null when none; negative = below the detection limit (shown as such, the AQI stays as reported). */
+  raw?: number | null
 }
 
 export interface MonitorSite {

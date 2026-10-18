@@ -39,7 +39,8 @@ export function describeSite(site: MonitorSite, place: { lng: number; lat: numbe
   for (const r of site.readings) {
     const cat = aqiCategory(r.aqi)
     const label = PARAM_NAMES[r.parameter] ?? r.parameter
-    const value = r.value != null ? `${r.value} ${r.unit}` : ''
+    // A negative raw concentration is below the instrument's detection limit: say so instead of a number.
+    const value = r.raw != null && r.raw < 0 ? 'below detection' : r.value != null ? `${r.value} ${r.unit}` : ''
     const stale = !isFresh(r, now)
     const line = `${label}: ${r.aqi != null ? `AQI ${Math.round(r.aqi)} ${cat?.name ?? ''}` : 'no AQI'}${value ? ` · ${value}` : ''} · ${clock(r.time)} · ${timeAgo(r.time, now)}${stale ? ' (stale)' : ''}`
     lines.push(line)
