@@ -105,24 +105,27 @@ function monitorSites(url, focus) {
   const q = new URL(url).searchParams
   const now = omOptions.now ?? Date.now()
   const H = 3_600_000
-  // clockTest (with `now` = the fixed clock 00:13 UTC, Oct 18 2026): AirNow-style records run through the
-  // function's own logic (`sitesFromRecords`), exactly as the service would answer at that moment:
-  //   Clock site, 8 km:    PM2.5 label 23:00 (completed: ended 00:00, 13 min ago, raw 4) + the hour in progress
-  //                        (label 00:00, raw −999, the same NowCast value repeated — dropped); ozone label 21:00
-  //                        (ended 22:00, 2 h 13 min ago: stale, past label + 3 h).
-  //   Progress site, 15 km: PM2.5 label 22:00 (completed: ended 23:00, 1 h 13 min ago, raw −2 = below detection,
-  //                        value 0, AQI 0) + the hour in progress (label 00:00, AQI 13 — dropped, never "newer").
+  // clockTest (with `now` = the fixed clock 04:03 UTC, Oct 18 2026 — three minutes past the hour): AirNow-style
+  // records run through the function's own logic (`sitesFromRecords`), exactly as the service would answer then:
+  //   Clock site, 8 km:    PM2.5 label 02:00 (measured: ended 03:00, 63 min ago, raw 4); label 03:00 — the hour
+  //                        that just ended, still the placeholder (raw −999, the same NowCast copied) — skipped;
+  //                        label 04:00 (in progress, raw −999) — skipped; ozone label 00:00 (measured, ended 01:00,
+  //                        3 h 03 min ago: stale).
+  //   Progress site, 15 km: PM2.5 label 02:00 (measured, raw −2 = below detection, value 0, AQI 0) + the 03:00
+  //                        placeholder and the 04:00 in-progress row (AQI 13 — skipped, never "newer").
   if (omOptions.clockTest) {
     const rec = (site, UTC, Parameter, Unit, Value, AQI, RawConcentration) => ({ ...site, UTC, Parameter, Unit, Value, AQI, RawConcentration })
     const clock = { Latitude: focus.lat - 0.06, Longitude: focus.lng + 0.05, SiteName: 'Clock site (mock)', AgencyName: 'Polk Co. Air Quality Division (mock)', FullAQSCode: 'mock-clock' }
     const prog = { Latitude: focus.lat + 0.12, Longitude: focus.lng - 0.1, SiteName: 'Progress site (mock)', AgencyName: 'Polk Co. Air Quality Division (mock)', FullAQSCode: 'mock-clock-progress' }
     const label = (ms) => new Date(ms).toISOString().slice(0, 13) + ':00'
-    const hour = Math.floor(now / H) * H // the hour in progress begins here (00:00 at 00:13)
+    const hour = Math.floor(now / H) * H // the hour in progress begins here (04:00 at 04:03)
     const records = [
-      rec(clock, label(hour - H), 'PM2.5', 'UG/M3', 4, 17, 4),
+      rec(clock, label(hour - 2 * H), 'PM2.5', 'UG/M3', 4, 17, 4),
+      rec(clock, label(hour - H), 'PM2.5', 'UG/M3', 4, 17, -999),
       rec(clock, label(hour), 'PM2.5', 'UG/M3', 4, 17, -999),
-      rec(clock, label(hour - 3 * H), 'OZONE', 'PPB', 30, 28, 30),
+      rec(clock, label(hour - 4 * H), 'OZONE', 'PPB', 30, 28, 30),
       rec(prog, label(hour - 2 * H), 'PM2.5', 'UG/M3', 0, 0, -2),
+      rec(prog, label(hour - H), 'PM2.5', 'UG/M3', 3, 13, -999),
       rec(prog, label(hour), 'PM2.5', 'UG/M3', 3, 13, -999),
     ]
     return { fetchedAt: now, credit: 'EPA AirNow and the reporting air quality agencies · preliminary data (mock)', sites: sitesFromRecords(records, now) }
