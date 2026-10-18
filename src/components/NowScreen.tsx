@@ -5,7 +5,7 @@ import { AIRNOW_CREDIT, isServiceNotConfigured, type MonitorParameter } from '..
 import { aqiCategory } from '../lib/aqi'
 import { nearestMeasured } from '../lib/airnowHere'
 import { floodHere, floodKeyFor, riskWord } from '../lib/floodHere'
-import { clock, timeAgo } from '../lib/time'
+import { clock, readingAge, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
 import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
@@ -494,7 +494,7 @@ function AirNowCard() {
                     <b className="aqi-badge" style={{ background: cat.color, color: cat.text }}>
                       {Math.round(m.reading.aqi!)}
                     </b>{' '}
-                    {cat.name} <small className="muted">at {m.site.name}, {U.distance(m.distanceM, units)} away, {timeAgo(m.reading.time, now)}</small>
+                    {cat.name} <small className="muted">at {m.site.name}, {U.distance(m.distanceM, units)} away, {readingAge(m.reading.time, now)}</small>
                   </span>
                 ) : (
                   <span className="aq-value muted">No monitor within 25 km</span>

@@ -4,7 +4,7 @@ import { usePointForecast } from '../hooks/usePointForecast'
 import { wmo } from '../lib/wmo'
 import { haversine } from '../lib/geo'
 import { bearingLabel, sampleBlocks } from '../lib/gridSample'
-import { clock, timeAgo } from '../lib/time'
+import { clock, readingAge, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
 import { compass } from '../map/StationLayer'
 import { openMonitor, siteStyle } from '../map/MonitorSitesLayer'
@@ -149,7 +149,7 @@ function MonitorRows({ sel, now }: { sel: Selection; now: number }) {
               {r.value ? ` · ${r.value}` : ''}
             </span>
             <small className="muted">
-              {clock(r.time)} · {timeAgo(r.time, now)}
+              {clock(r.time)} · {readingAge(r.time, now)}
               {r.stale ? ' (stale)' : ''}
             </small>
           </li>

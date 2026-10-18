@@ -4,7 +4,7 @@ import { AIRNOW_CREDIT, fetchMonitorSites, isFresh, type MonitorParameter, type 
 import { aqiCategory } from '../lib/aqi'
 import { describeError } from '../lib/fetch'
 import { haversine } from '../lib/geo'
-import { clock, timeAgo } from '../lib/time'
+import { clock, readingAge } from '../lib/time'
 import { U } from '../lib/units'
 import { setResource, store, useApp, type SelectionReading } from '../state/store'
 import { failed, loading, ready } from '../state/DataController'
@@ -42,7 +42,7 @@ export function describeSite(site: MonitorSite, place: { lng: number; lat: numbe
     // A negative raw concentration is below the instrument's detection limit: say so instead of a number.
     const value = r.raw != null && r.raw < 0 ? 'below detection' : r.value != null ? `${r.value} ${r.unit}` : ''
     const stale = !isFresh(r, now)
-    const line = `${label}: ${r.aqi != null ? `AQI ${Math.round(r.aqi)} ${cat?.name ?? ''}` : 'no AQI'}${value ? ` · ${value}` : ''} · ${clock(r.time)} · ${timeAgo(r.time, now)}${stale ? ' (stale)' : ''}`
+    const line = `${label}: ${r.aqi != null ? `AQI ${Math.round(r.aqi)} ${cat?.name ?? ''}` : 'no AQI'}${value ? ` · ${value}` : ''} · ${clock(r.time)} · ${readingAge(r.time, now)}${stale ? ' (stale)' : ''}`
     lines.push(line)
     readings.push({ line, label, aqi: r.aqi, category: cat?.name ?? null, color: cat?.color ?? null, text: cat?.text ?? null, value, time: r.time, stale })
   }

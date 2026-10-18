@@ -11,6 +11,18 @@ export function timeAgo(ts: number | null | undefined, now = Date.now()): string
   return `${Math.round(h / 24)} d ago`
 }
 
+/**
+ * The age of a measurement where the minutes matter up to two hours ("65 min ago" rather than "1 h ago"; the
+ * air-monitor rule counts a reading fresh for 2 h), then hours and days like `timeAgo`.
+ */
+export function readingAge(ts: number | null | undefined, now = Date.now()): string {
+  if (!ts) return 'never'
+  const m = Math.round(Math.max(0, now - ts) / 60_000)
+  if (m < 1) return 'just now'
+  if (m < 120) return `${m} min ago`
+  return timeAgo(ts, now)
+}
+
 /** Short clock string in the user's locale, e.g. "14:35". */
 export function clock(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
