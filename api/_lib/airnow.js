@@ -27,8 +27,9 @@ export function parseBbox(s) {
  * hourly files, which document it as "the beginning of the measurement period" (matched value for value against
  * the files on Oct 17, 2026; see BUILD_LOG). A completed hourly average therefore ended at label + 1 h, which
  * is the reading's time; "N min ago" and the 2 h freshness rule count from it. A row whose hour has not ended
- * at fetch time is the hour in progress (AirNow publishes a NowCast row for the current hour 10–30 min into
- * it); `sitesFromRecords` marks it `inProgress`.
+ * at fetch time is AirNow's placeholder for the hour in progress (published 10–30 min into the hour with no
+ * raw concentration and the previous hour's NowCast value repeated); `sitesFromRecords` drops it, so the latest
+ * reading is always the newest COMPLETED hour.
  */
 export function hourEndMs(utc) {
   const t = Date.parse(String(utc).replace(/Z?$/, 'Z'))
@@ -50,7 +51,7 @@ export function sitesFromRecords(records, now = Date.now()) {
     const id = String(r.FullAQSCode ?? r.IntlAQSCode ?? `${lat.toFixed(4)},${lng.toFixed(4)}`)
     const time = hourEndMs(r.UTC)
     if (time == null) continue
-    const inProgress = time > now
+    if (time > now) continue // the hour in progress: a NowCast placeholder, not a measurement
     let site = bySite.get(id)
     if (!site) {
       site = { id, name: String(r.SiteName ?? id), agency: String(r.AgencyName ?? ''), lngLat: { lng, lat }, parameters: [], readings: [] }
@@ -58,7 +59,10 @@ export function sitesFromRecords(records, now = Date.now()) {
     }
     if (!site.parameters.includes(param)) site.parameters.push(param)
     const aqi = r.AQI == null || r.AQI < 0 ? null : Number(r.AQI)
-    const reading = { parameter: param, value: r.Value == null ? null : Number(r.Value), unit: String(r.Unit ?? ''), aqi: Number.isFinite(aqi) ? aqi : null, time, ...(inProgress ? { inProgress: true } : {}) }
+    // raw: the agency's hourly concentration as reported (−999 = none → null); negative values are below the
+    // instrument's detection limit and are shown as such — the AQI stays as AirNow reports it.
+    const rawC = r.RawConcentration == null ? null : Number(r.RawConcentration)
+    const reading = { parameter: param, value: r.Value == null ? null : Number(r.Value), unit: String(r.Unit ?? ''), aqi: Number.isFinite(aqi) ? aqi : null, time, raw: rawC == null || !Number.isFinite(rawC) || rawC <= -900 ? null : rawC }
     const i = site.readings.findIndex((x) => x.parameter === param)
     if (i < 0) site.readings.push(reading)
     else if (site.readings[i].time < time) site.readings[i] = reading
@@ -119,7 +123,7 @@ export function upstreamUrl(bbox, now = Date.now(), key = '') {
     format: 'application/json',
     verbose: '1',
     monitorType: '0',
-    includerawconcentrations: '0',
+    includerawconcentrations: '1',
     API_KEY: key,
   })
   return `https://www.airnowapi.org/aq/data/?${q.toString()}`
