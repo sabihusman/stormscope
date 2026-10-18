@@ -52,6 +52,7 @@ function MoreList() {
     rivers: rivers.data ? (high ? `${high} of ${rivers.data.length} gauges high` : `${rivers.data.length} gauges nearby`) : rivers.state === 'loading' ? 'loading…' : 'Gauges and flood stages nearby',
     station: station.data ? `${station.data.name} · ${timeAgo(station.data.observedAt, now)}` : station.state === 'loading' ? 'loading…' : 'not loaded',
     settings: `${units === 'imperial' ? 'Imperial' : 'Metric'} · motion · data budget`,
+    about: 'Map and data sources, with credits',
   }
   return (
     <section className="screen more" aria-label="More">
