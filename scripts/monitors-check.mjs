@@ -237,18 +237,22 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await ctx.close()
 }
 
-// ---- 2b. Reading times under a fixed clock (23:10 UTC): a completed row whose hour ended 23:00 reads "10 min ago"
-// with its local clock time; a completed row past label + 3 h is stale (does not count for the place).
+// ---- 2b. Reading times under a fixed clock (00:13 UTC, Oct 18): the mock runs AirNow-style records through the
+// function's own logic. A station with a completed 23:00 row and an in-progress 00:00 row shows the 23:00 reading,
+// "13 min ago" from 00:00, with no negative age anywhere; a row past label + 3 h is stale; a negative raw
+// concentration reads "below detection"; the in-progress fixture site never appears as newer.
 {
-  const FIXED = Date.UTC(2026, 9, 17, 23, 10)
+  const FIXED = Date.UTC(2026, 9, 18, 0, 13)
   const { ctx, page, done, until } = await session({ now: FIXED, clockTest: true })
   await until(() => window.__store.get().monitorsNear.state === 'ready', 20000)
   await page.waitForTimeout(300)
   const lines = await nowLines(page)
   const pm = lines.find((l) => l.p === 'PM2.5'), oz = lines.find((l) => l.p === 'OZONE')
-  const clock23 = await page.evaluate((t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), FIXED - 10 * 60_000)
-  check('Fixed clock 23:10 UTC, Now: the completed PM2.5 row (hour ended 23:00) reads "AQI 17 Good at Clock site, 10 min ago"', pm?.state === 'measured' && /^Smoke \(PM2\.5\) 17 Good at Clock site \(mock\), [45]\.\d (mi|km) away, 10 min ago$/.test(pm.text), pm?.text)
-  check('Fixed clock, Now: the ozone row whose hour ended 2 h 01 min ago (past label + 3 h) is stale — "No monitor within 25 km", no number', oz?.state === 'none' && /No monitor within 25 km/.test(oz.text), oz?.text)
+  const clock00 = await page.evaluate((t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), FIXED - 13 * 60_000)
+  check('Fixed clock 00:13 UTC, Now: the completed 23:00 row (ended 00:00) reads "AQI 17 Good at Clock site, 13 min ago" — not the in-progress 00:00 row', pm?.state === 'measured' && /^Smoke \(PM2\.5\) 17 Good at Clock site \(mock\), [45]\.\d (mi|km) away, 13 min ago$/.test(pm.text), pm?.text)
+  check('Fixed clock, Now: the ozone row whose hour ended 2 h 13 min ago (past label + 3 h) is stale — "No monitor within 25 km", no number', oz?.state === 'none' && /No monitor within 25 km/.test(oz.text), oz?.text)
+  const served = await page.evaluate((now) => { const s = window.__store.get().monitorsNear.data?.sites ?? []; return { rows: s.flatMap((x) => x.readings.map((r) => `${x.name} ${r.parameter} ${new Date(r.time).toISOString().slice(11, 16)}Z raw ${r.raw}`)), future: s.some((x) => x.readings.some((r) => r.time > now)) } }, FIXED)
+  check('The service answer holds only completed rows: no reading time after the clock (the in-progress rows were dropped), one PM2.5 row per site', !served.future && served.rows.length === 3 && served.rows.some((r) => /Progress site \(mock\) PM2\.5 23:00Z raw -2/.test(r)), served.rows.join(' | '))
   await openMap(page)
   await page.evaluate(() => { const p = window.__store.get().place.lngLat; window.__map.jumpTo({ center: [p.lng, p.lat], zoom: 9.5 }) })
   await page.getByRole('button', { name: 'Open layer menu' }).click()
@@ -257,9 +261,18 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await page.getByRole('button', { name: 'Close layer menu' }).click()
   await until(() => !window.__map.isMoving() && window.__store.get().monitors.state === 'ready', 15000)
   await page.waitForTimeout(800)
+  const dots = await features(page)
+  const progDot = (dots ?? []).find((d) => d.id === 'mock-clock-progress')
+  check('Map: the Progress site dot shows its completed hour (AQI 0, Good green), not the in-progress AQI 13', progDot?.style === 'fresh' && progDot?.aqi === 0 && progDot?.color === '#00E400', JSON.stringify(progDot))
   const tc = await tap(page, 'mock-clock')
   const rowPm = tc.rows.find((r) => r.label === 'PM2.5'), rowOz = tc.rows.find((r) => r.label === 'ozone')
-  check(`Fixed clock, tap details: the PM2.5 row shows the hour's end as local time (${clock23}) and "10 min ago"; the ozone row "2 h ago (stale)"`, !!rowPm && rowPm.text.endsWith(`${clock23} · 10 min ago`) && !rowPm.stale && !!rowOz && /2 h ago \(stale\)$/.test(rowOz.text) && rowOz.stale, `${rowPm?.text} | ${rowOz?.text}`)
+  check(`Tap details, Clock site: the PM2.5 row shows the hour's end as local time (${clock00}) and "13 min ago"; the ozone row "2 h ago (stale)"`, !!rowPm && rowPm.text.endsWith(`${clock00} · 13 min ago`) && !rowPm.stale && !!rowOz && /2 h ago \(stale\)$/.test(rowOz.text) && rowOz.stale, `${rowPm?.text} | ${rowOz?.text}`)
+  const tp = await tap(page, 'mock-clock-progress')
+  const rowProg = tp.rows.find((r) => r.label === 'PM2.5')
+  check('Tap details, Progress site: its completed row — AQI 0 Good, "below detection" instead of the number, "1 h ago" — and only that row', tp.rows.length === 1 && !!rowProg && /^0 PM2\.5 Good · below detection .* · 1 h ago$/.test(rowProg.text) && !/UG\/M3|-2/.test(rowProg.text), rowProg?.text)
+  const texts = [pm?.text, oz?.text, tc.text, tp.text, tc.chip, tp.chip].join(' | ')
+  const readingAges = [...tc.rows, ...tp.rows].map((r) => r.text)
+  check('No negative or future age anywhere (Now card, chips, details), and no reading row claims "just now"', !/(^|\s)-\d+ min|in \d+ (min|h)|−\d+ min/.test(texts) && readingAges.every((t) => !/just now/.test(t)), readingAges.join(' | ').slice(0, 160))
   await page.screenshot({ path: `${OUT}/fixed-clock.png` })
   done()
   await ctx.close()

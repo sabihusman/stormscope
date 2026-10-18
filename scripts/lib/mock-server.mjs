@@ -10,6 +10,7 @@
 // they replay with `notFound: 'abort'` — nothing leaves the machine.
 import { readFileSync, existsSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
+import { sitesFromRecords } from '../../api/_lib/airnow.js'
 
 const F = (p) => JSON.parse(readFileSync(p, 'utf8'))
 const saved = {
@@ -104,23 +105,27 @@ function monitorSites(url, focus) {
   const q = new URL(url).searchParams
   const now = omOptions.now ?? Date.now()
   const H = 3_600_000
-  // clockTest (with `now` = the fixed clock 23:10 UTC): one site, 8 km away, with a completed PM2.5 row whose
-  // hour ended at 23:00 (10 min ago), a completed ozone row whose hour ended at 21:09 (2 h 01 min ago: stale,
-  // past label + 3 h), and a second site 15 km away whose only row is the NowCast row for the hour in progress (label 23:00, ends 00:00, inProgress).
+  // clockTest (with `now` = the fixed clock 00:13 UTC, Oct 18 2026): AirNow-style records run through the
+  // function's own logic (`sitesFromRecords`), exactly as the service would answer at that moment:
+  //   Clock site, 8 km:    PM2.5 label 23:00 (completed: ended 00:00, 13 min ago, raw 4) + the hour in progress
+  //                        (label 00:00, raw −999, the same NowCast value repeated — dropped); ozone label 21:00
+  //                        (ended 22:00, 2 h 13 min ago: stale, past label + 3 h).
+  //   Progress site, 15 km: PM2.5 label 22:00 (completed: ended 23:00, 1 h 13 min ago, raw −2 = below detection,
+  //                        value 0, AQI 0) + the hour in progress (label 00:00, AQI 13 — dropped, never "newer").
   if (omOptions.clockTest) {
-    return {
-      fetchedAt: now,
-      credit: 'EPA AirNow and the reporting air quality agencies · preliminary data (mock)',
-      sites: [
-        { id: 'mock-clock', name: 'Clock site (mock)', agency: 'Polk Co. Air Quality Division (mock)', lngLat: { lat: focus.lat - 0.06, lng: focus.lng + 0.05 }, parameters: ['PM2.5', 'OZONE'], readings: [
-          { parameter: 'PM2.5', value: 4, unit: 'UG/M3', aqi: 17, time: now - 10 * 60_000 },
-          { parameter: 'OZONE', value: 30, unit: 'PPB', aqi: 28, time: now - 2 * H - 60_000 },
-        ] },
-        { id: 'mock-clock-progress', name: 'Progress site (mock)', agency: 'Polk Co. Air Quality Division (mock)', lngLat: { lat: focus.lat + 0.12, lng: focus.lng - 0.1 }, parameters: ['PM2.5'], readings: [
-          { parameter: 'PM2.5', value: 3, unit: 'UG/M3', aqi: 13, time: now + 50 * 60_000, inProgress: true },
-        ] },
-      ],
-    }
+    const rec = (site, UTC, Parameter, Unit, Value, AQI, RawConcentration) => ({ ...site, UTC, Parameter, Unit, Value, AQI, RawConcentration })
+    const clock = { Latitude: focus.lat - 0.06, Longitude: focus.lng + 0.05, SiteName: 'Clock site (mock)', AgencyName: 'Polk Co. Air Quality Division (mock)', FullAQSCode: 'mock-clock' }
+    const prog = { Latitude: focus.lat + 0.12, Longitude: focus.lng - 0.1, SiteName: 'Progress site (mock)', AgencyName: 'Polk Co. Air Quality Division (mock)', FullAQSCode: 'mock-clock-progress' }
+    const label = (ms) => new Date(ms).toISOString().slice(0, 13) + ':00'
+    const hour = Math.floor(now / H) * H // the hour in progress begins here (00:00 at 00:13)
+    const records = [
+      rec(clock, label(hour - H), 'PM2.5', 'UG/M3', 4, 17, 4),
+      rec(clock, label(hour), 'PM2.5', 'UG/M3', 4, 17, -999),
+      rec(clock, label(hour - 3 * H), 'OZONE', 'PPB', 30, 28, 30),
+      rec(prog, label(hour - 2 * H), 'PM2.5', 'UG/M3', 0, 0, -2),
+      rec(prog, label(hour), 'PM2.5', 'UG/M3', 3, 13, -999),
+    ]
+    return { fetchedAt: now, credit: 'EPA AirNow and the reporting air quality agencies · preliminary data (mock)', sites: sitesFromRecords(records, now) }
   }
   const site = (id, name, dLat, dLng, parameters, readings) => ({ id, name, agency: 'Polk Co. Air Quality Division (mock)', lngLat: { lat: focus.lat + dLat, lng: focus.lng + dLng }, parameters, readings })
   const sites = omOptions.noMonitors ? [] : [
