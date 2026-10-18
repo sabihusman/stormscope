@@ -23,14 +23,16 @@ export function parseBbox(s) {
 }
 
 /**
- * AirNow's "UTC" field ("2026-10-17T20:00") labels the hour the reading is reported for, and that label is
- * the END of the observation hour: on Oct 17, 2026 the records labelled 20:00 UTC were already published at
- * 20:29 UTC (AirNow posts an hour's data 10–30 min after it ends), so a label cannot be the start of an hour
- * still in progress. The reading's time is the label itself; ages count from it.
+ * AirNow's "UTC" field ("2026-10-17T20:00") is the START of the measurement hour — the same label as AirNow's
+ * hourly files, which document it as "the beginning of the measurement period" (matched value for value against
+ * the files on Oct 17, 2026; see BUILD_LOG). A completed hourly average therefore ended at label + 1 h, which
+ * is the reading's time; "N min ago" and the 2 h freshness rule count from it. A row whose hour has not ended
+ * at fetch time is the hour in progress (AirNow publishes a NowCast row for the current hour 10–30 min into
+ * it); `sitesFromRecords` marks it `inProgress`.
  */
-export function readingTimeMs(utc) {
+export function hourEndMs(utc) {
   const t = Date.parse(String(utc).replace(/Z?$/, 'Z'))
-  return Number.isFinite(t) ? t : null
+  return Number.isFinite(t) ? t + 3_600_000 : null
 }
 
 /**
@@ -38,7 +40,7 @@ export function readingTimeMs(utc) {
  * per parameter. Record fields used: Latitude, Longitude, UTC, Parameter, Unit, Value, AQI, SiteName,
  * AgencyName, FullAQSCode / IntlAQSCode (whichever is present).
  */
-export function sitesFromRecords(records) {
+export function sitesFromRecords(records, now = Date.now()) {
   const bySite = new Map()
   for (const r of records ?? []) {
     const param = PARAMS[String(r.Parameter ?? '').toUpperCase().replace(/\s/g, '')] ?? PARAMS[r.Parameter]
@@ -46,8 +48,9 @@ export function sitesFromRecords(records) {
     const lat = Number(r.Latitude), lng = Number(r.Longitude)
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
     const id = String(r.FullAQSCode ?? r.IntlAQSCode ?? `${lat.toFixed(4)},${lng.toFixed(4)}`)
-    const time = readingTimeMs(r.UTC)
+    const time = hourEndMs(r.UTC)
     if (time == null) continue
+    const inProgress = time > now
     let site = bySite.get(id)
     if (!site) {
       site = { id, name: String(r.SiteName ?? id), agency: String(r.AgencyName ?? ''), lngLat: { lng, lat }, parameters: [], readings: [] }
@@ -55,7 +58,7 @@ export function sitesFromRecords(records) {
     }
     if (!site.parameters.includes(param)) site.parameters.push(param)
     const aqi = r.AQI == null || r.AQI < 0 ? null : Number(r.AQI)
-    const reading = { parameter: param, value: r.Value == null ? null : Number(r.Value), unit: String(r.Unit ?? ''), aqi: Number.isFinite(aqi) ? aqi : null, time }
+    const reading = { parameter: param, value: r.Value == null ? null : Number(r.Value), unit: String(r.Unit ?? ''), aqi: Number.isFinite(aqi) ? aqi : null, time, ...(inProgress ? { inProgress: true } : {}) }
     const i = site.readings.findIndex((x) => x.parameter === param)
     if (i < 0) site.readings.push(reading)
     else if (site.readings[i].time < time) site.readings[i] = reading

@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ error: `AirNow answered ${upstream.status}` }))
     }
     const records = await upstream.json()
-    const sites = mergeSiteList(sitesFromRecords(Array.isArray(records) ? records : []), list, bbox)
+    const sites = mergeSiteList(sitesFromRecords(Array.isArray(records) ? records : [], Date.now()), list, bbox)
     const body = JSON.stringify({ fetchedAt: Date.now(), credit: CREDIT, bbox, sites })
     cache.set(cacheKey, { at: Date.now(), body })
     res.setHeader('X-Monitor-Cache', 'miss')
