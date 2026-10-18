@@ -30,14 +30,16 @@ const SERVICE = 'https://monitors.stormscope.test/v1'
 const FOCUS = { lat: 41.673, lng: -93.698 }
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 
-async function session({ service = SERVICE, noMonitors = false, notConfigured = false } = {}) {
+async function session({ service = SERVICE, noMonitors = false, notConfigured = false, now = null, clockTest = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
   if (service) await ctx.addInitScript((u) => { try { localStorage.setItem('stormscope.monitorService', u) } catch {} }, service)
   const page = await ctx.newPage()
+  // A fixed clock: the page's Date.now() is `now` (timers keep running) and the mock's readings are relative to it.
+  if (now != null) await page.clock.setFixedTime(new Date(now))
   const done = trackTraffic(page, 'monitors-check.mjs (mock)')
   const calls = []
   globalThis.__qaMockedRequest = (url) => { if (/monitors\.stormscope\.test/.test(url)) calls.push(url) }
-  await installMocks(ctx, { noMonitors })
+  await installMocks(ctx, { noMonitors, now, clockTest })
   // The function without its key: a 503 with its own message on the same-origin /api route.
   if (notConfigured) await page.route('**/api/sites*', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Monitor service not configured: AIRNOW_API_KEY is not set' }) }))
   await page.goto(BASE, { waitUntil: 'load' })
@@ -231,6 +233,34 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await page.waitForTimeout(400)
   const off = await page.evaluate(() => ({ dots: window.__map.getLayer('air-monitors') ? window.__map.getLayoutProperty('air-monitors', 'visibility') : 'gone', discs: !!window.__map.getLayer('aq-circles'), legendDots: !!document.querySelector('.monitors-legend'), legendScale: !!document.querySelector('.aqi-legend') }))
   check('Toggle off and switch Off: dots hidden, discs gone, both legend rows gone', (off.dots === 'none' || off.dots === 'gone') && !off.discs && !off.legendDots && !off.legendScale, JSON.stringify(off))
+  done()
+  await ctx.close()
+}
+
+// ---- 2b. Reading times under a fixed clock (23:10 UTC): a completed row whose hour ended 23:00 reads "10 min ago"
+// with its local clock time; a completed row past label + 3 h is stale (does not count for the place).
+{
+  const FIXED = Date.UTC(2026, 9, 17, 23, 10)
+  const { ctx, page, done, until } = await session({ now: FIXED, clockTest: true })
+  await until(() => window.__store.get().monitorsNear.state === 'ready', 20000)
+  await page.waitForTimeout(300)
+  const lines = await nowLines(page)
+  const pm = lines.find((l) => l.p === 'PM2.5'), oz = lines.find((l) => l.p === 'OZONE')
+  const clock23 = await page.evaluate((t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), FIXED - 10 * 60_000)
+  check('Fixed clock 23:10 UTC, Now: the completed PM2.5 row (hour ended 23:00) reads "AQI 17 Good at Clock site, 10 min ago"', pm?.state === 'measured' && /^Smoke \(PM2\.5\) 17 Good at Clock site \(mock\), [45]\.\d (mi|km) away, 10 min ago$/.test(pm.text), pm?.text)
+  check('Fixed clock, Now: the ozone row whose hour ended 2 h 01 min ago (past label + 3 h) is stale — "No monitor within 25 km", no number', oz?.state === 'none' && /No monitor within 25 km/.test(oz.text), oz?.text)
+  await openMap(page)
+  await page.evaluate(() => { const p = window.__store.get().place.lngLat; window.__map.jumpTo({ center: [p.lng, p.lat], zoom: 9.5 }) })
+  await page.getByRole('button', { name: 'Open layer menu' }).click()
+  await page.getByText('Air monitors (AirNow)').click()
+  await page.locator('[data-aq="PM2.5"]').click()
+  await page.getByRole('button', { name: 'Close layer menu' }).click()
+  await until(() => !window.__map.isMoving() && window.__store.get().monitors.state === 'ready', 15000)
+  await page.waitForTimeout(800)
+  const tc = await tap(page, 'mock-clock')
+  const rowPm = tc.rows.find((r) => r.label === 'PM2.5'), rowOz = tc.rows.find((r) => r.label === 'ozone')
+  check(`Fixed clock, tap details: the PM2.5 row shows the hour's end as local time (${clock23}) and "10 min ago"; the ozone row "2 h ago (stale)"`, !!rowPm && rowPm.text.endsWith(`${clock23} · 10 min ago`) && !rowPm.stale && !!rowOz && /2 h ago \(stale\)$/.test(rowOz.text) && rowOz.stale, `${rowPm?.text} | ${rowOz?.text}`)
+  await page.screenshot({ path: `${OUT}/fixed-clock.png` })
   done()
   await ctx.close()
 }

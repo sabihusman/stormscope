@@ -87,7 +87,7 @@ function omSeries(locIdx, field, nHours, startSec) {
   void startSec
   return out
 }
-const omOptions = { timezone: 'GMT', omitDaily: false, noMonitors: false }
+const omOptions = { timezone: 'GMT', omitDaily: false, noMonitors: false, now: null, clockTest: false }
 /**
  * The monitor service for the mocked suites: AirNow-style sites around the focus (Johnston, Iowa by default).
  * Readings carry the END of the observation hour (AirNow's hour label). Distances from the focus (1° lat ≈ 111.2 km):
@@ -102,8 +102,26 @@ const omOptions = { timezone: 'GMT', omitDaily: false, noMonitors: false }
  */
 function monitorSites(url, focus) {
   const q = new URL(url).searchParams
-  const now = Date.now()
+  const now = omOptions.now ?? Date.now()
   const H = 3_600_000
+  // clockTest (with `now` = the fixed clock 23:10 UTC): one site, 8 km away, with a completed PM2.5 row whose
+  // hour ended at 23:00 (10 min ago), a completed ozone row whose hour ended at 21:09 (2 h 01 min ago: stale,
+  // past label + 3 h), and a second site 15 km away whose only row is the NowCast row for the hour in progress (label 23:00, ends 00:00, inProgress).
+  if (omOptions.clockTest) {
+    return {
+      fetchedAt: now,
+      credit: 'EPA AirNow and the reporting air quality agencies · preliminary data (mock)',
+      sites: [
+        { id: 'mock-clock', name: 'Clock site (mock)', agency: 'Polk Co. Air Quality Division (mock)', lngLat: { lat: focus.lat - 0.06, lng: focus.lng + 0.05 }, parameters: ['PM2.5', 'OZONE'], readings: [
+          { parameter: 'PM2.5', value: 4, unit: 'UG/M3', aqi: 17, time: now - 10 * 60_000 },
+          { parameter: 'OZONE', value: 30, unit: 'PPB', aqi: 28, time: now - 2 * H - 60_000 },
+        ] },
+        { id: 'mock-clock-progress', name: 'Progress site (mock)', agency: 'Polk Co. Air Quality Division (mock)', lngLat: { lat: focus.lat + 0.12, lng: focus.lng - 0.1 }, parameters: ['PM2.5'], readings: [
+          { parameter: 'PM2.5', value: 3, unit: 'UG/M3', aqi: 13, time: now + 50 * 60_000, inProgress: true },
+        ] },
+      ],
+    }
+  }
   const site = (id, name, dLat, dLng, parameters, readings) => ({ id, name, agency: 'Polk Co. Air Quality Division (mock)', lngLat: { lat: focus.lat + dLat, lng: focus.lng + dLng }, parameters, readings })
   const sites = omOptions.noMonitors ? [] : [
     site('mock-fresh', 'Public Works (mock)', -0.07, 0.06, ['PM2.5', 'OZONE'], [
@@ -448,7 +466,7 @@ function terrainTile() {
  * Install the mocks on a Playwright context. `focus` is the geolocation the session uses.
  * Returns { live: string[] } — URLs that fell through to the network (should stay empty in replay).
  */
-export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], failStatus = 429, alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false, noMonitors = false } = {}) {
+export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], failStatus = 429, alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false, noMonitors = false, now = null, clockTest = false } = {}) {
   const live = []
   // timezone: the IANA zone the mock's Open-Meteo answers resolve for `timezone=auto` (daily days roll over at
   // that zone's midnight); omitDaily: answer without the daily block (the 7-day tile's own error state);
@@ -456,6 +474,8 @@ export async function installMocks(context, { har = null, record = false, focus 
   omOptions.timezone = timezone
   omOptions.omitDaily = omitDaily
   omOptions.noMonitors = noMonitors
+  omOptions.now = now
+  omOptions.clockTest = clockTest
   // delayHosts: { host: ms } — the answer is held that long (live latency, for races such as Clear while a
   // hazards / road fetch is in flight).
   // liveTiles: the APIs are answered locally but the tile hosts (basemap, radar, satellite, terrain)
