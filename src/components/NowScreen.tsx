@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNow, useOnline, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
 import { AIRNOW_CREDIT, isServiceNotConfigured, type MonitorParameter } from '../api/airnow'
@@ -303,54 +303,75 @@ function HourlyCard() {
   )
 }
 
+type MapHandle = {
+  getCanvas: () => HTMLCanvasElement
+  getContainer: () => HTMLElement
+  easeTo: (o: object) => void
+  getZoom: () => number
+  triggerRepaint: () => void
+  on: (ev: string, fn: () => void) => void
+  off: (ev: string, fn: () => void) => void
+}
+
 /**
- * A window onto the live map: the map stays mounted full-size behind the Now screen and is
- * positioned into this box (App sets the CSS vars from the measured rect). Tap → Map.
+ * A still of the live map for the Now tab (phones). The map stays mounted full-size behind the Now
+ * screen, centred on the place; this box holds a copy of the map's centre, redrawn only when the
+ * map has finished rendering something new (its `idle` event — a new place, tiles, a layer), never
+ * on scroll. The still is an ordinary element in the page's flow, so it scrolls with the page on
+ * the compositor: nothing measures, moves or redraws anything per frame or per scroll event.
+ * (Until Oct 18 the live map itself was positioned into this box by a requestAnimationFrame loop
+ * that re-measured the box every frame; on iPhones the map landed a frame behind the page while
+ * scrolling and visibly shifted.) The window is not interactive: a tap opens the Map.
  */
 function MapWindow() {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLCanvasElement>(null)
   const place = useApp((s) => s.place)
-  useLayoutEffect(() => {
-    const el = ref.current
-    const app = el?.closest('.app') as HTMLElement | null
-    if (!el || !app) return
-    const apply = () => {
-      const r = el.getBoundingClientRect()
-      const a = app.getBoundingClientRect()
-      app.style.setProperty('--mw-top', `${r.top - a.top}px`)
-      app.style.setProperty('--mw-left', `${r.left - a.left}px`)
-      app.style.setProperty('--mw-w', `${r.width}px`)
-      app.style.setProperty('--mw-h', `${r.height}px`)
-      app.classList.add('has-map-window')
-    }
-    // Cards above the window appear and grow as data lands, which moves the window without
-    // resizing it, so a ResizeObserver on the window alone misses it. Re-measure every frame
-    // while mounted; the vars are only written when the rect actually changed (cheap).
-    let last = ''
-    let raf = 0
-    const tick = () => {
-      const r = el.getBoundingClientRect()
-      const key = `${r.top}|${r.left}|${r.width}|${r.height}`
-      if (key !== last) {
-        last = key
-        apply()
+  useEffect(() => {
+    const canvas = ref.current
+    const m = (window as unknown as { __map?: MapHandle }).__map
+    if (!canvas || !m) return
+    let drawn = 0
+    // Copy the centre of the map canvas into the still, at the still's size and the screen's pixel
+    // ratio. Called from the map's own `idle` event, in the same task as its WebGL draw, so the
+    // drawing buffer is still intact (no preserveDrawingBuffer needed).
+    const draw = () => {
+      const src = m.getCanvas()
+      const box = canvas.getBoundingClientRect()
+      const cw = m.getContainer().clientWidth || src.width
+      if (!box.width || !box.height || !src.width || !src.height) return
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const w = Math.round(box.width * dpr), h = Math.round(box.height * dpr)
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w
+        canvas.height = h
       }
-      raf = requestAnimationFrame(tick)
+      const k = src.width / cw // map canvas pixels per CSS pixel
+      const sw = Math.min(src.width, box.width * k), sh = Math.min(src.height, box.height * k)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, w, h)
+      drawn++
+      ;(window as unknown as { __mapWindow?: object }).__mapWindow = { drawn, at: Date.now(), w, h }
     }
-    raf = requestAnimationFrame(tick)
+    m.on('idle', draw)
+    // The first still: ask for one render (→ idle → draw). A size change (rotation) asks again.
+    m.triggerRepaint()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => m.triggerRepaint()) : null
+    ro?.observe(canvas)
     return () => {
-      cancelAnimationFrame(raf)
-      app.classList.remove('has-map-window')
+      m.off('idle', draw)
+      ro?.disconnect()
     }
   }, [])
   useEffect(() => {
-    // Centre the window on the place (unless a planned trip owns the camera).
-    const m = (window as unknown as { __map?: { easeTo: (o: object) => void; getZoom: () => number } }).__map
+    // Centre the map on the place (unless a planned trip owns the camera); its idle redraws the still.
+    const m = (window as unknown as { __map?: MapHandle }).__map
     if (!m || !place || store.get().journey.routes.data) return
     m.easeTo({ center: [place.lngLat.lng, place.lngLat.lat], zoom: Math.max(m.getZoom(), 9), duration: 0 })
   }, [place])
   return (
-    <div ref={ref} className="now-map-window" role="button" tabIndex={0} aria-label="Open the map" onClick={() => go('map')} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && go('map')}>
+    <div className="now-map-window" role="button" tabIndex={0} aria-label="Open the map" onClick={() => go('map')} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && go('map')}>
+      <canvas ref={ref} className="now-map-still" aria-hidden="true" />
       <span className="chip map-open">Open map ›</span>
     </div>
   )

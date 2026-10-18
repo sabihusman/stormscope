@@ -1783,18 +1783,13 @@ small {
   z-index: 16;
   pointer-events: none;
 }
-/* The live map positioned into the window on a phone. */
-.app.narrow.screen-now.has-map-window .map-root {
-  top: var(--mw-top);
-  left: var(--mw-left);
-  width: var(--mw-w);
-  height: var(--mw-h);
-  bottom: auto;
-  right: auto;
-  border-radius: 14px;
-  overflow: hidden;
-  z-index: 15;
-  pointer-events: none;
+/* The still of the map inside the window (a plain element in the page's flow, so it scrolls with it). */
+.now-map-window .now-map-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .app.narrow.screen-now .maplibregl-ctrl-top-right,
 .app.narrow.screen-now .maplibregl-ctrl-bottom-left,
