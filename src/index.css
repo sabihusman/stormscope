@@ -1613,6 +1613,19 @@ small {
   font-size: 14px;
   padding: 1px 7px;
 }
+/* Pop-ups (the point chip, the monitor chooser): fade and slide up from the bottom, 150 ms, in and out —
+   opacity and transform only (no layout); Reduce Motion drops the transition (the global rule above). */
+.pop {
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
+.pop[data-state='opening'],
+.pop[data-state='closing'] {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.pop[data-state='closing'] {
+  pointer-events: none;
+}
 /* Several monitor dots under one tap: the chooser in the chip's place. */
 .dot-chooser {
   position: absolute;

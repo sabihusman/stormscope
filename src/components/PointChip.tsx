@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useNow } from '../hooks/useMisc'
+import { usePresence } from '../hooks/usePresence'
 import { usePointForecast } from '../hooks/usePointForecast'
 import { wmo } from '../lib/wmo'
 import { haversine } from '../lib/geo'
@@ -34,16 +35,22 @@ function headline(sel: Selection): { icon: string; main: string; sub: string } {
  * tapped, and a Details control that expands the sheet. Nothing opens by itself.
  */
 export function PointChip() {
-  const sel = useApp((s) => s.selection)
+  const liveSel = useApp((s) => s.selection)
   const sheet = useApp((s) => s.sheet)
   const place = useApp((s) => s.place)
   const units = useApp((s) => s.units)
   const blocks = useVisibleBlocks()
   const now = useNow()
+  // The chip fades and slides in and out (150 ms); it stays mounted with its last selection while closing.
+  const visible = !!liveSel && sheet === 'peek'
+  const presence = usePresence(visible)
+  const lastSel = useRef<Selection | null>(null)
+  if (liveSel) lastSel.current = liveSel
+  const sel = visible ? liveSel : lastSel.current
   const isPoint = !!sel && (sel.kind === 'point' || sel.kind === 'rain')
   const sample = useMemo(() => (sel && isPoint ? sampleBlocks(blocks, sel.lngLat, now) : null), [sel, isPoint, blocks, now])
-  const pf = usePointForecast(sel && isPoint ? sel.lngLat : null)
-  if (!sel || sheet !== 'peek') return null
+  const pf = usePointForecast(sel && isPoint && visible ? sel.lngLat : null)
+  if (!sel || !presence.mounted) return null
   const h = headline(sel)
   const dist = place ? haversine(place.lngLat, sel.lngLat) : null
   const rel = place ? (dist! < 100 ? `at ${(store.get().placeLabel ?? place.name).split(',')[0]}` : `${U.distance(dist, units)} ${bearingLabel(place.lngLat, sel.lngLat)} of ${(store.get().placeLabel ?? place.name).split(',')[0]}`) : `${sel.lngLat.lat.toFixed(3)}, ${sel.lngLat.lng.toFixed(3)}`
@@ -61,7 +68,7 @@ export function PointChip() {
     : h.main
   const sub = isPoint ? (rain24 != null ? `Rain next 24 h ${U.precip(rain24, units)} · ${rel}` : rel) : h.sub
   return (
-    <div className="point-chip" role="status" aria-label={`${main}. ${sub}`} aria-busy={isPoint && pf.loading}>
+    <div className="point-chip pop" data-state={presence.state} role="status" aria-label={`${main}. ${sub}`} aria-busy={isPoint && pf.loading}>
       <span className="chip-ico" aria-hidden="true">
         {isPoint ? (w ? w.icon : '📍') : h.icon}
       </span>
@@ -85,16 +92,21 @@ export function PointChip() {
  * to the tap first. Picking one opens its chip; × or a map tap dismisses it.
  */
 export function MonitorChooser() {
-  const chooser = useApp((s) => s.dotChooser)
+  const liveChooser = useApp((s) => s.dotChooser)
   const sites = useApp((s) => s.monitors.data?.sites)
   const place = useApp((s) => s.place)
   const units = useApp((s) => s.units)
   const now = useNow()
-  if (!chooser) return null
+  // Fades and slides in and out (150 ms); keeps its last list while closing.
+  const presence = usePresence(!!liveChooser)
+  const last = useRef(liveChooser)
+  if (liveChooser) last.current = liveChooser
+  const chooser = liveChooser ?? last.current
+  if (!chooser || !presence.mounted) return null
   const list = chooser.ids.map((id) => sites?.find((x) => x.id === id)).filter((x): x is NonNullable<typeof x> => !!x)
   if (!list.length) return null
   return (
-    <div className="dot-chooser" role="dialog" aria-label="Monitors under your tap">
+    <div className="dot-chooser pop" data-state={presence.state} role="dialog" aria-label="Monitors under your tap">
       <div className="chooser-title">
         <strong>{list.length} monitors here</strong>
         <button className="icon-btn" onClick={() => store.set({ dotChooser: null })} aria-label="Dismiss">
