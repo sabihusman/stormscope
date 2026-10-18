@@ -42,7 +42,7 @@ export function CreditsPanel() {
   const presence = usePresence(open)
   if (!presence.mounted) return null
   return (
-    <div className="credits-panel pop" data-state={presence.state} role="dialog" aria-label="Map credits">
+    <div className="credits-panel pop" data-state={presence.state} onTransitionEnd={presence.onTransitionEnd} role="dialog" aria-label="Map credits">
       <div className="chooser-title">
         <strong>Map credits</strong>
         <button className="icon-btn" onClick={() => store.set({ creditsOpen: false })} aria-label="Close credits">

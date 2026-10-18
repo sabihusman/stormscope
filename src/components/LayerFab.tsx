@@ -156,7 +156,7 @@ export function LayerFab() {
   return (
     <div ref={stackRef} className={`fab-stack ${open ? 'open' : ''} ${offset ? 'dragging' : ''} ${lifted ? 'lifted' : ''}`}>
       {panel.mounted && (
-        <div className="fab-menu pop" data-state={panel.state} role="group" aria-label="Map layers">
+        <div className="fab-menu pop" data-state={panel.state} onTransitionEnd={panel.onTransitionEnd} role="group" aria-label="Map layers">
           <div className="fab-group-label">Background</div>
           <div className="segmented small imagery" role="radiogroup" aria-label="Background imagery">
             {(['radar', 'satellite', 'none'] as const).map((id) => (

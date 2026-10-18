@@ -68,7 +68,7 @@ export function PointChip() {
     : h.main
   const sub = isPoint ? (rain24 != null ? `Rain next 24 h ${U.precip(rain24, units)} · ${rel}` : rel) : h.sub
   return (
-    <div className="point-chip pop" data-state={presence.state} role="status" aria-label={`${main}. ${sub}`} aria-busy={isPoint && pf.loading}>
+    <div className="point-chip pop" data-state={presence.state} onTransitionEnd={presence.onTransitionEnd} role="status" aria-label={`${main}. ${sub}`} aria-busy={isPoint && pf.loading}>
       <span className="chip-ico" aria-hidden="true">
         {isPoint ? (w ? w.icon : '📍') : h.icon}
       </span>
@@ -106,7 +106,7 @@ export function MonitorChooser() {
   const list = chooser.ids.map((id) => sites?.find((x) => x.id === id)).filter((x): x is NonNullable<typeof x> => !!x)
   if (!list.length) return null
   return (
-    <div className="dot-chooser pop" data-state={presence.state} role="dialog" aria-label="Monitors under your tap">
+    <div className="dot-chooser pop" data-state={presence.state} onTransitionEnd={presence.onTransitionEnd} role="dialog" aria-label="Monitors under your tap">
       <div className="chooser-title">
         <strong>{list.length} monitors here</strong>
         <button className="icon-btn" onClick={() => store.set({ dotChooser: null })} aria-label="Dismiss">

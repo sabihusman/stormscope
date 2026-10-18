@@ -67,7 +67,11 @@ function pulse(lngLat: { lng: number; lat: number }) {
   el.className = 'dot-pulse'
   el.setAttribute('aria-hidden', 'true')
   const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lngLat.lng, lngLat.lat]).addTo(pulseMap)
-  window.setTimeout(() => marker.remove(), PULSE_MS + 40)
+  // Removed when its animation actually ends (a timer only as the fallback, e.g. with Reduce Motion, where there is no animation).
+  let gone = false
+  const remove = () => { if (!gone) { gone = true; marker.remove() } }
+  el.addEventListener('animationend', remove)
+  window.setTimeout(remove, PULSE_MS + 200)
 }
 
 /** Open a monitor's chip (the tap's result, or the chooser's pick): the station selection with its readings. */
