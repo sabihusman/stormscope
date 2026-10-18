@@ -273,7 +273,7 @@ function HourlyCard() {
     if (!wide) go('map')
   }
   return (
-    <div className="card now-card hourly">
+    <div className="card now-card hourly" aria-busy={!next12.length}>
       <h4>Next 12 hours</h4>
       {!next12.length ? (
         <div className="skeleton w100" />
