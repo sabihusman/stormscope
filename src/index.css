@@ -1698,13 +1698,13 @@ small {
   to { transform: scale(1.5); opacity: 0; }
 }
 /* Now cards while loading: placeholders as tall as the loaded card (measured on a 390 px phone, Oct 18:
-   conditions 151, next 12 h 187, 7 days 293, air quality 207, tiles 167), so nothing below them moves when
+   conditions 151, next hours 208 (with the span switch; the same for 12 / 24 / 48 h), 7 days 293, air quality 207, tiles 167), so nothing below them moves when
    the data lands. min-height only: a taller card still grows. */
 .app.narrow .now-card.conditions[aria-busy='true'] {
   min-height: 151px;
 }
 .app.narrow .now-card.hourly[aria-busy='true'] {
-  min-height: 187px;
+  min-height: 208px;
 }
 .app.narrow .now-card.daily[aria-busy='true'] {
   min-height: 293px;
@@ -1915,6 +1915,14 @@ small {
 }
 .hour-strip li:first-child {
   border-color: var(--accent);
+}
+/* A card past midnight carries its day ("Mon 12 AM"): wide enough to keep it on one line, so the strip's height
+   never changes with the span or the time of day. */
+.hour-strip li[data-day] {
+  width: 76px;
+}
+.hour-strip .hour-t {
+  white-space: nowrap;
 }
 .hour-i {
   font-size: 18px;

@@ -275,7 +275,18 @@ function HourlyCard() {
   const step = span === 48 ? 3 : 1
   const cards = inSpan.filter((_, i) => i % step === 0)
   const rain = inSpan.reduce((a, x) => a + (x.precipMm ?? 0), 0)
-  const firstDay = cards.length ? new Date(cards[0].time).toDateString() : ''
+  // Card clocks and days in the place's time zone (the one the forecast resolved), like the 7-day list.
+  const tz = r.data?.timezone || 'UTC'
+  const fmt = (t: number, opts: Intl.DateTimeFormatOptions) => {
+    try {
+      return new Date(t).toLocaleString([], { ...opts, timeZone: tz })
+    } catch {
+      return new Date(t).toLocaleString([], opts)
+    }
+  }
+  const hourOf = (t: number) => fmt(t, { hour: 'numeric' })
+  const weekdayOf = (t: number) => fmt(t, { weekday: 'short' })
+  const firstDay = cards.length ? localDate(cards[0].time, tz) : ''
   const wide = useWide()
   // Opens the Map with the playback bar running over the same span (on wide layouts the map is already beside this card).
   const openTimeline = () => {
@@ -301,11 +312,10 @@ function HourlyCard() {
         <ol className="hour-strip" aria-label={`Forecast for the next ${span} hours`}>
           {cards.map((x, i) => {
             const w = wmo(x.code, true)
-            const d = new Date(x.time)
-            const crossed = d.toDateString() !== firstDay
+            const crossed = localDate(x.time, tz) !== firstDay
             return (
-              <li key={x.time} data-time={x.time} data-day={crossed ? d.toLocaleDateString([], { weekday: 'short' }) : undefined}>
-                <span className="hour-t">{i === 0 ? 'Now' : `${crossed ? d.toLocaleDateString([], { weekday: 'short' }) + ' ' : ''}${clock(x.time).replace(/:00/, '')}`}</span>
+              <li key={x.time} data-time={x.time} data-day={crossed ? weekdayOf(x.time) : undefined} data-tz={tz}>
+                <span className="hour-t">{i === 0 ? 'Now' : `${crossed ? weekdayOf(x.time) + ' ' : ''}${hourOf(x.time)}`}</span>
                 <span className="hour-i" aria-hidden="true">
                   {w.icon}
                 </span>
