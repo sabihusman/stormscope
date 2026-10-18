@@ -3,7 +3,7 @@
 //   END of the observation hour (AirNow's hour label, no hour added), parameter names normalised (PM25 → PM2.5, O3 → OZONE); the site list merged so
 //   an offline monitor is still listed; the upstream query shape (last three hours, OZONE,PM25, bbox, JSON).
 //   node scripts/monitor-service-check.mjs [base-url] [shots-dir] [--mock]   (node only; base-url ignored)
-import { readingTimeMs, mergeSiteList, parseBbox, parseEndHour, parseSiteList, quantizeBbox, sitesFromRecords, upstreamUrl } from '../api/_lib/airnow.js'
+import { readingTimeMs, mergeSiteList, parseBbox, parseSiteList, quantizeBbox, sitesFromRecords, upstreamUrl } from '../api/_lib/airnow.js'
 
 const results = []
 const check = (name, ok, ev = '') => {
@@ -32,16 +32,6 @@ check("Reading time is AirNow's hour label as is — the END of the observation 
 check('Parameter names normalised: PM25 → PM2.5, O3 → OZONE; a -999 AQI becomes null', sites.find((s) => s.id === '191531579').readings[0].parameter === 'PM2.5' && sites.find((s) => s.id === '191531579').readings[0].aqi === null && sites.find((s) => s.id === '191530030').readings[0].parameter === 'OZONE')
 check('A site lists the parameters it reported', pw.parameters.join(',') === 'PM2.5,OZONE' && sites.find((s) => s.id === '191530030').parameters.join(',') === 'OZONE')
 check('Site name, agency and coordinates carried through', pw.name === 'Public Works' && pw.agency === 'Polk Co. Air Quality Division' && pw.lngLat.lat === 41.603 && pw.lngLat.lng === -93.643)
-
-// diagnostic window: every reading in the window, oldest first, with the raw concentration; end hour validated
-const allSites = sitesFromRecords([rec({ UTC: '2026-10-12T02:00', RawConcentration: 5.5 }), rec({ UTC: '2026-10-12T00:00', RawConcentration: -999, Value: 7.1 }), rec({ UTC: '2026-10-12T01:00', RawConcentration: 6.2 })], { all: true })
-const allPw = allSites[0]
-check('all: every reading in the window kept, oldest first, with raw (−999 raw → null)', allPw.readings.length === 3 && allPw.readings.map((r) => new Date(r.time).getUTCHours()).join(',') === '0,1,2' && allPw.readings[0].raw === null && allPw.readings[2].raw === 5.5, JSON.stringify(allPw.readings.map((r) => [new Date(r.time).getUTCHours(), r.raw])))
-check('Without all: the latest reading has no raw field unless the upstream sent one', !('raw' in pw.readings[0]))
-const T0 = Date.UTC(2026, 9, 18, 0, 10)
-check('parseEndHour: a UTC hour within the last 72 h; rejects the future, older than 72 h, and other shapes', parseEndHour('2026-10-17T21', T0) === Date.UTC(2026, 9, 17, 21) && parseEndHour('2026-10-18T01', T0) === null && parseEndHour('2026-10-14T23', T0) === null && parseEndHour('2026-10-17T21:00', T0) === null && parseEndHour('', T0) === null)
-const diagUrl = new URL(upstreamUrl({ west: -93.75, south: 41.5, east: -93.5, north: 41.75 }, T0, 'KEY', { end: Date.UTC(2026, 9, 17, 21), raw: true }))
-check('upstream query with a window end: startDate = end − 3 h, endDate = end, raw concentrations on', diagUrl.searchParams.get('startDate') === '2026-10-17T18' && diagUrl.searchParams.get('endDate') === '2026-10-17T21' && diagUrl.searchParams.get('includerawconcentrations') === '1', diagUrl.search.replace(/API_KEY=[^&]*/, 'API_KEY=…'))
 
 // site list merge
 const listText = [

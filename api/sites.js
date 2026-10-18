@@ -11,12 +11,7 @@
 // client snaps its bbox to a 0.25° grid, so Vercel's CDN serves repeats and AirNow sees at most one request per
 // tile per 10 minutes; an in-memory cache per instance backs that up. The Data Exchange Guidelines (EPA, Aug
 // 2025): data are preliminary, passed through unaltered, credited to the reporting agencies and EPA AirNow.
-//
-// Diagnostic parameters (not used by the app; no CDN or memory cache): `end=YYYY-MM-DDTHH` sets the end of the
-// 3-hour window to that UTC hour (within the last 72 h) and `all=1` returns every reading in the window with
-// the agency's raw hourly concentration (`raw`), so the service's hour labels can be matched against AirNow's
-// hourly files.
-import { CREDIT, mergeSiteList, parseBbox, parseEndHour, parseSiteList, quantizeBbox, sitesFromRecords, upstreamUrl } from './_lib/airnow.js'
+import { CREDIT, mergeSiteList, parseBbox, parseSiteList, quantizeBbox, sitesFromRecords, upstreamUrl } from './_lib/airnow.js'
 
 const CACHE_MS = 10 * 60_000
 const SITE_LIST_MS = 24 * 3_600_000
@@ -49,40 +44,31 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store')
     return res.end(JSON.stringify({ error: 'Monitor service not configured: AIRNOW_API_KEY is not set' }))
   }
-  const params = new URL(req.url, 'http://x').searchParams
-  const rawBbox = parseBbox(req.query?.bbox ?? params.get('bbox'))
-  if (!rawBbox) {
+  const raw = parseBbox(req.query?.bbox ?? new URL(req.url, 'http://x').searchParams.get('bbox'))
+  if (!raw) {
     res.statusCode = 400
     res.setHeader('Cache-Control', 'no-store')
     return res.end(JSON.stringify({ error: 'bbox=west,south,east,north required (at most 8° × 6°)' }))
   }
-  const bbox = quantizeBbox(rawBbox)
-  const endParam = req.query?.end ?? params.get('end')
-  const diag = !!endParam || (req.query?.all ?? params.get('all')) === '1'
-  const end = endParam ? parseEndHour(endParam) : null
-  if (endParam && end == null) {
-    res.statusCode = 400
-    res.setHeader('Cache-Control', 'no-store')
-    return res.end(JSON.stringify({ error: 'end=YYYY-MM-DDTHH (a UTC hour within the last 72 h)' }))
-  }
+  const bbox = quantizeBbox(raw)
   const cacheKey = `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`
-  const hit = diag ? null : cache.get(cacheKey)
-  res.setHeader('Cache-Control', diag ? 'no-store' : 'public, s-maxage=600, stale-while-revalidate=1200')
+  const hit = cache.get(cacheKey)
+  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
   if (hit && Date.now() - hit.at < CACHE_MS) {
     res.setHeader('X-Monitor-Cache', 'hit')
     return res.end(hit.body)
   }
   try {
-    const [upstream, list] = await Promise.all([fetch(upstreamUrl(bbox, Date.now(), key, { end, raw: diag }), { signal: AbortSignal.timeout(20_000) }), getSiteList()])
+    const [upstream, list] = await Promise.all([fetch(upstreamUrl(bbox, Date.now(), key), { signal: AbortSignal.timeout(20_000) }), getSiteList()])
     if (!upstream.ok) {
       res.statusCode = upstream.status === 429 ? 429 : 502
       res.setHeader('Cache-Control', 'no-store')
       return res.end(JSON.stringify({ error: `AirNow answered ${upstream.status}` }))
     }
     const records = await upstream.json()
-    const sites = mergeSiteList(sitesFromRecords(Array.isArray(records) ? records : [], { all: diag }), list, bbox)
-    const body = JSON.stringify({ fetchedAt: Date.now(), credit: CREDIT, bbox, ...(diag ? { window: { end: end ?? Math.floor(Date.now() / 3_600_000) * 3_600_000, hours: 3, raw: true } } : {}), sites })
-    if (!diag) cache.set(cacheKey, { at: Date.now(), body })
+    const sites = mergeSiteList(sitesFromRecords(Array.isArray(records) ? records : []), list, bbox)
+    const body = JSON.stringify({ fetchedAt: Date.now(), credit: CREDIT, bbox, sites })
+    cache.set(cacheKey, { at: Date.now(), body })
     res.setHeader('X-Monitor-Cache', 'miss')
     return res.end(body)
   } catch (e) {
