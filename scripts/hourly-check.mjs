@@ -79,7 +79,7 @@ const mmToIn = (mm) => mm / 25.4
   check('24 h: header "Next 24 hours", 24 cards one hour apart, rain line "Rain next 24 h" summing 24 hours', r24.checked === '24' && r24.header === 'Next 24 hours' && r24.n === 24 && r24.times.every((t, i) => i === 0 || t - r24.times[i - 1] === 3_600_000) && r24.rainSpan === '24' && new RegExp(`^Rain next 24 h: ${mmToIn(r24.sums[24]).toFixed(2)} in`).test(r24.rain), `${r24.header}, ${r24.n} cards, ${r24.rain}`)
   await pick(page, 48)
   const r48 = await read(page)
-  check('48 h: header "Next 48 hours", 16 cards three hours apart, rain line "Rain next 48 h" summing all 48 hours', r48.checked === '48' && r48.header === 'Next 48 hours' && r48.n === 16 && r48.times.every((t, i) => i === 0 || t - r48.times[i - 1] === 3 * 3_600_000) && r48.rainSpan === '48' && new RegExp(`^Rain next 48 h: ${mmToIn(r48.sums[48]).toFixed(2)} in`).test(r48.rain), `${r48.header}, ${r48.n} cards, ${r48.rain}`)
+  check('48 h: header "Next 48 hours", 48 cards one hour apart (every hour the forecast carries), rain line "Rain next 48 h" summing all 48 hours', r48.checked === '48' && r48.header === 'Next 48 hours' && r48.n === 48 && r48.times.every((t, i) => i === 0 || t - r48.times[i - 1] === 3_600_000) && r48.rainSpan === '48' && new RegExp(`^Rain next 48 h: ${mmToIn(r48.sums[48]).toFixed(2)} in`).test(r48.rain), `${r48.header}, ${r48.n} cards, ${r48.rain}`)
   check('Switching made no extra forecast request', om.length === reqBefore, `${om.length - reqBefore} new request(s)`)
   await page.screenshot({ path: `${OUT}/48h.png` })
   // Remembered across a reload.
@@ -88,7 +88,7 @@ const mmToIn = (mm) => mm / 25.4
   const t0 = Date.now(); while (Date.now() - t0 < 30000) { if (await page.evaluate(() => window.__store?.get().conditions.state === 'ready').catch(() => false)) break; await page.waitForTimeout(150) }
   await page.waitForTimeout(300)
   const again = await read(page)
-  check('The choice is remembered after a reload (48 h still selected, 16 cards)', again.checked === '48' && again.n === 16 && again.header === 'Next 48 hours', `${again.header}, ${again.n} cards`)
+  check('The choice is remembered after a reload (48 h still selected, 48 cards)', again.checked === '48' && again.n === 48 && again.header === 'Next 48 hours', `${again.header}, ${again.n} cards`)
   // Metric: the rain line follows the unit setting.
   await setUnits(page, 'Metric')
   await openNow(page)
@@ -111,7 +111,7 @@ const mmToIn = (mm) => mm / 25.4
   await pick(page, 48)
   const r48 = await read(page)
   const dayAfter = new Date(FIXED + 48 * 3_600_000).toLocaleDateString([], { weekday: 'short' })
-  check(`48 h at 21:00: "Now", then eight 3-hourly cards with "${tomorrow}", then seven with "${dayAfter}" (the last ends at 6 PM the day after tomorrow)`, r48.n === 16 && r48.labels[0] === 'Now' && r48.labels.filter((l) => l.startsWith(`${tomorrow} `)).length === 8 && r48.labels.filter((l) => l.startsWith(`${dayAfter} `)).length === 7 && /6 PM$/.test(r48.labels[15]), r48.labels.join(' | '))
+  check(`48 h at 21:00: "Now" and two cards without a day, then 24 hourly cards with "${tomorrow}", then 21 with "${dayAfter}" (the last is 8 PM the day after tomorrow)`, r48.n === 48 && r48.labels[0] === 'Now' && r48.labels.filter((l) => l.startsWith(`${tomorrow} `)).length === 24 && r48.labels.filter((l) => l.startsWith(`${dayAfter} `)).length === 21 && /8 PM$/.test(r48.labels[47]), r48.labels.slice(0, 5).join(' | ') + ' … ' + r48.labels.slice(-2).join(' | '))
   await page.screenshot({ path: `${OUT}/midnight.png` })
   done()
   await ctx.close()
@@ -143,6 +143,39 @@ const mmToIn = (mm) => mm / 25.4
   const dailyToday = await page.evaluate(() => document.querySelector('.day-rows li, .now-card.daily li')?.textContent?.trim().slice(0, 5) ?? '')
   check('The 7-day list uses the same zone (its first row is Today in that zone)', /^Today/.test(dailyToday), dailyToday)
   await page.screenshot({ path: `${OUT}/other-zone.png` })
+  done()
+  await ctx.close()
+}
+
+// ---- 4. Desktop (a mouse): the strip scrolls sideways by wheel and by drag; the page does not scroll instead.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
+  const page = await ctx.newPage()
+  const done = trackTraffic(page, 'hourly-check.mjs (mock)')
+  await installMocks(ctx, {})
+  await page.goto(BASE, { waitUntil: 'load' })
+  await allowLocation(page)
+  const t0 = Date.now(); while (Date.now() - t0 < 30000) { if (await page.evaluate(() => window.__store?.get().conditions.state === 'ready').catch(() => false)) break; await page.waitForTimeout(150) }
+  await page.waitForTimeout(300)
+  await page.locator('.span-switch [data-span="48"]').click()
+  await page.waitForTimeout(250)
+  const strip = page.locator('.hour-strip')
+  const box = await strip.boundingBox()
+  const pos = () => page.evaluate(() => ({ left: document.querySelector('.hour-strip').scrollLeft, page: document.querySelector('.screen').scrollTop, max: document.querySelector('.hour-strip').scrollWidth - document.querySelector('.hour-strip').clientWidth, bar: getComputedStyle(document.querySelector('.hour-strip')).scrollbarWidth }))
+  const p0 = await pos()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.wheel(0, 300)
+  await page.waitForTimeout(250)
+  const p1 = await pos()
+  check('Desktop: the mouse wheel over the strip scrolls it sideways (scrollLeft grows by the wheel delta) and the page stays put', p0.max > 0 && p1.left >= p0.left + 250 && p1.page === p0.page && p1.bar === 'thin', `scrollLeft ${p0.left} → ${p1.left} (max ${p0.max}), page ${p0.page} → ${p1.page}, scrollbar ${p1.bar}`)
+  await page.mouse.move(box.x + box.width - 40, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width - 240, box.y + box.height / 2, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(200)
+  const p2 = await pos()
+  check('Desktop: click-and-drag on the strip scrolls it sideways (200 px of drag ≈ 200 px of scroll)', p2.left >= p1.left + 150, `scrollLeft ${p1.left} → ${p2.left}`)
+  await page.screenshot({ path: `${OUT}/desktop-scrolled.png` })
   done()
   await ctx.close()
 }
