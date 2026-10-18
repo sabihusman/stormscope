@@ -28,6 +28,29 @@ export function firstSymbolLayer(map: MlMap): string | undefined {
   return map.getStyle().layers.find((l) => l.type === 'symbol')?.id
 }
 
+/** The (i) control under the zoom column: toggles the credits panel (MapLibre places it, so it never overlaps the other controls). */
+class CreditsControl {
+  private el: HTMLElement | null = null
+  onAdd() {
+    const el = document.createElement('div')
+    el.className = 'maplibregl-ctrl maplibregl-ctrl-group map-credits'
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'map-credits-btn'
+    btn.setAttribute('aria-label', 'Map credits')
+    btn.title = 'Map credits'
+    btn.textContent = 'i'
+    btn.addEventListener('click', () => store.set((s) => ({ creditsOpen: !s.creditsOpen })))
+    el.appendChild(btn)
+    this.el = el
+    return el
+  }
+  onRemove() {
+    this.el?.remove()
+    this.el = null
+  }
+}
+
 export function MapView({ children }: { children: ReactNode }) {
   const container = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<MlMap | null>(null)
@@ -49,7 +72,8 @@ export function MapView({ children }: { children: ReactNode }) {
       minZoom: 2,
       maxZoom: 15,
       maxPitch: 70,
-      attributionControl: { compact: true },
+      // The credits live behind a small (i) control (below the zoom column) and on the More tab, not in a banner.
+      attributionControl: false,
       pitchWithRotate: true,
       touchPitch: true,
       fadeDuration: 0,
@@ -63,6 +87,7 @@ export function MapView({ children }: { children: ReactNode }) {
     ;(window as unknown as { __map: MlMap }).__map = m
     m.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showCompass: true }), 'top-right')
     m.addControl(new maplibregl.ScaleControl({ maxWidth: 90 }), 'bottom-left')
+    m.addControl(new CreditsControl(), 'top-right')
     // Without a listener MapLibre console.errors every failed tile/style fetch. Offline those are
     // expected (the offline banner covers it); online they're worth a warning, not an error.
     m.on('error', (e) => {

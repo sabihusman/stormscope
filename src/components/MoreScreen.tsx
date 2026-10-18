@@ -1,4 +1,5 @@
 import { useNow } from '../hooks/useMisc'
+import { Credits } from './Credits'
 import { timeAgo } from '../lib/time'
 import { store, useApp, type MorePage } from '../state/store'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -10,6 +11,7 @@ const PAGES: { id: MorePage; icon: string; title: string }[] = [
   { id: 'rivers', icon: '📈', title: 'Rivers & gauges' },
   { id: 'station', icon: '🌡', title: 'Station observations' },
   { id: 'settings', icon: 'ℹ', title: 'Sources, freshness & settings' },
+  { id: 'about', icon: '©', title: 'About / Credits' },
 ]
 
 /** More: reference views for the place, each a page with the place row on top. */
@@ -25,13 +27,14 @@ export function MoreScreen() {
         </button>
         <h2>{meta.title}</h2>
       </div>
-      {page !== 'settings' && <PlaceRow />}
+      {page !== 'settings' && page !== 'about' && <PlaceRow />}
       <ErrorBoundary key={page} kind="panel" name={meta.title}>
         <div className="page-body">
           {page === 'flood' && <FloodPanel />}
           {page === 'rivers' && <RiversPanel />}
           {page === 'station' && <StationPanel />}
           {page === 'settings' && <SourcesPanel />}
+          {page === 'about' && <AboutPanel />}
         </div>
       </ErrorBoundary>
     </section>
@@ -74,5 +77,15 @@ function MoreList() {
         ))}
       </ul>
     </section>
+  )
+}
+
+/** About / Credits: what StormScope is and every source it draws on. */
+function AboutPanel() {
+  return (
+    <div className="card">
+      <p className="muted">StormScope shows measured and forecast weather, water and air data from the public services below. Map data © OpenStreetMap contributors.</p>
+      <Credits />
+    </div>
   )
 }

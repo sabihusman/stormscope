@@ -1715,6 +1715,58 @@ small {
 .app.narrow .screen.now .tiles {
   min-height: 167px;
 }
+/* Map credits: a small (i) control under the zoom column (MapLibre places it), the panel in the chip's slot,
+   and the list shared with the More tab's About / Credits page. */
+.map-credits-btn {
+  font: 700 15px/1 Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  color: var(--text) !important;
+  background: none !important;
+}
+.credits-panel {
+  position: absolute;
+  left: calc(var(--sal) + 12px);
+  right: calc(var(--sar) + 12px);
+  bottom: calc(var(--sab) + var(--dock-h) + 40px);
+  z-index: 27;
+  max-height: calc(var(--vvh) - var(--sat) - var(--dock-h) - 140px);
+  overflow: auto;
+  padding: 8px 6px 10px 12px;
+  border-radius: 14px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.app.narrow.screen-map .credits-panel {
+  bottom: calc(var(--nav-h) + var(--sab) + var(--dock-h) + 40px);
+}
+.app.wide .credits-panel {
+  left: auto;
+  right: calc(var(--sar) + 60px);
+  bottom: auto;
+  top: calc(var(--sat) + 64px);
+  width: 360px;
+}
+.credits-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.credits-list li {
+  display: grid;
+  grid-template-columns: 9em 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+.credits-list .credit-what {
+  color: var(--muted);
+}
+.credits-list a {
+  color: var(--text);
+}
 /* Several monitor dots under one tap: the chooser in the chip's place. */
 .dot-chooser {
   position: absolute;

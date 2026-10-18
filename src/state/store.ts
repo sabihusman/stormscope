@@ -42,7 +42,7 @@ export type FabCorner = 'br' | 'bl' | 'tl' | 'tr'
 export type SheetMode = 'peek' | 'half' | 'full'
 /** Top-level destinations (bottom nav on a phone, rail on wider screens). */
 export type Screen = 'now' | 'map' | 'trip' | 'more'
-export type MorePage = 'flood' | 'rivers' | 'station' | 'settings'
+export type MorePage = 'flood' | 'rivers' | 'station' | 'settings' | 'about'
 export interface RecentPlace {
   name: string
   lngLat: LngLat
@@ -174,6 +174,8 @@ export interface AppState {
   playTime: number | null
   /** Phones: the playback control is a pill until expanded into the full bar (wide layouts are always expanded). */
   playbarExpanded: boolean
+  /** The map's credits panel (the (i) button). */
+  creditsOpen: boolean
   radarFrame: number
   rainFrame: number
   nowcastFrame: number
@@ -275,6 +277,7 @@ export const store = createStore<AppState>({
   animLayer: 'radar',
   playTime: null,
   playbarExpanded: false,
+  creditsOpen: false,
   radarFrame: 0,
   rainFrame: 0,
   nowcastFrame: 0,
