@@ -1,5 +1,39 @@
 # Build log
 
+## Oct 19 — QA audit, batch 1 (the rest, once the audit text arrived): H2, H3, H4, H5, M2, M10; the M9 call count
+
+Each item reproduced first on production (stormscope-two.vercel.app, the auditor's 894 × 625 desktop window or a phone) or in the mock the way a user hits it; one commit each; every new check fails on the build before its fix and passes after.
+
+**H2 — lone monitor dot opens point weather: NOT reproduced (226acb7 is hardening only).** Five experiments: production, Ozone and the dots on at the map's own zoom (the 5 km scale) and at the audit's 10 km scale, real mouse clicks on Sheldahl's dot at its centre and 8 px and 12 px off — every click opened "SHELDAHL · air monitor"; the mock, a click at six moments (0–3.2 s) after a zoom while the sites reloaded from a 2.5 s-late service — the monitor every time; the mock, "Refresh all now" then a tap during the reload — the monitor. The one code path that could have produced a point chip (a refresh re-created the layer with an empty source for an instant; the cache refilled it at once) is hardened: a refresh now reloads the sites in place and clears the view cache so it really refetches. The scenario stays in monitors-check and passes on both builds. If the auditor can give a recipe (which dot, zoom, what was on), it is worth another look.
+
+**H3 — circles vanish after a place change (f0d3606).** Reproduced in the mock as the auditor did it: Ozone and dots on, Johnston → Miami → Johnston through the picker — 3 discs before, 0 away, 0 back, with 9 dots on the map. Cause: a view seen in the last 10 min came from the dots layer's own cache, which redrew the dots but never put the cached answer in the store, and the circles layer and the chooser read the store — so the map stayed on Miami's (empty) sites until a fresh view (a zoom) loaded. Fix: the cached answer goes to the store too. Why the old test missed it: nothing changed the place with the circles on.
+
+**H4 — the (i) does nothing (a41a3b4).** Reproduced on production in the auditor's window: on the Now tab the click set the flag and no panel rendered. Cause: the panel was mounted only on the phone-style Map screen, while on wide layouts the map and its (i) are beside every tab. Fix: the panel is part of the map's chrome. Why the old test missed it: it clicked the (i) on the phone's Map screen only.
+
+**H5 — departure defaults to the page-load time (50bd34f).** Reproduced in the mock under a fixed page clock: opened at 21:00, eleven minutes pass, a trip planned with the departure untouched left at 21:00 with no chip selected. Cause: the departure was Date.now() at store creation. Fix: null until the user picks a time (= now, resolved when the trip is planned); the Now chip is the default. `departure-check` (new): leaves 21:11, Now chip selected, arrival = now + duration. Why the old tests missed it: they plan a trip right after load, when the stale default still equals now. (The audit saw it once; it reproduces every time with the clock advanced.)
+
+**M2 — sun icons at night (0b70633).** Reproduced in the mock at a fixed 21:00: ☀️ on every night card and on five trip stops. Cause: the hourly cards, the map point's hourly strip and the trip stops chose their icon with "day" hard-coded; only the current-conditions card used is_day. Fix: Open-Meteo's hourly `is_day` is requested with the place forecast and the trip forecast (no extra request) and carried per hour and per stop; a clear hour or stop at night shows 🌙. Why the old checks missed it: they never looked at the icons, and the mock answered is_day = 1 always (now it follows the hour).
+
+**M10 — units ignored (7874f01).** Reproduced in the mock: the scale bar read "5 km" under Imperial; the trip's pavement temperatures stayed in °F under Metric. Causes: the scale control was built without a unit; the RWIS feed reports °F and the strings printed it as is. Fix: the scale control is built with the unit and follows the setting; pavement temperatures go through the app's temperature formatter (station chips, stop details, hazard wording). Why the old units checks missed it: they covered the Now tab only.
+
+**M9 — where the audit's 1,600 calls came from.** `om-cost.mjs --viewport=desktop` (the auditor's 894 × 625 window, mocked, every count the live count):
+
+| action | locations |
+|---|---|
+| app load, place change | 1 each |
+| rainfall overlay on (the desktop map shows 4 blocks of 49) | 196 |
+| zoom out to the 10 km scale (4 more blocks) | 196 |
+| 3D terrain (the tilted view reaches 6 more) | 294 |
+| playback range change (one block more) | 49 |
+| Now tab: the flood tile with the overlay on (every visible block) | 196 |
+| a trip Johnston → Ames (3 blocks along the route + 23 samples at 15 min) | 170 |
+| place change with the trip set (the trip re-plans) | 24 |
+| **one pass** | **1,127** |
+
+The phone pass was 296 because its map shows two blocks. The audit's 16 blocks on 3D (784) is the same mechanism at a wider zoom: blocks are 0.4° tiles, and the tilted desktop view at the 10 km scale reaches 16 of them; three place changes (the trip re-planned each time), three flood tiles and reloads account for the rest; the 30-minute block refresh adds a full set of visible blocks per half hour while the overlay stays on. The proposals in the previous entry stand; the desktop numbers make (1) keeping the flat view's block set while tilted and (2) 5 × 5 blocks the two that halve the total, and (3) fetching only the place's block for the flood tile would take 196 → 49 on the Now tab.
+
+**Confirmed on the unshipped build** (hourly-check, 17/17): H1 (the 12 / 24 / 48 h switch, header and rain line together), M7 (the day on every card past midnight) and the hourly time zone (cards in the place's zone, Honolulu test).
+
 ## Oct 19 — QA audit, batch 1 (the items whose text reached me: C1, M9, M11)
 
 The audit itself did not arrive with the message (nothing in the session's attachments, the project or Downloads), so H2, H3, H4, H5, M2 and M10 are untouched until their text is in hand. Each of the three below was reproduced on production (stormscope-two.vercel.app, Johnston) with real data through the traffic guard before anything changed.
