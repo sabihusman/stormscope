@@ -77,7 +77,8 @@ const detail = await page.evaluate(() => {
   const w = j.weather.data
   const etas = w.samples.map((x) => x.eta)
   const mono = etas.every((t, i) => i === 0 || t >= etas[i - 1])
-  const arrival = j.departure + r.durationS * 1000
+  // null departure = now (H5): the app resolved it when the trip was planned — the first sample's ETA is that departure.
+  const arrival = (j.departure ?? w.samples[0].eta) + r.durationS * 1000
   const last = w.samples[w.samples.length - 1]
   const fine = w.samples.filter((x) => x.offsetS < 6 * 3600)
   const gaps = fine.slice(1).map((x, i) => x.offsetS - fine[i].offsetS)
