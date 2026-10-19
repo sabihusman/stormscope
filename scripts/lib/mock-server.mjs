@@ -53,9 +53,12 @@ function omSeries(locIdx, field, nHours, startSec) {
       case 'precipitation_probability':
         v = Math.min(100, Math.round((h.precipitation[k] ?? 0) * 60 + 10))
         break
-      case 'is_day':
-        v = 1
+      case 'is_day': {
+        // Day between about 6 AM and 6 PM Central (the fixture's hours are UTC): 12:00–23:59 UTC.
+        const hUtc = Math.floor(((startSec + i * 3600) % 86400) / 3600)
+        v = hUtc >= 12 ? 1 : 0
         break
+      }
       case 'weather_code':
         v = h.weather_code[k] ?? 1
         break

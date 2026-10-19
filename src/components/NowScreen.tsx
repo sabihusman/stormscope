@@ -315,7 +315,7 @@ function HourlyCard() {
       ) : (
         <ol ref={stripRef} className="hour-strip" aria-label={`Forecast for the next ${span} hours`}>
           {cards.map((x, i) => {
-            const w = wmo(x.code, true)
+            const w = wmo(x.code, x.isDay)
             const crossed = localDate(x.time, tz) !== firstDay
             return (
               <li key={x.time} data-time={x.time} data-day={crossed ? weekdayOf(x.time) : undefined} data-tz={tz}>

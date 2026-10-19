@@ -133,6 +133,8 @@ export interface HourPoint {
   gustMs: number | null
   windDirDeg: number | null
   cloudPct: number | null
+  /** Day or night at that hour (for the icon). */
+  isDay: boolean
 }
 export interface PlaceForecast {
   lngLat: LngLat

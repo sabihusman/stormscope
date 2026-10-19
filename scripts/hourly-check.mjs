@@ -108,6 +108,10 @@ const mmToIn = (mm) => mm / 25.4
   const beforeMidnight = r.labels.slice(0, 3), afterMidnight = r.labels.slice(3)
   check('Fixed clock 21:00: the first card is "Now" and the next two have no day', r.labels[0] === 'Now' && beforeMidnight.slice(1).every((l) => !l.startsWith(tomorrow)), beforeMidnight.join(' | '))
   check(`Fixed clock 21:00: every card from midnight on shows the day ("${tomorrow} 12 AM", "${tomorrow} 1 AM", …)`, afterMidnight.length === 9 && afterMidnight.every((l) => l.startsWith(`${tomorrow} `)) && /12 AM$/.test(afterMidnight[0]) && /1 AM$/.test(afterMidnight[1]), afterMidnight.slice(0, 3).join(' | '))
+  // M2: at 21:00 the evening and night cards (10 PM – 4 AM) show a moon for clear skies, never a sun.
+  const icons = await page.evaluate(() => [...document.querySelectorAll('.hour-strip li')].map((li) => ({ t: li.querySelector('.hour-t').textContent, i: li.querySelector('.hour-i').textContent })))
+  const night = icons.filter((c) => /^(Now|10 PM|11 PM|.* 12 AM|.* [1-4] AM)$/.test(c.t))
+  check('Night cards (Now at 9 PM, 10 PM … 4 AM) never show ☀️; a clear night shows 🌙', night.length >= 5 && night.every((c) => !c.i.includes('☀️')) && night.some((c) => c.i.includes('🌙')), night.map((c) => `${c.t} ${c.i}`).join(' '))
   await pick(page, 48)
   const r48 = await read(page)
   const dayAfter = new Date(FIXED + 48 * 3_600_000).toLocaleDateString([], { weekday: 'short' })

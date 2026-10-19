@@ -37,6 +37,8 @@ export interface JourneySample {
   weatherCode: number | null
   /** 'minutely' when native 15-min data was used, 'hourly' otherwise. */
   resolution: 'minutely' | 'hourly'
+  /** Day or night at the ETA (for the icon). */
+  isDay: boolean
   condition: Condition
 }
 export interface JourneyWeather {
@@ -117,6 +119,7 @@ interface OmSeries {
   visibility?: (number | null)[]
   weather_code?: (number | null)[]
   cloud_cover?: (number | null)[]
+  is_day?: (number | null)[]
 }
 export interface OmPoint {
   latitude: number
@@ -164,9 +167,9 @@ export async function fetchJourneyWeather(route: RouteResult, departureMs: numbe
       ? // Replays "as the forecast was issued": archived GFS runs (what a driver could have seen that morning).
         `${HISTORICAL_FORECAST_URL}?${latlng}&${dayRange}&hourly=temperature_2m,precipitation,rain,snowfall,wind_gusts_10m,weather_code,cloud_cover&models=gfs_seamless&timeformat=unixtime&timezone=GMT`
       : // Replays with hindsight: ERA5 reanalysis (no 15-minutely, no visibility).
-        `${ARCHIVE_URL}?${latlng}&${dayRange}&hourly=temperature_2m,precipitation,rain,snowfall,wind_gusts_10m,weather_code,cloud_cover&timeformat=unixtime&timezone=GMT`
+        `${ARCHIVE_URL}?${latlng}&${dayRange}&hourly=temperature_2m,precipitation,rain,snowfall,wind_gusts_10m,weather_code,cloud_cover,is_day&timeformat=unixtime&timezone=GMT`
     : `${OPEN_METEO_URL}?${latlng}` +
-      `&hourly=temperature_2m,precipitation,rain,snowfall,wind_gusts_10m,visibility,weather_code,cloud_cover` +
+      `&hourly=temperature_2m,precipitation,rain,snowfall,wind_gusts_10m,visibility,weather_code,cloud_cover,is_day` +
       `&start_hour=${iso(departureMs - HOUR)}&end_hour=${iso(lastEta + HOUR)}` +
       (wantMinutely
         ? `&minutely_15=temperature_2m,precipitation,rain,snowfall,wind_gusts_10m,visibility,weather_code&start_minutely_15=${iso(departureMs)}&end_minutely_15=${iso(minEnd + 15 * 60_000)}`
@@ -205,6 +208,8 @@ export async function fetchJourneyWeather(route: RouteResult, departureMs: numbe
       gustKmh: gust,
       visibilityM: vis,
       cloudPct: at(loc.hourly, 'cloud_cover', eta, 3_600_000),
+      // Day or night at the ETA (Open-Meteo's hourly is_day; absent → day), for the stop's icon.
+      isDay: (at(loc.hourly, 'is_day', eta, 3_600_000) ?? 1) !== 0,
       weatherCode: code,
       resolution: useMin ? 'minutely' : 'hourly',
       condition: classify(code, precip, snow, temp, gust, vis),

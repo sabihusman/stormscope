@@ -229,7 +229,7 @@ export function PointDetails() {
           <h4 className="strip-title">Next 24 h · rain {U.precip(rain24 ?? 0, units)}</h4>
           <ol className="hour-strip" aria-label="Hourly forecast at this point">
             {hours.map((x, i) => {
-              const hw = wmo(x.code, true)
+              const hw = wmo(x.code, x.isDay)
               return (
                 <li key={x.time} className={(x.precipMm ?? 0) >= 0.1 ? 'wet' : ''}>
                   <span className="hour-t">{i === 0 ? 'Now' : clock(x.time).replace(/:00/, '')}</span>

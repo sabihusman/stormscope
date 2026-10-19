@@ -149,6 +149,7 @@ interface OmPlaceResponse {
   }
   hourly: {
     time: number[]
+    is_day?: number[]
     temperature_2m: (number | null)[]
     apparent_temperature: (number | null)[]
     weather_code: (number | null)[]
@@ -173,7 +174,7 @@ export async function fetchPlaceForecast(p: LngLat, signal?: AbortSignal): Promi
   const url =
     `${OPEN_METEO_URL}?latitude=${p.lat.toFixed(4)}&longitude=${p.lng.toFixed(4)}` +
     `&current=temperature_2m,apparent_temperature,weather_code,precipitation,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,is_day` +
-    `&hourly=temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover` +
+    `&hourly=temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,is_day` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&forecast_days=7` +
     `&forecast_hours=48&past_hours=1&timeformat=unixtime&timezone=auto&wind_speed_unit=ms&models=best_match`
   const j = await budgeted(1, () => fetchJSON<OmPlaceResponse>(url, { signal, timeoutMs: 20_000 }))
@@ -205,6 +206,8 @@ export async function fetchPlaceForecast(p: LngLat, signal?: AbortSignal): Promi
       gustMs: h.wind_gusts_10m[i] ?? null,
       windDirDeg: h.wind_direction_10m[i] ?? null,
       cloudPct: h.cloud_cover[i] ?? null,
+      // Day or night at that hour (Open-Meteo's is_day; a response without it is treated as day).
+      isDay: h.is_day ? h.is_day[i] !== 0 : true,
     }))
     // From the hour that contains "now" onwards.
     .filter((x) => x.time >= Math.floor(nowSec / 3600) * 3600 * 1000)

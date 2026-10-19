@@ -9,6 +9,8 @@ import { condText, effectiveCondition, type RoadReport, type RoadSample } from '
 import { PlaceSearch } from './PlaceSearch'
 import { startPickOnMap } from '../state/store'
 
+/** A clear sky at night is a moon, not a sun (M2); every other condition keeps its icon. */
+const iconFor = (c: { code: string }, s: { isDay?: boolean }) => (c.code === 'clear' && s.isDay === false ? '🌙' : ICON[c.code])
 const ICON: Record<string, string> = { clear: '☀️', rain: '🌧', 'heavy-rain': '⛈', snow: '🌨', 'heavy-snow': '❄️', ice: '🧊', fog: '🌫', wind: '💨', storm: '⛈' }
 
 /** Journey tab: destination + departure → route → weather at ETA along the way. */
@@ -176,7 +178,7 @@ export function JourneyPanel() {
                 <small>{isCapped(route) ? `At the 24 h mark (arrive ${j.to.name.split(',')[0]} ${dayClock(arrival)})` : `Arrive ${j.to.name.split(',')[0]}`}</small>
                 <strong>{isCapped(route) ? dayClock(w.samples[w.samples.length - 1].eta) : dayClock(arrival)}</strong>
                 <span>
-                  {ICON[cond(w.samples[w.samples.length - 1]).code]} {cond(w.samples[w.samples.length - 1]).label} · {U.temp(w.samples[w.samples.length - 1].tempC, units)}
+                  {iconFor(cond(w.samples[w.samples.length - 1]), w.samples[w.samples.length - 1])} {cond(w.samples[w.samples.length - 1]).label} · {U.temp(w.samples[w.samples.length - 1].tempC, units)}
                   {w.samples[w.samples.length - 1].precipMm ? ` · ${U.precip(w.samples[w.samples.length - 1].precipMm, units)}/h` : ''}
                 </span>
               </div>
@@ -188,7 +190,7 @@ export function JourneyPanel() {
                   <li key={s.idx} className={`sev-${cond(s).severity}`} onClick={() => store.set({ selection: sampleSelection(s, units, roadByIdx.get(s.idx)) })}>
                     <span className="strip-time">{clock(s.eta)}</span>
                     <span className="strip-icon" aria-hidden="true">
-                      {ICON[cond(s).code]}
+                      {iconFor(cond(s), s)}
                     </span>
                     <span className="strip-main">
                       {cond(s).label}
