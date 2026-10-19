@@ -279,6 +279,41 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await ctx.close()
 }
 
+// ---- 2c. The Now tab refreshes air quality on its own, on the map's cadence (10 min), and says when it checked.
+// The page clock is advanced (not the state): a second service request must happen and the card's "checked"
+// line must reset. Also: the badge is the AQI, never the raw ppb / µg number.
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
+  await ctx.addInitScript((u) => { try { localStorage.setItem('stormscope.monitorService', u) } catch {} }, SERVICE)
+  const page = await ctx.newPage()
+  await page.clock.install()
+  const done = trackTraffic(page, 'monitors-check.mjs (mock)')
+  const calls = []
+  globalThis.__qaMockedRequest = (url) => { if (/monitors\.stormscope\.test/.test(url)) calls.push(url) }
+  await installMocks(ctx, {})
+  await page.goto(BASE, { waitUntil: 'load' })
+  await allowLocation(page)
+  const until = async (fn, ms = 30000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(200) } return false }
+  await until(() => window.__store?.get().monitorsNear.state === 'ready', 30000)
+  await page.waitForTimeout(300)
+  const first = calls.length
+  const readCard = () => page.evaluate(() => ({ attrib: document.querySelector('.now-card.airnow .aqi-attrib')?.textContent ?? '', badges: [...document.querySelectorAll('.now-card.airnow .aqi-badge')].map((b) => b.textContent), raw: (window.__store.get().monitorsNear.data?.sites ?? []).flatMap((s) => s.readings.map((r) => String(Math.round(r.value)))) }))
+  const c0 = await readCard()
+  check('Now card says when it checked ("checked just now") and the badges are AQI values, none equal to a raw ppb / µg number', /checked just now/.test(c0.attrib) && c0.badges.length === 2 && c0.badges.every((b) => !c0.raw.includes(b)), `${c0.attrib.slice(-30)} badges ${c0.badges.join(',')} raw ${c0.raw.join(',')}`)
+  // 9 minutes: no refresh yet; the "checked" age grows.
+  await page.clock.runFor(9 * 60_000)
+  await page.waitForTimeout(400)
+  const c9 = await readCard()
+  check('After 9 minutes: no second request yet, the card reads "checked 9 min ago"', calls.length === first && /checked 9 min ago/.test(c9.attrib), `${calls.length - first} new request(s); ${c9.attrib.slice(-24)}`)
+  // 10 minutes: the Now tab refreshes on its own (the map's monitor cadence) and the card says so.
+  await page.clock.runFor(61_000)
+  await until(() => /checked (just now|\d+s ago|1 min ago)/.test(document.querySelector('.now-card.airnow .aqi-attrib')?.textContent ?? ''), 8000)
+  const c10 = await readCard()
+  check('At 10 minutes the Now tab refreshed on its own: a second service request, and the card\'s "checked" age restarted', calls.length === first + 1 && /checked (just now|\d+s ago|1 min ago)/.test(c10.attrib), `${calls.length - first} new request(s); ${c10.attrib.slice(-24)}`)
+  done()
+  await ctx.close()
+}
+
 // ---- 3. The function without its key (same-origin /api, 503 "not configured").
 {
   const { ctx, page, done, calls, until } = await session({ service: '', notConfigured: true })

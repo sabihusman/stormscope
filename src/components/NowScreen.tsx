@@ -573,7 +573,10 @@ function AirNowCard() {
           })}
         </ul>
       )}
-      <small className="muted aqi-attrib">{AIRNOW_CREDIT}</small>
+      <small className="muted aqi-attrib">
+        {AIRNOW_CREDIT}
+        {r.freshness?.fetchedAt ? ` · checked ${timeAgo(r.freshness.fetchedAt, now)}` : ''}
+      </small>
     </div>
   )
 }

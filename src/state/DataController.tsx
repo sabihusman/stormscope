@@ -35,8 +35,8 @@ export const REFRESH = {
   conditions: 10 * MIN,
   /** Active NWS alerts for the place: refreshed while the app is open, not only on place change. */
   alerts: 3 * MIN,
-  /** EPA AirNow sites around the place (observations update once an hour; the service caches). */
-  monitorsNear: 15 * MIN,
+  /** EPA AirNow sites around the place: the map's monitor cadence (its view cache is 10 min), so the Now tab refreshes as the map does. */
+  monitorsNear: 10 * MIN,
 }
 
 /** Replays are known from the URL before the bootstrap lands in the store. */
