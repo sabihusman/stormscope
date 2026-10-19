@@ -135,8 +135,10 @@ export interface AppState {
   hourlySpan: HourlySpan
   is3D: boolean
   units: Units
-  /** Which screen corner the layer button lives in. */
+  /** Which screen corner the layer button lives in (phones). */
   fabCorner: FabCorner
+  /** Its corner of the map area on wide layouts (default: under the zoom column, top-right); remembered separately. */
+  fabCornerWide: FabCorner
 
   radar: Resource<RadarData>
   /** GOES frames from NASA GIBS. */
@@ -259,6 +261,14 @@ export const store = createStore<AppState>({
       return v === 'bl' || v === 'tl' || v === 'tr' ? v : 'br'
     } catch {
       return 'br'
+    }
+  })(),
+  fabCornerWide: ((): FabCorner => {
+    try {
+      const v = localStorage.getItem('stormscope.fabCornerWide')
+      return v === 'bl' || v === 'tl' || v === 'br' ? v : 'tr'
+    } catch {
+      return 'tr'
     }
   })(),
   radar: emptyResource(),
@@ -513,6 +523,15 @@ export function setFabCorner(fabCorner: FabCorner) {
   store.set({ fabCorner })
   try {
     localStorage.setItem('stormscope.fabCorner', fabCorner)
+  } catch {
+    /* ignore */
+  }
+}
+/** The wide-layout corner (a separate preference: the phone's corner is not the desktop's). */
+export function setFabCornerWide(fabCornerWide: FabCorner) {
+  store.set({ fabCornerWide })
+  try {
+    localStorage.setItem('stormscope.fabCornerWide', fabCornerWide)
   } catch {
     /* ignore */
   }

@@ -81,6 +81,62 @@ await page.waitForTimeout(6000)
 await page.screenshot({ path: `${OUT}/wind-z11.png` })
 
 __recordBudget()
+// ---- Desktop (Oct 19): the button is 20 % larger than the map's own buttons, sits under the zoom column by default,
+// and can be dragged to any corner of the map area (a preference separate from the phone's); the panel opens fully
+// inside the map area from every corner; the corner persists across a reload.
+{
+  const ctxW = await browser.newContext({ viewport: { width: 1280, height: 800 }, geolocation: { latitude: 39.9526, longitude: -75.1652 }, permissions: ['geolocation'] })
+  await ctxW.addInitScript(() => { try { localStorage.setItem('stormscope.fabCorner', 'bl') } catch {} }) // the phone's corner, must stay untouched
+  const pw = await ctxW.newPage()
+  const __rb = trackOpenMeteo(pw, MOCK ? 'fab-check.mjs (mock)' : 'fab-check.mjs')
+  if (MOCK) await installMocks(ctxW, { focus: { lat: 39.9526, lng: -75.1652 } })
+  await pw.goto(BASE, { waitUntil: 'load' })
+  await pw.getByRole('button', { name: 'Use my location' }).first().click({ timeout: 4000 }).catch(() => {})
+  await pw.waitForTimeout(5000)
+  const fabW = () => pw.getByRole('button', { name: /layer menu/ })
+  const boxW = async () => fabW().boundingBox()
+  const cornerW = async () => (await pw.locator('.app').getAttribute('class')).match(/fabw-(\w\w)/)?.[1]
+  const mapArea = async () => pw.locator('.map-root').boundingBox()
+  const ctrlBtn = await pw.locator('.maplibregl-ctrl-zoom-in').boundingBox()
+  const area = await mapArea()
+  const w0 = await boxW()
+  const navW = await pw.locator('.maplibregl-ctrl-top-right').boundingBox()
+  check('Desktop: the wide layout, the button under the zoom column by default (fabw-tr)', (await cornerW()) === 'tr' && w0.y >= navW.y + navW.height - 2 && w0.x + w0.width >= area.x + area.width - 20, `${await cornerW()} @ ${Math.round(w0.x)},${Math.round(w0.y)}; controls bottom ${Math.round(navW.y + navW.height)}`)
+  check('Desktop: the button is 20 % larger than the map buttons (43 px vs 36 px)', Math.abs(w0.width - ctrlBtn.width * 1.2) <= 1.5 && Math.abs(w0.height - ctrlBtn.height * 1.2) <= 1.5, `${w0.width.toFixed(1)} px vs map button ${ctrlBtn.width.toFixed(1)} px`)
+  const dragW = async (x, y) => { const b = await boxW(); await pw.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await pw.mouse.down(); for (let i = 1; i <= 10; i++) await pw.mouse.move(b.x + b.width / 2 + (x - b.x - b.width / 2) * (i / 10), b.y + b.height / 2 + (y - b.y - b.height / 2) * (i / 10)); await pw.mouse.up(); await pw.waitForTimeout(450) }
+  const openPanel = async () => { await fabW().click(); await pw.waitForTimeout(400); const m = await pw.locator('.fab-menu').boundingBox(); await fabW().click(); await pw.waitForTimeout(300); return m }
+  const inside = (m) => !!m && m.x >= area.x - 1 && m.x + m.width <= area.x + area.width + 1 && m.y >= 0 && m.y + m.height <= 800
+  // Bottom-right of the map area.
+  await dragW(area.x + area.width - 60, area.y + area.height - 60)
+  const w1 = await boxW()
+  check('Desktop: dragged to the bottom-right — the button moves there (its bottom in the lower half of the map, its right edge at the map\'s right edge)', (await cornerW()) === 'br' && w1.y > area.y + area.height / 2 && w1.x + w1.width >= area.x + area.width - 20, `${await cornerW()} @ ${Math.round(w1.x)},${Math.round(w1.y)} (map ${Math.round(area.x)}–${Math.round(area.x + area.width)} × ${Math.round(area.y)}–${Math.round(area.y + area.height)})`)
+  const m1 = await openPanel()
+  check('Desktop: from the bottom-right the panel opens fully inside the map area', inside(m1), m1 ? `${Math.round(m1.x)},${Math.round(m1.y)} ${Math.round(m1.width)}×${Math.round(m1.height)}` : 'no panel')
+  // Bottom-left of the map area.
+  await dragW(area.x + 60, area.y + area.height - 60)
+  const w2 = await boxW()
+  check('Desktop: dragged to the bottom-left of the map area (not under the side column)', (await cornerW()) === 'bl' && w2.x >= area.x && w2.x <= area.x + 40 && w2.y > area.y + area.height / 2, `${await cornerW()} @ ${Math.round(w2.x)},${Math.round(w2.y)}`)
+  const m2 = await openPanel()
+  check('Desktop: from the bottom-left the panel opens fully inside the map area', inside(m2), m2 ? `${Math.round(m2.x)},${Math.round(m2.y)} ${Math.round(m2.width)}×${Math.round(m2.height)}` : 'no panel')
+  // Top-left of the map area.
+  await dragW(area.x + 60, area.y + 120)
+  const w3 = await boxW()
+  check('Desktop: dragged to the top-left of the map area, below the location bar', (await cornerW()) === 'tl' && w3.x >= area.x && w3.x <= area.x + 40 && w3.y < area.y + area.height / 2 && w3.y > area.y + 40, `${await cornerW()} @ ${Math.round(w3.x)},${Math.round(w3.y)}`)
+  const m3 = await openPanel()
+  check('Desktop: from the top-left the panel opens fully inside the map area', inside(m3), m3 ? `${Math.round(m3.x)},${Math.round(m3.y)} ${Math.round(m3.width)}×${Math.round(m3.height)}` : 'no panel')
+  // Back under the zoom column, and persistence.
+  await dragW(area.x + area.width - 60, area.y + 120)
+  check('Desktop: dragged back to the top-right it sits under the zoom column again', (await cornerW()) === 'tr' && (await boxW()).y >= navW.y + navW.height - 2, await cornerW())
+  await dragW(area.x + 60, area.y + area.height - 60)
+  await pw.reload({ waitUntil: 'load' })
+  await pw.waitForTimeout(3000)
+  const stored = await pw.evaluate(() => ({ wide: localStorage.getItem('stormscope.fabCornerWide'), phone: localStorage.getItem('stormscope.fabCorner') }))
+  check('Desktop: the corner persists across a reload, as its own preference (the phone\'s corner untouched)', (await cornerW()) === 'bl' && stored.wide === 'bl' && stored.phone === 'bl', JSON.stringify({ corner: await cornerW(), ...stored }))
+  await pw.screenshot({ path: `${OUT}/fab-desktop.png` })
+  __rb()
+  await ctxW.close()
+}
+
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)
 process.exit(results.every(Boolean) ? 0 : 1)

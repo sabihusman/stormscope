@@ -50,6 +50,7 @@ export default function App() {
   const sheet = useApp((s) => s.sheet)
   const hasSelection = useApp((s) => !!s.selection)
   const fabCorner = useApp((s) => s.fabCorner)
+  const fabCornerWide = useApp((s) => s.fabCornerWide)
   const journeyTo = useApp((s) => !!s.journey.to)
   const screen = useApp((s) => s.screen)
   const pickMode = useApp((s) => s.pickMode)
@@ -107,7 +108,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} ${wide ? 'wide' : 'narrow'} ${pickMode ? 'picking' : ''} ${playbarExpanded ? 'playbar-open' : ''}`}>
+    <div className={`app screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} fabw-${fabCornerWide} ${wide ? 'wide' : 'narrow'} ${pickMode ? 'picking' : ''} ${playbarExpanded ? 'playbar-open' : ''}`}>
       <MapView>
         {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
         <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>

@@ -2261,15 +2261,48 @@ small {
   align-items: flex-start;
   gap: 12px;
 }
+/* Desktop: 20 % larger than the map's own buttons (Oct 19). */
 .app.wide .fab-main {
-  width: var(--map-ctrl-btn);
-  height: var(--map-ctrl-btn);
+  width: calc(var(--map-ctrl-btn) * 1.2);
+  height: calc(var(--map-ctrl-btn) * 1.2);
   border-radius: 12px;
-  font-size: 18px;
+  font-size: 22px;
 }
 .app.wide .fab-stack .fab-menu {
   /* Tied to the button: the panel's top is the button's top, and it runs down to the playback bar. */
   max-height: calc(var(--vvh) - var(--fab-stack-top) - var(--menu-bottom-reserve));
+}
+/* Desktop corners (Oct 19): the button can be dragged to any corner of the map area; the default stays under the
+   zoom column (fabw-tr). The panel opens beside it, inside the map area, and anchors to the button's edge. */
+.app.wide.fabw-tl .fab-stack {
+  right: auto;
+  left: calc(var(--rail-w) + var(--col-w) + 12px);
+  top: var(--map-ctrl-top);
+  flex-direction: row-reverse; /* the panel to the right of the button */
+}
+.app.wide.fabw-tl .fab-stack .fab-menu {
+  max-height: calc(var(--vvh) - var(--map-ctrl-top) - var(--menu-bottom-reserve));
+}
+.app.wide.fabw-bl .fab-stack,
+.app.wide.fabw-br .fab-stack {
+  top: auto;
+  bottom: calc(var(--sab) + var(--playbar-h) + 12px);
+  align-items: flex-end; /* the panel's bottom on the button's bottom */
+}
+.app.wide.fabw-bl .fab-stack {
+  right: auto;
+  left: calc(var(--rail-w) + var(--col-w) + 12px);
+  flex-direction: row-reverse;
+}
+.app.wide.fabw-bl .fab-stack .fab-menu,
+.app.wide.fabw-br .fab-stack .fab-menu {
+  /* Bottom-anchored: up to the location bar. */
+  max-height: calc(var(--vvh) - var(--sab) - var(--playbar-h) - 12px - var(--map-ctrl-top));
+}
+.app.wide.fabw-bl .fab-stack.lifted .fab-menu,
+.app.wide.fabw-br .fab-stack.lifted .fab-menu,
+.app.wide.fabw-tl .fab-stack.lifted .fab-menu {
+  margin-top: 0;
 }
 .app.wide .fab-stack.lifted .fab-menu {
   /* Short map (a phone in landscape is this layout): under 120 px between the button and the playback bar,

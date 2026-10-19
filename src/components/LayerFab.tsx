@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePresence } from '../hooks/usePresence'
-import { setAqPollutant, setFabCorner, setLayer, setSatProduct, store, useApp, type FabCorner } from '../state/store'
+import { useWide } from '../hooks/useMisc'
+import { setAqPollutant, setFabCorner, setFabCornerWide, setLayer, setSatProduct, store, useApp, type FabCorner } from '../state/store'
 import { LegendRows } from './Legend'
 import type { LayerId } from '../types'
 
@@ -33,6 +34,7 @@ export function LayerFab() {
   const aqPollutant = useApp((s) => s.aqPollutant)
   const rainHorizon = useApp((s) => s.rainHorizon)
   const [open, setOpen] = useState(false)
+  const wide = useWide()
   // The panel fades and slides in and out (150 ms, opacity and transform only); it stays mounted while closing.
   const panel = usePresence(open)
   // Wide layouts: the panel is tied to the button; when the space between the button and the playback bar
@@ -48,7 +50,8 @@ export function LayerFab() {
     }
     const measure = () => {
       const app = document.querySelector('.app')
-      if (!app?.classList.contains('wide')) {
+      // The lift (to the control column's top) only applies under the zoom column, the wide default corner.
+      if (!app?.classList.contains('wide') || store.get().fabCornerWide !== 'tr') {
         setLifted(false)
         return
       }
@@ -119,9 +122,13 @@ export function LayerFab() {
     setOffset(null)
     if (!d?.moved) return
     justDragged.current = true
-    const left = e.clientX < window.innerWidth / 2
-    const top = e.clientY < window.innerHeight / 2
-    setFabCorner(top ? (left ? 'tl' : 'tr') : left ? 'bl' : 'br')
+    // Halves of the map area, not of the window: on wide layouts the map starts right of the rail and the column.
+    const area = document.querySelector('.map-root')?.getBoundingClientRect()
+    const left = area ? e.clientX < area.left + area.width / 2 : e.clientX < window.innerWidth / 2
+    const top = area ? e.clientY < area.top + area.height / 2 : e.clientY < window.innerHeight / 2
+    const c: FabCorner = top ? (left ? 'tl' : 'tr') : left ? 'bl' : 'br'
+    if (wide) setFabCornerWide(c)
+    else setFabCorner(c)
   }
   const onClick = () => {
     if (justDragged.current) {
