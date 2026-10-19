@@ -1,5 +1,9 @@
 # Build log
 
+## Oct 19 — desktop layers button: draggable to any corner, 20 % larger
+
+On wide layouts every corner was pinned under the zoom column (the Oct 10 rule), so dragging the ☰ did nothing there. Now the desktop has its own corner preference (`fabCornerWide`, default `tr` = under the zoom column; the phone's `fabCorner` is untouched): a drag ends in the quadrant of the map area it was dropped in (the halves are the map area's, not the window's — the map starts right of the rail and the column), the button goes to that corner of the map area (top-left under the location bar, bottom corners above the playback bar), the panel opens beside it inside the map area and anchors to the button's edge, and the lift to the control column's top applies only in the default corner. The button is 20 % larger than the map's own buttons (43 px vs 36 px). fab-check: a 1280×800 scenario covering the default, the size, drags to the bottom-right, bottom-left and top-left and back, the panel inside the map area from each, and persistence across a reload with the phone's corner untouched — 7 of 7 fail on the build before (the button never moved, 36 px), 20/20 after.
+
 ## Oct 19 — QA audit, batch 1 (the rest, once the audit text arrived): H2, H3, H4, H5, M2, M10; the M9 call count
 
 Each item reproduced first on production (stormscope-two.vercel.app, the auditor's 894 × 625 desktop window or a phone) or in the mock the way a user hits it; one commit each; every new check fails on the build before its fix and passes after.
