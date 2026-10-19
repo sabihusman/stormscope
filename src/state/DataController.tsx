@@ -543,7 +543,9 @@ export function DataController() {
   useEffect(() => {
     const r = jRoutes?.routes[jSelected]
     if (!r) return
-    const key = `${r.coords.length}:${r.distanceM}:${Math.round(jDeparture / 60_000)}`
+    // A null departure means "now": resolved here, when the trip is planned (H5: it used to be the app's load time).
+    const departAt = jDeparture ?? Date.now()
+    const key = `${r.coords.length}:${r.distanceM}:${Math.round(departAt / 60_000)}`
     const timer = window.setTimeout(async () => {
       if (lastWeather.current.key === key && Date.now() - lastWeather.current.at < 60_000 && store.get().journey.weather.data) return
       lastWeather.current = { key, at: Date.now() }
@@ -561,7 +563,7 @@ export function DataController() {
             toast(`Replay weather cache missing (${describeError(e)}) — using a live Open-Meteo call`, 'warn')
           }
         }
-        const w = await J.fetchJourneyWeather(r, jDeparture, undefined, rp?.weather ?? 'auto', cached)
+        const w = await J.fetchJourneyWeather(r, departAt, undefined, rp?.weather ?? 'auto', cached)
         patchJourney({ weather: ready(w, 'Open-Meteo (hourly + 15-minutely) at ETA', OPEN_METEO_URL, w.fetchedAt) }, gen)
       } catch (e) {
         const prev = store.get().journey.weather
@@ -615,7 +617,7 @@ export function DataController() {
       let report: HazardReport
       if (s.replay) {
         const { hazards, sources } = await loadReplayHazards(s.replay)
-        report = evaluateHazards(w.samples, hazards, sources, { now: s.journey.departure })
+        report = evaluateHazards(w.samples, hazards, sources, { now: s.journey.departure ?? Date.now() })
       } else {
         let west = 180, south = 90, east = -180, north = -90
         for (const [x, y] of r.coords) {
@@ -706,7 +708,7 @@ export function DataController() {
       if (s.replay) {
         const sc = s.replay
         if (!sc.files.rwis || !sc.files.rwisStations) {
-          patchJourney({ road: { ...ready(evaluateRoadIce(w.samples, [], { now: s.journey.departure, mode: 'replay' }), 'no RWIS archive in this fixture', ''), error: 'fixture has no RWIS archive' } }, gen)
+          patchJourney({ road: { ...ready(evaluateRoadIce(w.samples, [], { now: s.journey.departure ?? Date.now(), mode: 'replay' }), 'no RWIS archive in this fixture', ''), error: 'fixture has no RWIS archive' } }, gen)
           return
         }
         const [csv, meta] = await Promise.all([
@@ -714,7 +716,7 @@ export function DataController() {
           fetch(`/fixtures/${sc.fixture}/${sc.files.rwisStations}`).then((x) => x.json() as Promise<Record<string, { name: string; lng: number; lat: number }>>),
         ])
         const stations = parseRwisArchive(csv, Object.fromEntries(Object.entries(meta).map(([id, m]) => [id, { name: m.name, lngLat: { lng: m.lng, lat: m.lat } }])), 0)
-        const report = evaluateRoadIce(w.samples, stations, { now: s.journey.departure, mode: 'replay' })
+        const report = evaluateRoadIce(w.samples, stations, { now: s.journey.departure ?? Date.now(), mode: 'replay' })
         patchJourney({ road: ready(report, 'IEM RWIS archive (replay)', 'https://mesonet.agron.iastate.edu/RWIS/', report.evaluatedAt) }, gen)
       } else {
         let west = 180, south = 90, east = -180, north = -90

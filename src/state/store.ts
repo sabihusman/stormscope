@@ -108,7 +108,8 @@ export function newBlock(key: string): Block {
 export interface Journey {
   to: Place | null
   /** Departure (ms epoch). */
-  departure: number
+  /** Departure, ms epoch; null = now (the default — resolved when the trip is planned, not when the app was opened). */
+  departure: number | null
   routes: Resource<{ routes: RouteResult[]; engine: 'valhalla' | 'osrm'; fallbackReason?: string }>
   selected: number
   weather: Resource<JourneyWeather>
@@ -313,7 +314,7 @@ export const store = createStore<AppState>({
   toast: null,
   layerErrors: {},
   refreshNonce: 0,
-  journey: { to: null, departure: Date.now(), routes: emptyResource(), selected: 0, weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), gen: 0 },
+  journey: { to: null, departure: null, routes: emptyResource(), selected: 0, weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), gen: 0 },
   replay: null,
   imageryCarry: null,
   imageryLag: null,
@@ -491,7 +492,7 @@ export function startPickOnMap() {
 export function endPickOnMap(cancel: boolean) {
   store.set((s) => ({ pickMode: false, screen: cancel ? s.pickReturn : s.pickReturn === 'map' ? 'now' : s.pickReturn }))
 }
-export function setDeparture(ms: number) {
+export function setDeparture(ms: number | null) {
   store.set((s) => ({ journey: { ...s.journey, departure: ms } }))
 }
 export function selectRoute(i: number) {

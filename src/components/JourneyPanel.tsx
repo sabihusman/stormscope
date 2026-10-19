@@ -26,7 +26,9 @@ export function JourneyPanel() {
     { label: '+1 h', ms: () => Date.now() + 3_600_000 },
     { label: '+2 h', ms: () => Date.now() + 2 * 3_600_000 },
   ]
-  const activeChip = chips.findIndex((c) => Math.abs(c.ms() - j.departure) < 90_000)
+  // null departure = now: the "Now" chip. A picked time matches its chip within 90 s.
+  const departure = j.departure ?? Date.now()
+  const activeChip = j.departure == null ? 0 : chips.findIndex((c) => Math.abs(c.ms() - j.departure!) < 90_000)
   // Hooks stay above the early return: the panel can be open before the first location fix lands.
   const replay = useApp((s) => s.replay)
 
@@ -40,7 +42,7 @@ export function JourneyPanel() {
   const routes = j.routes.data?.routes ?? []
   const route = routes[j.selected]
   const w = j.weather.data
-  const arrival = route ? j.departure + route.durationS * 1000 : null
+  const arrival = route ? departure + route.durationS * 1000 : null
   const road = j.road.data
   const roadByIdx = new Map<number, RoadSample>((road?.samples ?? []).map((r) => [r.idx, r]))
   const cond = (s: JourneySample) => effectiveCondition(s, roadByIdx.get(s.idx))
@@ -98,7 +100,7 @@ export function JourneyPanel() {
             className={!custom && activeChip === i ? 'on' : ''}
             onClick={() => {
               setCustom(false)
-              setDeparture(c.ms())
+              setDeparture(c.label === 'Now' ? null : c.ms())
             }}
           >
             {c.label}
@@ -123,7 +125,7 @@ export function JourneyPanel() {
             ref={customRef}
             type="datetime-local"
             className="text-input"
-            defaultValue={toLocalInput(j.departure)}
+            defaultValue={toLocalInput(departure)}
             min={toLocalInput(Date.now() - 3_600_000)}
             max={toLocalInput(Date.now() + 6 * 86_400_000)}
             onChange={(e) => {

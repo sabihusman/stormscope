@@ -64,6 +64,7 @@ const SUITES = [
   { name: 'flood-tile', script: 'flood-tile-check.mjs' },
   { name: 'daily', script: 'daily-check.mjs' },
   { name: 'hourly', script: 'hourly-check.mjs' },
+  { name: 'departure', script: 'departure-check.mjs' },
   { name: 'monitors', script: 'monitors-check.mjs' },
   { name: 'gauges', script: 'gauges-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
