@@ -65,6 +65,7 @@ const SUITES = [
   { name: 'daily', script: 'daily-check.mjs' },
   { name: 'hourly', script: 'hourly-check.mjs' },
   { name: 'monitors', script: 'monitors-check.mjs' },
+  { name: 'gauges', script: 'gauges-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'nowmap', script: 'nowmap-check.mjs' },
   { name: 'polish', script: 'polish-check.mjs' },

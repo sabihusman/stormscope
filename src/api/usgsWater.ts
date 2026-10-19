@@ -64,12 +64,15 @@ interface LocProps {
   monitoring_location_name: string
   site_type_code: string
 }
-/** Names / site types for a set of USGS ids. */
+/**
+ * Names / site types for every USGS monitoring location in the box. No `site_type_code` filter: the OGC
+ * endpoint answers that filter with an empty collection (checked live Oct 19, 2026 — 0 features with it, all
+ * 30 sites without), which left every USGS-only gauge named by its id.
+ */
 export async function fetchUsgsNames(bbox: BBox, signal?: AbortSignal): Promise<Map<string, { name: string; type: string }>> {
   const url =
     `${USGS_OGC}/collections/monitoring-locations/items?f=json&limit=400` +
-    `&bbox=${bbox.west.toFixed(3)},${bbox.south.toFixed(3)},${bbox.east.toFixed(3)},${bbox.north.toFixed(3)}` +
-    `&site_type_code=ST,ST-CA,ST-DCH,ST-TS`
+    `&bbox=${bbox.west.toFixed(3)},${bbox.south.toFixed(3)},${bbox.east.toFixed(3)},${bbox.north.toFixed(3)}`
   const j = await fetchJSON<OgcCollection<LocProps>>(url, { signal, timeoutMs: 25_000 })
   const m = new Map<string, { name: string; type: string }>()
   for (const f of j.features)

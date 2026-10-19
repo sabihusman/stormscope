@@ -128,6 +128,9 @@ const nearestNwps = (at: LngLat, nwps: NwpsGaugeSummary[]) =>
     .slice(0, NWPS_NEAREST)
     .map((x) => x.g)
 /** Loads one tier for a place; `nwpsList` reuses the summary tier's list when upgrading to full. */
+/** A gauge reading older than this is not shown (USGS keeps the last value of series that ended decades ago). */
+export const RIVER_READING_MAX_AGE_MS = 7 * 24 * 3_600_000
+
 async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSummary[]): Promise<{ resource: Resource<RiverGauge[]>; nwps: NwpsGaugeSummary[] }> {
   const bbox = bboxAround(at, RIVER_RADIUS_M)
   const byDistance = (gs: Iterable<RiverGauge>) => [...gs].sort((a, b) => haversine(at, a.lngLat) - haversine(at, b.lngLat))
@@ -140,7 +143,10 @@ async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSumm
   const [nwpsRes, usgsRes] = await Promise.allSettled([nwpsList ? Promise.resolve(nwpsList) : fetchNwpsGauges(bbox), fetchUsgsLatest(bbox)])
   if (nwpsRes.status === 'rejected' && usgsRes.status === 'rejected') throw nwpsRes.reason
   const nwps = nwpsRes.status === 'fulfilled' ? nwpsRes.value : []
-  const usgs = usgsRes.status === 'fulfilled' ? usgsRes.value : []
+  // USGS "latest" carries the last value of discontinued series too (readings from 1993–2009 around Des Moines):
+  // a reading older than the limit is dropped, so a gauge shows "No recent readings" rather than "10897 d ago".
+  const recent = <T extends { time: number }>(x: T | undefined) => (x && Date.now() - x.time <= RIVER_READING_MAX_AGE_MS ? x : undefined)
+  const usgs = (usgsRes.status === 'fulfilled' ? usgsRes.value : []).map((u) => ({ ...u, stage: recent(u.stage), flow: recent(u.flow) }))
   // One source down is still a usable (but partial) list — say so in the source line
   // instead of presenting it as the full USGS + NWPS picture.
   const sourceLabel =

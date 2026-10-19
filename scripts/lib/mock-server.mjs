@@ -344,9 +344,13 @@ function usgs(url, focus) {
       features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pos(i).lng, pos(i).lat] }, properties: { monitoring_location_id: id, parameter_code: '00060', time: now, value: String((saved.rivers.medians[id]?.median ?? 500) * (1 + (i % 4) * 0.15)), unit_of_measure: 'ft^3/s', approval_status: 'Provisional' } })
       features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pos(i).lng, pos(i).lat] }, properties: { monitoring_location_id: id, parameter_code: '00065', time: now, value: String(3 + (i % 6) * 0.8), unit_of_measure: 'ft', approval_status: 'Provisional' } })
     })
+    // A discontinued series: USGS's latest-continuous still carries its last value, from 1996 (as around Des Moines).
+    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pos(99).lng, pos(99).lat] }, properties: { monitoring_location_id: 'USGS-05499999', parameter_code: '00060', time: '1996-09-30T06:00:00Z', value: '17', unit_of_measure: 'ft^3/s', approval_status: 'Approved' } })
     return { type: 'FeatureCollection', features }
   }
-  if (u.pathname.includes('/monitoring-locations/')) return { type: 'FeatureCollection', features: sites.map((id, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [pos(i).lng, pos(i).lat] }, properties: { monitoring_location_number: id.replace('USGS-', ''), monitoring_location_name: `Stream at site ${i + 1}`, site_type_code: 'ST' } })) }
+  // The real OGC endpoint answers a site_type_code filter with an empty collection (checked live Oct 19, 2026).
+  if (u.pathname.includes('/monitoring-locations/') && u.searchParams.get('site_type_code')) return { type: 'FeatureCollection', features: [] }
+  if (u.pathname.includes('/monitoring-locations/')) return { type: 'FeatureCollection', features: [...sites, 'USGS-05499999'].map((id, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [pos(i).lng, pos(i).lat] }, properties: { monitoring_location_number: id.replace('USGS-', ''), monitoring_location_name: id === 'USGS-05499999' ? 'Old Creek near Nowhere (mock, discontinued)' : `Stream at site ${i + 1}`, site_type_code: 'ST' } })) }
   if (u.pathname.includes('/daily/')) {
     const features = []
     for (const id of sites) for (let d = 0; d < 10; d++) features.push({ type: 'Feature', geometry: null, properties: { monitoring_location_id: id, parameter_code: '00060', statistic_id: '00003', time: new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10), value: String(saved.rivers.medians[id]?.median ?? 500), approval_status: 'Provisional' } })
