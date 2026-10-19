@@ -7,7 +7,7 @@ Recorded 2026-10-19, before promoting the batch-1 audit build (commit a722df1: a
 | Rollback target (current production) | `dpl_8EHnQnEkpLossbE6Dg6qgJQiTz5e` |
 | URL | https://stormscope-g80xgd0ca-sabihusman-4178s-projects.vercel.app |
 | Bundle | `index-g3zzlN7J.js` (commit 2775d83, promoted 2026-10-18 19:58 UTC) |
-| Being promoted over it | the preview of commit a722df1 (bundle `index-NJvvQhms.js`), after its mocked dry run; the user's check of the batch-1 preview passed |
+| Promoted over it (2026-10-19 06:09 UTC) | `dpl_6sQJK4VFb1uHpYgSXzGtKd85ML6H` (stormscope-qdnv9ijn6), bundle `index-BdpcQM6R.js`, commit baa17b5 — from preview pkyi0udvk after a green mocked dry run; the user's check passed |
 
 One-line rollback (points the production alias stormscope-two.vercel.app back at g3zzlN7J):
 
