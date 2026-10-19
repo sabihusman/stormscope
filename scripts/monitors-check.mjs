@@ -8,7 +8,7 @@ import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
-import { allowLocation, openMap, openNow } from './lib/ui.mjs'
+import { allowLocation, openMap, openMore, openNow, searchPlace } from './lib/ui.mjs'
 
 const argv = process.argv.slice(2)
 const MOCK = argv.includes('--mock')
@@ -310,6 +310,75 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   await until(() => /checked (just now|\d+s ago|1 min ago)/.test(document.querySelector('.now-card.airnow .aqi-attrib')?.textContent ?? ''), 8000)
   const c10 = await readCard()
   check('At 10 minutes the Now tab refreshed on its own: a second service request, and the card\'s "checked" age restarted', calls.length === first + 1 && /checked (just now|\d+s ago|1 min ago)/.test(c10.attrib), `${calls.length - first} new request(s); ${c10.attrib.slice(-24)}`)
+  done()
+  await ctx.close()
+}
+
+// ---- 2d. H3: the circles survive a place change and back. Ozone on and dots on; the place is changed to Miami and back
+// to Johnston through the picker (real taps); within 5 s and without any zoom the Iowa circles must be back.
+{
+  const { ctx, page, done, until } = await session()
+  await openMap(page)
+  await page.getByRole('button', { name: 'Open layer menu' }).tap()
+  await page.locator('[data-aq="OZONE"]').tap()
+  await page.getByText('Air monitors (AirNow)').tap()
+  await page.getByRole('button', { name: 'Close layer menu' }).tap()
+  await until(() => window.__store.get().monitors.state === 'ready' && (window.__aqCircles?.discs.length ?? 0) > 0, 20000)
+  const before = await discs(page)
+  const changePlace = async (q) => {
+    await openNow(page)
+    await searchPlace(page, q)
+    await page.waitForTimeout(600)
+    await page.getByRole('dialog').getByRole('option').first().tap()
+    await until(() => !window.__store.get().pickerOpen && window.__store.get().place?.name && new RegExp(q, 'i').test(window.__store.get().place.name), 15000)
+    await openMap(page)
+    await until(() => !window.__map.isMoving() && window.__store.get().monitors.state === 'ready', 20000)
+    await page.waitForTimeout(1500)
+  }
+  await changePlace('Miami')
+  const away = await discs(page)
+  await changePlace('Johnston')
+  await until(() => (window.__aqCircles?.discs.length ?? 0) > 0, 5000)
+  const back = await discs(page)
+  const dots = await features(page)
+  check('H3: with Ozone on, Johnston → Miami → Johnston through the picker: the Iowa circles are back within 5 s of the map settling, without any zoom (dots for the Iowa sites too)', (before?.discs.length ?? 0) > 0 && (away?.discs.length ?? 0) === 0 && (back?.discs.length ?? 0) === before.discs.length && (dots ?? []).some((d) => d.id === 'mock-fresh'), `discs before ${before?.discs.length}, in Miami ${away?.discs.length}, back ${back?.discs.length}; dots ${(dots ?? []).length}`)
+  done()
+  await ctx.close()
+}
+
+// ---- 2e. H2 (the one transient found): More → Sources → "Refresh all now", back to the Map, and a dot tapped while the
+// sites reload (the service answers 2.5 s late). The dots must stay through the reload and the tap must open the monitor.
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
+  await ctx.addInitScript((u) => { try { localStorage.setItem('stormscope.monitorService', u) } catch {} }, SERVICE)
+  const page = await ctx.newPage()
+  const done = trackTraffic(page, 'monitors-check.mjs (mock)')
+  globalThis.__qaMockedRequest = () => {}
+  await installMocks(ctx, { delayHosts: { 'monitors.stormscope.test': 2500 } })
+  await page.goto(BASE, { waitUntil: 'load' })
+  await allowLocation(page)
+  const until = async (fn, ms = 30000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(100) } return false }
+  await until(() => window.__store?.get().conditions.state === 'ready')
+  await openMap(page)
+  await page.getByRole('button', { name: 'Open layer menu' }).tap()
+  await page.locator('[data-aq="OZONE"]').tap()
+  await page.getByText('Air monitors (AirNow)').tap()
+  await page.getByRole('button', { name: 'Close layer menu' }).tap()
+  await until(() => window.__store.get().monitors.state === 'ready' && window.__map.querySourceFeatures('air-monitors').length > 0, 20000)
+  await page.evaluate(() => { const s = window.__store.get().monitors.data.sites.find((x) => x.id === 'mock-stale'); window.__map.jumpTo({ center: [s.lngLat.lng, s.lngLat.lat], zoom: 12 }) })
+  await until(() => !window.__map.isMoving() && window.__store.get().monitors.state === 'ready', 15000)
+  await page.waitForTimeout(3500)
+  await openMore(page, 'Sources, freshness & settings')
+  await page.getByRole('button', { name: 'Refresh all now' }).tap()
+  await openMap(page)
+  await page.waitForTimeout(400)
+  const during = await page.evaluate(() => ({ dots: window.__map.getLayer('air-monitors') ? window.__map.querySourceFeatures('air-monitors').length : -1, state: window.__store.get().monitors.state }))
+  const pt = await page.evaluate(() => { const s = window.__store.get().monitors.data?.sites.find((x) => x.id === 'mock-stale'); if (!s) return null; const p = window.__map.project([s.lngLat.lng, s.lngLat.lat]); return { x: p.x, y: p.y } })
+  const box = await page.locator('.maplibregl-canvas').boundingBox()
+  if (pt) await page.touchscreen.tap(box.x + pt.x + FINGER.dx, box.y + pt.y + FINGER.dy)
+  await page.waitForTimeout(600)
+  const after = await page.evaluate(() => ({ kind: window.__store.get().selection?.kind ?? null, title: window.__store.get().selection?.title ?? null }))
+  check('H2 (transient): after "Refresh all now" the dots stay on the map while the sites reload, and a finger tap on a dot during the reload opens that monitor — not the map\'s point chip', during.dots > 0 && after.kind === 'station' && /Sheldahl \(mock\)/.test(after.title ?? ''), `dots during reload ${during.dots} (${during.state}); tap → ${after.kind} ${after.title ?? ''}`)
   done()
   await ctx.close()
 }

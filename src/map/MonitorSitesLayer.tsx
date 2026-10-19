@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, Map as MlMap, MapMouseEvent } from 'maplibre-gl'
-import { AIRNOW_CREDIT, fetchMonitorSites, isFresh, type MonitorParameter, type MonitorSite } from '../api/airnow'
+import { AIRNOW_CREDIT, fetchMonitorSites, isFresh, type MonitorParameter, type MonitorSite, type MonitorSitesResponse } from '../api/airnow'
 import { aqiCategory } from '../lib/aqi'
 import { describeError } from '../lib/fetch'
 import { haversine } from '../lib/geo'
@@ -107,7 +107,7 @@ export function MonitorSitesLayer() {
   const enabled = useApp((s) => s.layers.monitors || s.monitorsWanted)
   const dots = useApp((s) => s.layers.monitors)
   const nonce = useApp((s) => s.refreshNonce)
-  const cache = useRef<Map<string, { at: number; sites: MonitorSite[] }>>(new Map())
+  const cache = useRef<Map<string, { at: number; sites: MonitorSite[]; res: MonitorSitesResponse }>>(new Map())
 
   useEffect(() => {
     if (!map || !enabled) return
@@ -144,6 +144,10 @@ export function MonitorSitesLayer() {
       const key = [bbox.west, bbox.south, bbox.east, bbox.north].map((v) => (Math.round(v * 4) / 4).toFixed(2)).join(',')
       const hit = cache.current.get(key)
       if (hit && Date.now() - hit.at < CACHE_MS) {
+        // A view seen in the last 10 min: the store must get these sites too — the circles layer and the chooser read
+        // `monitors.data`, and until Oct 19 only the dots were redrawn here, so coming back to a place (Denver → Johnston)
+        // left the store on the other view's sites and the map blank until a fresh view loaded (H3).
+        setResource('monitors', ready(hit.res, AIRNOW_CREDIT, '', hit.res.fetchedAt))
         draw(hit.sites)
         return
       }
@@ -155,7 +159,7 @@ export function MonitorSitesLayer() {
       try {
         const res = await fetchMonitorSites(bbox, signal)
         if (signal.aborted) return
-        cache.current.set(key, { at: Date.now(), sites: res.sites })
+        cache.current.set(key, { at: Date.now(), sites: res.sites, res })
         setResource('monitors', ready(res, AIRNOW_CREDIT, '', res.fetchedAt))
         draw(res.sites)
       } catch (e) {
