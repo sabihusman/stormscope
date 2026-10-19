@@ -92,6 +92,40 @@ for (const vp of [{ width: 390, height: 844 }, { width: 375, height: 667 }]) {
   await ctx.close()
 }
 
+// H4 / M10 on the auditor's desktop window (894 × 625, the map beside the Now column): the (i) opens the credits from the
+// Now tab too (the panel belongs to the map's chrome, which is on screen in every tab there), and the scale bar follows
+// the unit setting (miles under Imperial, km under Metric).
+{
+  const ctx = await browser.newContext({ viewport: { width: 894, height: 625 }, geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })
+  const page = await ctx.newPage()
+  const done = trackTraffic(page, 'mapchrome-check.mjs')
+  if (MOCK) await installMocks(ctx, {})
+  await page.goto(BASE, { waitUntil: 'load' })
+  await allowLocation(page)
+  const until = async (fn, ms = 30000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(150) } return false }
+  await until(() => window.__store?.get().conditions.state === 'ready')
+  await page.waitForTimeout(800)
+  const layout = await page.evaluate(() => ({ wide: document.querySelector('.app').classList.contains('wide'), screen: window.__store.get().screen, hasI: !!document.querySelector('.map-credits-btn') }))
+  check('Desktop 894×625: the wide layout with the map (and its (i)) beside the Now tab', layout.wide && layout.screen === 'now' && layout.hasI, JSON.stringify(layout))
+  await page.locator('.map-credits-btn').click()
+  await page.waitForTimeout(500)
+  const panelText = await page.locator('.credits-panel').innerText().catch(() => '')
+  check('Clicking (i) on the Now tab opens the credits panel naming every source', CREDIT_NAMES.every((n) => panelText.includes(n)), panelText ? panelText.replace(/\n/g, ' | ').slice(0, 100) : 'no panel')
+  await page.getByRole('button', { name: 'Close credits' }).click().catch(() => {})
+  await page.waitForTimeout(400)
+  check('× closes it', (await page.locator('.credits-panel').count()) === 0)
+  const scaleImperial = await page.locator('.maplibregl-ctrl-scale').textContent().catch(() => '')
+  check('Imperial (default): the scale bar is in miles or feet', /\b(mi|ft)\b/.test(scaleImperial), scaleImperial)
+  await openMore(page, 'Sources, freshness & settings')
+  await page.getByRole('radio', { name: /Metric/ }).click()
+  await page.waitForTimeout(500)
+  const scaleMetric = await page.locator('.maplibregl-ctrl-scale').textContent().catch(() => '')
+  check('Metric: the scale bar switches to km or m at once', /\b(km|m)\b/.test(scaleMetric) && !/\b(mi|ft)\b/.test(scaleMetric), scaleMetric)
+  await page.screenshot({ path: `${OUT}/desktop-credits.png` })
+  done()
+  await ctx.close()
+}
+
 // Reduce Motion: the lift has no transition. And the More tab lists the credits.
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce', geolocation: { latitude: FOCUS.lat, longitude: FOCUS.lng }, permissions: ['geolocation'] })

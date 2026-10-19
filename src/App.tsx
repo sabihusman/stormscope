@@ -137,13 +137,14 @@ export default function App() {
           </ErrorBoundary>
           <ErrorBoundary kind="panel" name="Layer menu"><LayerFab /></ErrorBoundary>
           <ErrorBoundary kind="panel" name="Playback"><PlaybackBar /></ErrorBoundary>
+          {/* The (i) control lives on the map, so its panel lives with the map's chrome: on wide layouts the map (and the (i)) is beside every tab. */}
+          <ErrorBoundary kind="panel" name="Credits"><CreditsPanel /></ErrorBoundary>
         </>
       )}
       {screen === 'map' && !pickMode && (
         <>
           <ErrorBoundary kind="panel" name="Point"><PointChip /></ErrorBoundary>
           <ErrorBoundary kind="panel" name="Monitor chooser"><MonitorChooser /></ErrorBoundary>
-          <ErrorBoundary kind="panel" name="Credits"><CreditsPanel /></ErrorBoundary>
           {hasSelection && sheet !== 'peek' && <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>}
         </>
       )}
