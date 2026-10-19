@@ -130,10 +130,11 @@ export function condText(c: string | null | undefined): string {
   return c && !/^\s*(n\/?a|null|none|-+)?\s*$/i.test(c) ? c : 'no reading'
 }
 
-export function effectiveCondition(sample: JourneySample, road?: RoadSample): Condition {
+export function effectiveCondition(sample: JourneySample, road?: RoadSample, units: 'metric' | 'imperial' = 'imperial'): Condition {
   const c = sample.condition
   const stn = road?.station ? road.station.name.replace(/\s*\(.*\)$/, '') : ''
-  const pav = road?.station?.pavementF != null ? `, pavement ${Math.round(road.station.pavementF)} °F` : ''
+  const f = road?.station?.pavementF
+  const pav = f != null ? `, pavement ${units === 'imperial' ? `${Math.round(f)} °F` : `${Math.round(((f - 32) * 5) / 9)} °C`}` : ''
   if (road?.status === 'icy-confirmed' && road.station) {
     return { code: 'ice', label: `Icy — RWIS confirmed (${stn}${pav})`, severity: 3 }
   }

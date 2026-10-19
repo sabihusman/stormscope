@@ -47,7 +47,7 @@ export function JourneyPanel() {
   const arrival = route ? departure + route.durationS * 1000 : null
   const road = j.road.data
   const roadByIdx = new Map<number, RoadSample>((road?.samples ?? []).map((r) => [r.idx, r]))
-  const cond = (s: JourneySample) => effectiveCondition(s, roadByIdx.get(s.idx))
+  const cond = (s: JourneySample) => effectiveCondition(s, roadByIdx.get(s.idx), units)
   const worst = w ? w.samples.reduce((acc, s) => (cond(s).severity > acc.severity ? cond(s) : acc), cond(w.samples[0])) : null
 
   return (
@@ -309,6 +309,7 @@ const STATE_LABEL: Record<string, string> = { ice: 'ICE', watch: 'Watch', wet: '
 
 /** RWIS station chips + what they mean for this trip. Stale or empty sensors are "unknown", never "no ice". */
 function RoadSection({ r, replay }: { r: ReturnType<typeof store.get>['journey']['road']; replay: boolean }) {
+  const units = useApp((s) => s.units)
   const d: RoadReport | null = r.data
   const now = useNow()
   return (
@@ -331,7 +332,7 @@ function RoadSection({ r, replay }: { r: ReturnType<typeof store.get>['journey']
                   <span>
                     {st.obsTime == null
                       ? 'no observation'
-                      : `pavement ${st.pavementF != null ? Math.round(st.pavementF) + ' °F' : '—'}, ${condText(st.condition)} — ${replay ? `obs ${clock(st.obsTime)}` : st.ageMin! < 1 ? 'just now' : `${st.ageMin} min ago`}`}
+                      : `pavement ${st.pavementF != null ? U.temp(((st.pavementF - 32) * 5) / 9, units) : '—'}, ${condText(st.condition)} — ${replay ? `obs ${clock(st.obsTime)}` : st.ageMin! < 1 ? 'just now' : `${st.ageMin} min ago`}`}
                     {st.stale ? ' · stale/unknown' : ''}
                     {st.confirmsIce
                       ? ' · confirms ICY on this trip'
@@ -359,13 +360,13 @@ function RoadSection({ r, replay }: { r: ReturnType<typeof store.get>['journey']
 }
 
 export function sampleSelection(s: JourneySample, units: ReturnType<typeof store.get>['units'], road?: RoadSample) {
-  const c = effectiveCondition(s, road)
+  const c = effectiveCondition(s, road, units)
   return {
     kind: 'journey' as const,
     lngLat: s.lngLat,
     title: `${clock(s.eta)} · ${c.label}`,
     lines: [
-      ...(road?.station ? [`RWIS ${road.station.name}: ${condText(road.station.condition)}${road.station.pavementF != null ? `, pavement ${Math.round(road.station.pavementF)} °F` : ''} at ${clock(road.station.obsTime)} (${U.distance(road.station.distM, units)} from route)`] : []),
+      ...(road?.station ? [`RWIS ${road.station.name}: ${condText(road.station.condition)}${road.station.pavementF != null ? `, pavement ${U.temp(((road.station.pavementF - 32) * 5) / 9, units)}` : ''} at ${clock(road.station.obsTime)} (${U.distance(road.station.distM, units)} from route)`] : []),
       `${U.distance(s.distM, units)} into the trip · ETA ${dayClock(s.eta)}`,
       `${U.temp(s.tempC, units)} · precip ${s.precipMm != null ? U.precip(s.precipMm, units) + '/h' : '—'}${s.snowCm ? ` · snow ${s.snowCm.toFixed(1)} cm/h` : ''}`,
       `Gusts ${U.speed(s.gustKmh != null ? s.gustKmh / 3.6 : null, units)} · visibility ${U.distance(s.visibilityM, units)} · cloud ${s.cloudPct ?? '—'} %`,

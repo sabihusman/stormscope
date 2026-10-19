@@ -53,6 +53,8 @@ class CreditsControl {
 
 export function MapView({ children }: { children: ReactNode }) {
   const container = useRef<HTMLDivElement>(null)
+  const scaleRef = useRef<maplibregl.ScaleControl | null>(null)
+  const units = useApp((s) => s.units)
   const [map, setMap] = useState<MlMap | null>(null)
   const is3D = useApp((s) => s.is3D)
   const place = useApp((s) => s.place)
@@ -86,7 +88,10 @@ export function MapView({ children }: { children: ReactNode }) {
     // Debug/test handle (used by scripts/qa.mjs and scripts/e2e.mjs).
     ;(window as unknown as { __map: MlMap }).__map = m
     m.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showCompass: true }), 'top-right')
-    m.addControl(new maplibregl.ScaleControl({ maxWidth: 90 }), 'bottom-left')
+    // The scale bar follows the app's unit setting (M10: it stayed in km under Imperial).
+    const scale = new maplibregl.ScaleControl({ maxWidth: 90, unit: store.get().units === 'imperial' ? 'imperial' : 'metric' })
+    scaleRef.current = scale
+    m.addControl(scale, 'bottom-left')
     m.addControl(new CreditsControl(), 'top-right')
     // Without a listener MapLibre console.errors every failed tile/style fetch. Offline those are
     // expected (the offline banner covers it); online they're worth a warning, not an error.
@@ -189,6 +194,11 @@ export function MapView({ children }: { children: ReactNode }) {
       m.remove()
     }
   }, [])
+
+  // The scale bar follows the unit setting.
+  useEffect(() => {
+    scaleRef.current?.setUnit(units === 'imperial' ? 'imperial' : 'metric')
+  }, [units])
 
   // 2D / 3D toggle. Terrain setup (mesh + framebuffers + hillshade) is deferred past the tap's
   // own frame so the button press paints immediately and the heavy work lands in the next task.
