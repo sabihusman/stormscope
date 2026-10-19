@@ -1,5 +1,28 @@
 # Build log
 
+## Oct 19 — QA audit, batch 1 (the items whose text reached me: C1, M9, M11)
+
+The audit itself did not arrive with the message (nothing in the session's attachments, the project or Downloads), so H2, H3, H4, H5, M2 and M10 are untouched until their text is in hand. Each of the three below was reproduced on production (stormscope-two.vercel.app, Johnston) with real data through the traffic guard before anything changed.
+
+**C1 — Now tab air quality (79fc118).** Reproduced half: the Now card showed Ozone AQI 31 while the reading is 33 ppb, Smoke AQI 13 while it is 2.3 µg/m³ — the badge is the AQI, not the raw number (the mocked check has asserted 55 ≠ 59 ppb since Oct 12), so that part is not reproduced; recorded as such. The refresh: the card polled every 15 min with nothing on it saying when, so between hourly observations it read "44 min ago" and looked stuck. Now it refreshes on the map's monitor cadence (10 min, the layer's view cache) and says "checked N min ago". Test: monitors-check advances the page clock (no state set): no second request at 9 min, one at 10 min with the checked age restarting, and every badge differs from every raw value. Why the old test missed it: it loaded the card once and never let time pass, so a refresh that never came could not fail it.
+
+**M11 — gauges (bb960d2).** Reproduced: of 43 gauges around Johnston, 23 USGS-only ones were named by their id ("USGS-05485500") and 10 rows read "10897 d ago" (flows last reported in 1993–2009). Causes: the names request carried `site_type_code=ST,…`, which the OGC endpoint answers with an empty collection (probed live: 0 of 30 sites with the filter, all 30 named without it), so every USGS-only gauge fell back to its id; and USGS latest-continuous keeps the last value of discontinued series, which the app showed with its true age. Fix: names without the filter; readings older than 7 days are dropped; a USGS-only site with no recent reading is not listed (an NWPS gauge without one still shows "No recent readings"). Test: gauges-check (More → Rivers & gauges by real taps; the mock now answers the type filter with an empty collection like the real endpoint and carries a 1996 series): no id names, no reading over 7 days, the discontinued series absent, fresh ages kept — 2/5 on the old build, 5/5 on the fix. Why the old tests missed it: the mock answered the names request fully whatever the filter and served only fresh readings; the live rivers checks compare medians, not the rows a user reads.
+
+**M9 — Open-Meteo cost per action (6f1815e, `scripts/om-cost.mjs`, mocked, phone, Johnston → Ames).** Locations are the quota unit (every location in a multi-location request counts):
+
+| action | requests | locations |
+|---|---|---|
+| app load (grant location) | 1 | 1 (the place forecast: current + 48 h + 7 days) |
+| place change | 1 | 1 |
+| open Map, radar, satellite, river gauges, station, air quality, air monitors | 0 | 0 |
+| rainfall overlay (first forecast overlay on) | 2 | 98 (two 49-point blocks for the phone view) |
+| nowcast and flood overlays after that | 0 | 0 (they share the blocks) |
+| 3D terrain | 4 | 196 (the tilted view brings four more blocks into view) |
+| playback range 6 / 12 / 24 / 48 h | 0 | 0 (the blocks carry the full span) |
+| **total for the session** | **8** | **296** |
+
+Ways to cut the total by at least half (proposed, not built): (1) do not refetch blocks for the 3D tilt — keep the flat view's block set while pitched (−196 → 100, −66 %); (2) 5 × 5 blocks instead of 7 × 7 (25 instead of 49 points; the overlay grid is 0.4°, cards sample the nearest point) — halves every overlay fetch (98 → 50, 196 → 100); (3) fetch only the block under the place first and the rest only after the overlay has been on for a few seconds, so a glance costs 49, not 98; (4) a longer block refresh (30 → 60 min) halves the cost of a session that stays open. (1) alone meets the target; (1) + (2) bring the session to about 50 locations.
+
 ## Oct 19 — preview lkimt2l2p: green dry run (hourly switch, place-zone cards, mouse scrolling, event-based checks, the exit fix)
 
 Preview https://stormscope-lkimt2l2p-sabihusman-4178s-projects.vercel.app (bundle `index-DtZv8cCI.js`, commit 568a8e7). Local mocked suites 29/30 on the previous build (the pulse's 500 ms fallback removed the ring before its animation ended on a loaded machine — fixed in 568a8e7, polish-check then 16/16 twice). Mocked dry run, machine otherwise idle: prod-suite 30/30 (4638 s — the machine was slow; every suite green), walkthrough 148 s, headed playback diags 61 s / 62 s, zero live calls — GREEN, secret revoked (0 entries). Not promoted.
