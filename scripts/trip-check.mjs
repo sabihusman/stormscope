@@ -77,7 +77,7 @@ const plan = async (page, until, dest) => {
   const { ctx, page, done, hosts, until } = await session()
   await plan(page, until, 'Miami')
   const summary = await page.locator('.route-summary').innerText().catch(() => '')
-  const j = await page.evaluate(() => { const j = window.__store.get().journey; const r = j.routes.data?.routes[j.selected]; const w = j.weather.data; return { engine: j.routes.data?.engine, durationS: r?.durationS, lastEta: w?.samples.at(-1)?.eta, firstEta: w?.samples[0]?.eta, departure: j.departure, n: w?.samples.length } })
+  const j = await page.evaluate(() => { const j = window.__store.get().journey; const r = j.routes.data?.routes[j.selected]; const w = j.weather.data; return { engine: j.routes.data?.engine, durationS: r?.durationS, lastEta: w?.samples.at(-1)?.eta, firstEta: w?.samples[0]?.eta, departure: j.departure ?? (w?.samples[0]?.eta ?? Date.now()), n: w?.samples.length } })
   check('Long trip: Valhalla not asked (straight line > 1 400 km), OSRM used', (hosts['valhalla1.openstreetmap.de'] ?? 0) === 0 && (hosts['router.project-osrm.org'] ?? 0) >= 1 && j.engine === 'osrm', `valhalla ${hosts['valhalla1.openstreetmap.de'] ?? 0}, osrm ${hosts['router.project-osrm.org'] ?? 0}`)
   check('Long trip: the note says why', /Long trip: routed by OSRM/.test(summary) && /1,500 km/.test(summary), summary.split('\n').slice(0, 2).join(' | '))
   const warn = page.locator('.trip-cap-warning')
