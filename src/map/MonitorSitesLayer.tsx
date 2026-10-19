@@ -108,6 +108,10 @@ export function MonitorSitesLayer() {
   const dots = useApp((s) => s.layers.monitors)
   const nonce = useApp((s) => s.refreshNonce)
   const cache = useRef<Map<string, { at: number; sites: MonitorSite[]; res: MonitorSitesResponse }>>(new Map())
+  // "Refresh all now" reloads the sites in place: the layer, its source and the dots stay while the new answer is on its
+  // way (until Oct 19 a refresh re-created the layer with an empty source, so for the fetch's duration there were no dots
+  // to tap and a tap fell through to the map's point chip).
+  const reloadRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (!map || !enabled) return
@@ -172,6 +176,10 @@ export function MonitorSitesLayer() {
       window.clearTimeout(timer)
       timer = window.setTimeout(load, 400)
     }
+    reloadRef.current = () => {
+      cache.current.clear()
+      schedule()
+    }
     schedule()
     map.on('moveend', schedule)
     // A tap anywhere within the 44 px square around a dot opens it (a dot is 15 px wide; a fingertip is
@@ -216,7 +224,12 @@ export function MonitorSitesLayer() {
       if (map.getSource(SRC)) map.removeSource(SRC)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, enabled, nonce])
+  }, [map, enabled])
+
+  // A refresh (the nonce) reloads the data without touching the layer.
+  useEffect(() => {
+    if (nonce > 0) reloadRef.current?.()
+  }, [nonce])
 
   // The dots toggle shows / hides the dots; the data keeps loading while the circles want it.
   useEffect(() => {
