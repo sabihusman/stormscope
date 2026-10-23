@@ -39,7 +39,7 @@ const until = async (fn, ms = 30000) => { const t0 = Date.now(); while (Date.now
 await until(() => window.__store?.get().conditions.state === 'ready')
 /** The "How this is scored" details, opened (its text is hidden while closed). */
 const method = async () => { const d = page.locator('.flood-page details.method'); if (!(await d.evaluate((el) => el.open))) await d.locator('summary').click(); await page.waitForTimeout(150); return d.innerText() }
-const floodState = () => page.evaluate(() => { const s = window.__store.get(); const b = s.floodFor ? s.blocks[s.floodFor] : null; return { flood: b?.flood.state, prelim: b?.flood.data?.preliminary ?? null, cells: b?.flood.data?.cells.length ?? 0, flowlines: b?.flowlines.state, saved: b?.flowlines.data?.saved ?? null, bytes: b?.flowlines.data?.bytes ?? null, text: document.querySelector('.flood-page')?.innerText.replace(/\n/g, ' | ').slice(0, 160) ?? '' } })
+const floodState = () => page.evaluate(() => { const s = window.__store.get(); const b = s.floodFor ? s.blocks[s.floodFor] : null; return { flood: b?.flood.state, prelim: b?.flood.data?.preliminary ?? null, cells: b?.flood.data?.cells.length ?? 0, flowlines: b?.flowlines.state, saved: b?.flowlines.data?.saved ?? null, bytes: b?.flowlines.data?.bytes ?? null, text: document.querySelector('.flood-page')?.innerText.replace(/\n/g, ' | ') ?? '' } })
 
 // 1. First load: the quick estimate within a few seconds, labelled refining.
 const t0 = Date.now()
