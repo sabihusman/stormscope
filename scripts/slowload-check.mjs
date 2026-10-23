@@ -32,7 +32,8 @@ const done = trackTraffic(page, 'slowload-check.mjs (mock)')
 await installMocks(ctx, { delayHosts: { 'api.open-meteo.com': HOLD } })
 const t0 = Date.now()
 await page.goto(BASE, { waitUntil: 'load' })
-await allowLocation(page)
+// The grant is not awaited: the poll below must already be running when the card first appears.
+const granted = allowLocation(page)
 const until = async (fn, ms) => { const s = Date.now(); while (Date.now() - s < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(150) } return false }
 const note = () => page.locator('.conditions .slow-note').innerText().catch(() => '')
 // Poll from the page open: skeletons without a note first, the note at about 10 s.
@@ -47,6 +48,7 @@ while (Date.now() - t0 < 20000) {
   if (s.skel > 0 && tSkel == null) tSkel = Date.now() - t0
   await page.waitForTimeout(150)
 }
+await granted
 check('Skeletons show first, without the note', tSkel != null, tSkel != null ? `skeletons at ${(tSkel / 1000).toFixed(1)} s` : 'no skeletons seen')
 const sinceSkel = tNote - (tSkel ?? 0)
 check(`About 10 s after it started waiting the card says it is still waiting for Open-Meteo, with a Retry (${(sinceSkel / 1000).toFixed(1)} s after the skeletons)`, shown && /Still waiting for the forecast service \(Open-Meteo\)/.test(await note()) && (await page.locator('.conditions .slow-note button', { hasText: 'Retry' }).count()) === 1 && sinceSkel >= 9000 && sinceSkel <= 13000, `"${await note()}"`)
