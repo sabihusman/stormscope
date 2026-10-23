@@ -558,6 +558,21 @@ export function setUnits(units: Units) {
   }
 }
 
+/**
+ * "Forget my location and recent places": the saved place, the recent list and the first-run flag go from this
+ * device; units, layers and the other settings stay. The app returns to Now, which asks again as on a first visit.
+ */
+export function forgetPlaces() {
+  for (const k of ['stormscope.place', 'stormscope.recent', 'stormscope.geo.asked']) {
+    try {
+      localStorage.removeItem(k)
+    } catch {
+      /* ignore */
+    }
+  }
+  store.set({ place: null, placeLabel: null, focus: null, recentPlaces: [], selection: null, screen: 'now', morePage: null, journey: { ...store.get().journey, to: null, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0, gen: store.get().journey.gen + 1 } })
+}
+
 /** Persist the last place so a returning user lands where they left off. */
 export function savePlace(p: Place | null, label: string | null) {
   try {

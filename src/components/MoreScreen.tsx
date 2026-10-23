@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { useNow } from '../hooks/useMisc'
 import { Credits } from './Credits'
 import { timeAgo } from '../lib/time'
-import { store, useApp, type MorePage } from '../state/store'
+import { forgetPlaces, store, useApp, type MorePage } from '../state/store'
 import { ErrorBoundary } from './ErrorBoundary'
 import { FloodPanel, RiversPanel, SourcesPanel, StationPanel } from './Panels'
 import { PlaceRow } from './PlaceRow'
@@ -79,7 +80,36 @@ function MoreList() {
           </li>
         ))}
       </ul>
+      <ForgetRow />
     </section>
+  )
+}
+
+/** Forget the saved place and the recent places on this device, with a short confirm step. */
+function ForgetRow() {
+  const [confirming, setConfirming] = useState(false)
+  const hasAny = useApp((s) => !!s.place || s.recentPlaces.length > 0)
+  if (!hasAny) return null
+  return (
+    <div className="card forget-row" role="group" aria-label="Forget my location and recent places">
+      {confirming ? (
+        <>
+          <p className="muted">Forget the saved place and the recent places on this device? Units, layers and other settings stay. Your browser's own location permission is not changed.</p>
+          <div className="prompt-actions row">
+            <button className="btn primary" onClick={forgetPlaces}>
+              Forget
+            </button>
+            <button className="btn" onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <button className="btn ghost" onClick={() => setConfirming(true)}>
+          Forget my location and recent places
+        </button>
+      )}
+    </div>
   )
 }
 

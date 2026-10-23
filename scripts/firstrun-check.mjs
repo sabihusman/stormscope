@@ -1,7 +1,9 @@
 // First visit (fresh profile: no saved place, empty storage, location not yet granted), mocked only:
 // exactly one "Where are you?" prompt is visible on a phone and on a desktop (the dialog), the Now column's
 // own card only after the dialog is dismissed; the default units follow the device's region (en-US → °F,
-// en-CA → °C) and a Settings choice overrides that across a reload.
+// en-CA → °C) and a Settings choice overrides that across a reload; More's "Forget my location and recent places"
+// (with its confirm step) clears the saved place and the recents and brings the first-visit prompt back, leaving
+// units and layers alone.
 //   node scripts/firstrun-check.mjs [base-url] [shots-dir] [--mock]
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
@@ -75,6 +77,52 @@ for (const [locale, want] of [['en-US', { sym: '°F', units: 'imperial' }], ['en
     const after = await page.locator('.cond-temp').innerText()
     check('[en-CA] Imperial chosen in Settings overrides the region default and survives a reload', after.includes('°F') && (await page.evaluate(() => window.__store.get().units)) === 'imperial', `"${after}"`)
   }
+  done()
+  await ctx.close()
+}
+
+// ---- 8. Forget my location and recent places (More), with a confirm step ----
+{
+  // A returning user: saved place, recent places, Metric chosen, a layer choice — location permission not granted.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  // Seeded once (the init script also runs on the reload below; sessionStorage marks the first run).
+  await ctx.addInitScript(() => {
+    try {
+      if (sessionStorage.getItem('seeded')) return
+      sessionStorage.setItem('seeded', '1')
+      localStorage.setItem('stormscope.place', JSON.stringify({ name: 'Johnston, Iowa', lngLat: { lng: -93.698, lat: 41.673 }, source: 'search', label: 'Johnston, Iowa' }))
+      localStorage.setItem('stormscope.recent', JSON.stringify([{ name: 'Johnston, Iowa', lngLat: { lng: -93.698, lat: 41.673 } }, { name: 'Ames, Iowa', lngLat: { lng: -93.632, lat: 42.031 } }]))
+      localStorage.setItem('stormscope.geo.asked', '1')
+      localStorage.setItem('stormscope.units', 'metric')
+      localStorage.setItem('stormscope.layers', JSON.stringify({ radar: false, satellite: true, rainfall: false, flood: false, rivers: true, station: true, nowcast: false }))
+    } catch {}
+  })
+  const page = await ctx.newPage()
+  const done = trackTraffic(page, 'firstrun-check.mjs forget (mock)')
+  await installMocks(ctx, {})
+  await page.goto(BASE, { waitUntil: 'load' })
+  await untilReady(page)
+  check('[forget] returning user: no prompt, the saved place and two recent places are back', (await prompts(page)).length === 0 && (await page.evaluate(() => window.__store.get().recentPlaces.length)) === 2, `recents ${await page.evaluate(() => JSON.stringify(window.__store.get().recentPlaces.map((r) => r.name)))}`)
+  await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.waitForTimeout(300)
+  const btn = page.getByRole('button', { name: 'Forget my location and recent places' })
+  check('[forget] More has a "Forget my location and recent places" button', (await btn.count()) === 1)
+  await btn.click()
+  await page.waitForTimeout(200)
+  const confirm = page.getByRole('button', { name: 'Forget', exact: true })
+  check('[forget] pressing it asks to confirm first (Forget / Cancel), nothing forgotten yet', (await confirm.count()) === 1 && (await page.getByRole('button', { name: 'Cancel' }).count()) === 1 && (await page.evaluate(() => !!localStorage.getItem('stormscope.place'))), '')
+  await page.screenshot({ path: `${OUT}/forget-confirm.png` })
+  await confirm.click()
+  await page.waitForTimeout(400)
+  const cleared = await page.evaluate(() => ({ keys: ['stormscope.place', 'stormscope.recent', 'stormscope.geo.asked'].map((k) => localStorage.getItem(k)), screen: window.__store.get().screen, place: window.__store.get().place }))
+  check('[forget] confirming clears the saved place, the recents and the first-run flag and returns to Now', cleared.keys.every((v) => v === null) && cleared.screen === 'now' && cleared.place === null, JSON.stringify(cleared))
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForTimeout(1500)
+  const after = await prompts(page)
+  const state = await page.evaluate(() => ({ recents: window.__store.get().recentPlaces.length, place: window.__store.get().place, units: window.__store.get().units, layers: window.__store.get().layers, keys: ['stormscope.place', 'stormscope.recent', 'stormscope.geo.asked'].map((k) => localStorage.getItem(k)) }))
+  check('[forget] after confirming and reloading: the first-visit prompt shows and the recent list is empty', after.length === 1 && after[0] === 'dialog' && state.recents === 0 && state.place === null && state.keys.every((v) => v === null), `prompts ${JSON.stringify(after)}, recents ${state.recents}, keys ${JSON.stringify(state.keys)}`)
+  check('[forget] units and layers are unchanged (Metric, satellite on)', state.units === 'metric' && state.layers.satellite === true && state.layers.radar === false, `units ${state.units}, layers ${JSON.stringify(state.layers)}`)
+  await page.screenshot({ path: `${OUT}/forget-after.png` })
   done()
   await ctx.close()
 }

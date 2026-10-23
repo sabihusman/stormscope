@@ -2661,3 +2661,13 @@ small {
   color: #fde68a;
   font-size: 13px;
 }
+
+/* More: the forget-my-location card at the foot of the list */
+.forget-row {
+  margin: 12px 0 0;
+  padding: 12px;
+}
+.forget-row .prompt-actions.row {
+  flex-direction: row;
+  gap: 8px;
+}
