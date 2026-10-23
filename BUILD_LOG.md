@@ -1,5 +1,9 @@
 # Build log
 
+## Oct 23 — re-audit of production: the four new issues (22b16ac, 12e7b24, d9af6a0, 91afd07), preview t1tw2fzir
+
+The auditor's Oct 23 pass ran against production (bundle BdpcQM6R, Oct 19), which carries none of the round-2 fixes — every "still present" item is fixed on the previews. The four new issues, each reproduced or measured first, one commit each, the check failing before and passing after: **station cadence wording** — "Checked every 10 min…; airport stations report about once an hour" (and the air-quality card's "monitors report hourly averages once the hour ends"); **"-65 ft vs surroundings"** — checked live for Des Moines: the place cell 244 m against a 264 m window average (238–297 m) is the river valley, so the figure stands and the line now says "65 ft below the average of the surrounding 10 mi"; **gauge headline** — only reporting NOAA gauges (a reading within 24 h, in service) are counted, the Rivers page still lists the rest; **blank first load** — not reproduced; after 10 s on skeletons the conditions card now says it is waiting for Open-Meteo with a Retry. New suite slowload (40 suites). Mocked suite 39/39 locally; preview t1tw2fzir (bundle D8pdL272): dry run green (one earlier red run: the headed windows were closed mid-run and slowload timed its 10 s from the navigation instead of the card — test fixed in 06619f4 / e818a35, bundle unchanged). The push to GitHub main is still refused by the account's email-privacy setting. Not promoted.
+
 ## Oct 22–23 — QA audit, round 2 (first-load / fresh-visitor review): all ten items
 
 Each item reproduced first (live where the data mattered, otherwise in the mock the way a user hits it); one commit each; every new check fails on the build before its fix and passes after. Not promoted.
