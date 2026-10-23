@@ -7,57 +7,62 @@ export interface GeoResult {
   lngLat: LngLat
 }
 
-interface OmGeo {
-  results?: { name: string; latitude: number; longitude: number; country?: string; admin1?: string; admin2?: string }[]
+interface PhotonFeature {
+  geometry: { coordinates: [number, number] }
+  properties: { name?: string; osm_key?: string; osm_value?: string; state?: string; county?: string; country?: string; countrycode?: string }
 }
 interface NomResult {
   display_name: string
   lat: string
   lon: string
   name?: string
+  category?: string
+  type?: string
+  addresstype?: string
 }
 
+export const PHOTON_URL = 'https://photon.komoot.io/api/'
+/** Biggest first: cities, then towns, then villages (Photon's own order within each). */
+const PLACE_RANK: Record<string, number> = { city: 0, town: 1, village: 2 }
+
 /**
- * Place search: Open-Meteo geocoding (fast, cities/towns) first; Nominatim
- * (OpenStreetMap) for postcodes, addresses and anything Open-Meteo misses.
+ * Place search: cities and towns only, biggest first — no hotels, businesses or street addresses.
+ * Photon (komoot, OpenStreetMap) with a place filter: it is typo-tolerant ("Des Monies" → Des Moines), unlike the
+ * Open-Meteo geocoder (which also matched towns by old alternate names: Willard OH for "Chicago"). A query with
+ * digits is a postcode: Nominatim answers those, settlements only.
  */
 export async function searchPlaces(q: string, signal?: AbortSignal): Promise<GeoResult[]> {
   const query = q.trim()
   if (!query) return []
-  const out: GeoResult[] = []
   const looksLikePostcode = /\d/.test(query) && query.length <= 12
-  if (!looksLikePostcode) {
-    try {
-      const j = await fetchJSON<OmGeo>(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=en&format=json`,
-        { signal, timeoutMs: 8000 },
-      )
-      for (const r of j.results ?? [])
-        out.push({
-          name: r.name,
-          detail: [r.admin1, r.country].filter(Boolean).join(', '),
-          lngLat: { lng: r.longitude, lat: r.latitude },
-        })
-    } catch {
-      /* fall through to Nominatim */
-    }
+  if (looksLikePostcode) return searchPostcode(query, signal)
+  const url = `${PHOTON_URL}?q=${encodeURIComponent(query)}&limit=10&lang=en&osm_tag=place:city&osm_tag=place:town&osm_tag=place:village`
+  const j = await fetchJSON<{ features?: PhotonFeature[] }>(url, { signal, timeoutMs: 8000 })
+  const out: GeoResult[] = []
+  for (const f of j.features ?? []) {
+    const p = f.properties
+    if (!p.name || !f.geometry?.coordinates) continue
+    const lngLat = { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }
+    if (out.some((o) => o.name === p.name && Math.abs(o.lngLat.lat - lngLat.lat) < 0.02 && Math.abs(o.lngLat.lng - lngLat.lng) < 0.02)) continue
+    out.push({ name: p.name, detail: [p.state, p.country].filter(Boolean).join(', '), lngLat, rank: PLACE_RANK[p.osm_value ?? ''] ?? 3 } as GeoResult & { rank: number })
   }
-  if (out.length < 3) {
-    try {
-      const j = await fetchJSON<NomResult[]>(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=jsonv2&limit=6&addressdetails=0`,
-        { signal, timeoutMs: 10_000, headers: { Accept: 'application/json' } },
-      )
-      for (const r of j) {
-        const parts = r.display_name.split(', ')
-        const name = r.name || parts[0]
-        const lngLat = { lng: parseFloat(r.lon), lat: parseFloat(r.lat) }
-        if (out.some((o) => Math.abs(o.lngLat.lat - lngLat.lat) < 0.01 && Math.abs(o.lngLat.lng - lngLat.lng) < 0.01)) continue
-        out.push({ name, detail: parts.slice(1, 4).join(', '), lngLat })
-      }
-    } catch {
-      /* both failed: return what we have */
-    }
+  return (out as (GeoResult & { rank: number })[])
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 8)
+    .map(({ rank: _rank, ...r }) => r)
+}
+
+/** Postcodes via Nominatim: the postcode area or the settlement it belongs to, never a business or an address. */
+async function searchPostcode(query: string, signal?: AbortSignal): Promise<GeoResult[]> {
+  const j = await fetchJSON<NomResult[]>(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=jsonv2&limit=6&addressdetails=0`, { signal, timeoutMs: 10_000, headers: { Accept: 'application/json' } }).catch(() => [] as NomResult[])
+  const out: GeoResult[] = []
+  for (const r of j) {
+    if (r.category && !['place', 'boundary'].includes(r.category)) continue
+    const parts = r.display_name.split(', ')
+    const name = r.name || parts[0]
+    const lngLat = { lng: parseFloat(r.lon), lat: parseFloat(r.lat) }
+    if (out.some((o) => Math.abs(o.lngLat.lat - lngLat.lat) < 0.01 && Math.abs(o.lngLat.lng - lngLat.lng) < 0.01)) continue
+    out.push({ name, detail: parts.slice(1, 4).join(', '), lngLat })
   }
   return out.slice(0, 8)
 }

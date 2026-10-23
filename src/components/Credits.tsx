@@ -7,13 +7,14 @@ export const CREDITS: { what: string; who: string; url: string; note?: string }[
   { what: 'Terrain', who: 'Terrain Tiles (AWS Open Data)', url: 'https://registry.opendata.aws/terrain-tiles/' },
   { what: 'Radar', who: 'RainViewer', url: 'https://www.rainviewer.com/' },
   { what: 'Satellite', who: 'NASA GIBS / NOAA GOES', url: 'https://earthdata.nasa.gov/gibs' },
-  { what: 'Forecasts, conditions, place search', who: 'Open-Meteo', url: 'https://open-meteo.com/', note: 'CC BY 4.0' },
+  { what: 'Forecasts and conditions', who: 'Open-Meteo', url: 'https://open-meteo.com/', note: 'CC BY 4.0' },
   { what: 'Alerts and station observations', who: 'NOAA National Weather Service', url: 'https://www.weather.gov/' },
   { what: 'River gauges and forecasts', who: 'USGS Water Data · NOAA National Water Prediction Service', url: 'https://water.noaa.gov/' },
   { what: 'Air quality', who: 'EPA AirNow and the reporting air quality agencies', url: 'https://www.airnow.gov/', note: 'preliminary data, not fully verified' },
   { what: 'Road weather', who: 'Iowa DOT RWIS via the Iowa Environmental Mesonet', url: 'https://mesonet.agron.iastate.edu/' },
   { what: 'Routing', who: 'Valhalla (FOSSGIS) · OSRM', url: 'https://www.openstreetmap.org/copyright', note: 'routing data © OpenStreetMap contributors' },
-  { what: 'Address lookup', who: 'Nominatim', url: 'https://nominatim.org/', note: '© OpenStreetMap contributors' },
+  { what: 'Place search', who: 'Photon (komoot)', url: 'https://photon.komoot.io/', note: '© OpenStreetMap contributors' },
+  { what: 'Postcodes and place names', who: 'Nominatim', url: 'https://nominatim.org/', note: '© OpenStreetMap contributors' },
   { what: 'Map rendering', who: 'MapLibre GL JS', url: 'https://maplibre.org/' },
 ]
 

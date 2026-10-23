@@ -321,8 +321,34 @@ const PLACES = [
   { re: /miami/i, name: 'Miami', latitude: 25.7617, longitude: -80.1918, admin1: 'Florida', admin2: 'Miami-Dade County' },
 ]
 function geocode(q) {
-  const p = PLACES.find((x) => x.re.test(q)) ?? { name: 'Iowa City', latitude: 41.6611, longitude: -91.5302, admin2: 'Johnson County' }
-  return { name: p.name, latitude: p.latitude, longitude: p.longitude, country: 'United States', admin1: p.admin1 ?? 'Iowa', admin2: p.admin2 }
+  // As the real Open-Meteo geocoder answered "Chicago" on Oct 22, 2026: towns matched by old alternate names come along.
+  if (/^chicago$/i.test(q.trim())) return [{ name: 'Chicago', latitude: 41.85, longitude: -87.65, country: 'United States', admin1: 'Illinois', feature_code: 'PPLA2', population: 2664452 }, { name: 'Willard', latitude: 41.0531, longitude: -82.7263, country: 'United States', admin1: 'Ohio', feature_code: 'PPL', population: 6063 }, { name: 'Craigmont', latitude: 46.2446, longitude: -116.4738, country: 'United States', admin1: 'Idaho', feature_code: 'PPL', population: 493 }, { name: 'Saint Francis', latitude: 37.5542, longitude: -85.4894, country: 'United States', admin1: 'Kentucky', feature_code: 'PPL' }]
+  const p = PLACES.find((x) => x.re.test(q)) ?? (/monies|plork/i.test(q) ? null : { name: 'Iowa City', latitude: 41.6611, longitude: -91.5302, admin2: 'Johnson County' })
+  return p ? [{ name: p.name, latitude: p.latitude, longitude: p.longitude, country: 'United States', admin1: p.admin1 ?? 'Iowa', admin2: p.admin2 }] : []
+}
+// Photon (komoot): typo-tolerant place search with a city/town/village filter. The mock matches a place when the
+// query is a prefix of its name or within two edits of it; cities first, like the real ranking.
+const PHOTON_PLACES = [
+  { name: 'Chicago', state: 'Illinois', kind: 'city', lat: 41.8755, lng: -87.6244 },
+  { name: 'Chicago Heights', state: 'Illinois', kind: 'town', lat: 41.5061, lng: -87.6356 },
+  { name: 'North Chicago', state: 'Illinois', kind: 'town', lat: 42.3256, lng: -87.8412 },
+  { name: 'Des Moines', state: 'Iowa', kind: 'city', lat: 41.5868, lng: -93.625 },
+  { name: 'West Des Moines', state: 'Iowa', kind: 'city', lat: 41.5772, lng: -93.7113 },
+  ...PLACES.map((p) => ({ name: p.name, state: p.admin1 ?? 'Iowa', kind: 'city', lat: p.latitude, lng: p.longitude })),
+  { name: 'Iowa City', state: 'Iowa', kind: 'city', lat: 41.6611, lng: -91.5302 },
+]
+function edits(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
+  for (let j = 1; j <= b.length; j++) d[0][j] = j
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+  return d[a.length][b.length]
+}
+function photon(url) {
+  const q = (new URL(url).searchParams.get('q') ?? '').trim().toLowerCase()
+  const rank = { city: 0, town: 1, village: 2 }
+  const hits = PHOTON_PLACES.filter((p) => { const n = p.name.toLowerCase(); return n.startsWith(q) || n.includes(q) || edits(n, q) <= 2 || n.split(' ').some((w) => edits(w, q) <= 1) }).sort((a, b) => rank[a.kind] - rank[b.kind])
+  const seen = new Set()
+  return { type: 'FeatureCollection', features: hits.filter((p) => !seen.has(p.name) && seen.add(p.name)).map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: { name: p.name, osm_key: 'place', osm_value: p.kind, state: p.state, country: 'United States', countrycode: 'US', type: 'city' } })) }
 }
 function nwps(url, focus) {
   const u = new URL(url)
@@ -512,8 +538,10 @@ export async function installMocks(context, { har = null, record = false, focus 
       if (/open-meteo\.com\/v1\/(forecast|era5)/.test(url)) return route.fulfill(json(openMeteo(url)))
       if (host === 'archive-api.open-meteo.com' || host === 'historical-forecast-api.open-meteo.com') return route.fulfill(json(openMeteo(url)))
       if (host === 'monitors.stormscope.test') return route.fulfill(json(monitorSites(url, focus)))
-      if (host === 'geocoding-api.open-meteo.com') return route.fulfill(json({ results: [geocode(new URL(url).searchParams.get('name') ?? '')] }))
-      if (host === 'nominatim.openstreetmap.org') return route.fulfill(json(url.includes('/reverse') ? { name: 'Johnston', display_name: 'Johnston, Polk County, Iowa, United States', address: { city: 'Johnston', state: 'Iowa', country: 'United States' } } : []))
+      if (host === 'geocoding-api.open-meteo.com') return route.fulfill(json({ results: geocode(new URL(url).searchParams.get('name') ?? '') }))
+      if (host === 'photon.komoot.io') return route.fulfill(json(photon(url)))
+      // Nominatim's text search as it really answered "Des Monies" (a hotel, nothing else); every other query empty.
+      if (host === 'nominatim.openstreetmap.org') return route.fulfill(json(url.includes('/reverse') ? { name: 'Johnston', display_name: 'Johnston, Polk County, Iowa, United States', address: { city: 'Johnston', state: 'Iowa', country: 'United States' } } : /monies/i.test(decodeURIComponent(url)) ? [{ display_name: 'Homewood Suites by Hilton Urbandale Des Monies, 8901, Plum Drive, Highland Pointe, Urbandale, Polk County, Iowa, 50322, United States', name: 'Homewood Suites by Hilton Urbandale Des Monies', lat: '41.6303', lon: '-93.7807', category: 'tourism', type: 'hotel', addresstype: 'tourism' }] : []))
       if (host === 'api.rainviewer.com') return route.fulfill(json(rainviewer()))
       if (host === 'tilecache.rainviewer.com') return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=600' }, body: radarTile() })
       if (host === 'api.weather.gov' || host === 'alerts.weather.gov') return route.fulfill(json(nws(url, focus, alerts)))

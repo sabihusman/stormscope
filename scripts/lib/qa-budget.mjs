@@ -51,7 +51,8 @@ export const HOST_CAPS = {
   'api.open-meteo.com': 60, // Oct 9: pwa 5 + flows 9 + nonus 3 + satellite 1 + rivers 1 + journey 4 + hazards 11 + road 6 (+7 blocked) = 47
   'archive-api.open-meteo.com': 5, // replays are cached; only re-recording calls this
   'historical-forecast-api.open-meteo.com': 5,
-  'geocoding-api.open-meteo.com': 10, // flows 1 + nonus 1 + journey 1
+  'geocoding-api.open-meteo.com': 10, // (no longer used by the app's search; kept for probes)
+  'photon.komoot.io': 15, // place search: flows 2 + journey 1 + search probes
   'api.waterdata.usgs.gov': 50, // rivers-check's Node-side comparisons 27 + 3 per Rivers page open (2 opens)
   'api.water.noaa.gov': 85, // Oct 9: pwa 3 + flows 24 + satellite 1 + rivers 21 + journey 1 + hazards 8 + road 2 (+5 blocked) = 65
   'api.weather.gov': 110, // Oct 9: pwa 14 + flows 23 + satellite 4 + rivers 4 + journey 7 + hazards 23 + road 12 = 87
