@@ -214,8 +214,10 @@ export function FloodPanel() {
               <div className="cond-text">
                 <strong>at {name}</strong>
                 <span className="muted">
-                  {U.precip(here.rain24, units)} rain next {d!.horizonHours} h · {here.relElevation <= -2 ? 'low ground' : here.relElevation >= 2 ? 'high ground' : 'level ground'} ({here.relElevation >= 0 ? '+' : ''}
-                  {U.height(here.relElevation, units)} vs surroundings)
+                  {U.precip(here.rain24, units)} rain next {d!.horizonHours} h ·{' '}
+                  {Math.abs(here.relElevation) < 2
+                    ? `level with the surrounding ${U.distance(16_100, units)}`
+                    : `${here.relElevation < 0 ? 'low ground' : 'high ground'}: ${U.height(Math.abs(here.relElevation), units)} ${here.relElevation < 0 ? 'below' : 'above'} the average of the surrounding ${U.distance(16_100, units)}`}
                   {here.drainageDistM != null ? ` · ${U.distance(here.drainageDistM, units)} to a mapped stream` : ''}
                 </span>
               </div>
