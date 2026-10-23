@@ -36,17 +36,20 @@ await allowLocation(page)
 const until = async (fn, ms) => { const s = Date.now(); while (Date.now() - s < ms) { if (await page.evaluate(fn).catch(() => false)) return true; await page.waitForTimeout(150) } return false }
 const note = () => page.locator('.conditions .slow-note').innerText().catch(() => '')
 // Poll from the page open: skeletons without a note first, the note at about 10 s.
-let skeletonsFirst = false
+// The 10 s count from the moment the card starts waiting (its skeletons appear), not from the navigation: on a
+// deployed preview the page itself takes a few seconds longer to open than locally.
+let tSkel = null
 let shown = false
 let tNote = 0
-while (Date.now() - t0 < 14000) {
+while (Date.now() - t0 < 20000) {
   const s = await page.evaluate(() => ({ skel: document.querySelectorAll('.conditions .skeleton').length, note: !!document.querySelector('.conditions .slow-note') })).catch(() => ({ skel: 0, note: false }))
   if (s.note) { shown = true; tNote = Date.now() - t0; break }
-  if (s.skel > 0) skeletonsFirst = true
+  if (s.skel > 0 && tSkel == null) tSkel = Date.now() - t0
   await page.waitForTimeout(150)
 }
-check('Skeletons show first, without the note', skeletonsFirst, '')
-check(`After about 10 s the card says it is still waiting for Open-Meteo, with a Retry (${(tNote / 1000).toFixed(1)} s)`, shown && /Still waiting for the forecast service \(Open-Meteo\)/.test(await note()) && (await page.locator('.conditions .slow-note button', { hasText: 'Retry' }).count()) === 1 && tNote >= 9000 && tNote <= 13000, `"${await note()}"`)
+check('Skeletons show first, without the note', tSkel != null, tSkel != null ? `skeletons at ${(tSkel / 1000).toFixed(1)} s` : 'no skeletons seen')
+const sinceSkel = tNote - (tSkel ?? 0)
+check(`About 10 s after it started waiting the card says it is still waiting for Open-Meteo, with a Retry (${(sinceSkel / 1000).toFixed(1)} s after the skeletons)`, shown && /Still waiting for the forecast service \(Open-Meteo\)/.test(await note()) && (await page.locator('.conditions .slow-note button', { hasText: 'Retry' }).count()) === 1 && sinceSkel >= 9000 && sinceSkel <= 13000, `"${await note()}"`)
 await page.screenshot({ path: `${OUT}/waiting.png` })
 const landed = await until(() => window.__store.get().conditions.state === 'ready', HOLD + 10000)
 await page.waitForTimeout(300)
