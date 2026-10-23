@@ -12,8 +12,21 @@ export const defaultUnits = (): Units => {
   } catch {
     /* ignore */
   }
-  // US-only data sources (NWS, NWPS/USGS, RWIS): °F, mph, in, mi by default; a Settings choice (above) wins once made.
-  return 'imperial'
+  // First visit: the device's region decides — US → °F, mph, in, mi; everywhere else → °C, km/h, mm, km.
+  // A Settings choice (above) wins once made and is remembered.
+  return deviceRegion() === 'US' ? 'imperial' : 'metric'
+}
+
+/** The device's region from its language setting ("en-US" → "US"; a bare "en" resolves to US, "fr" to FR). */
+export function deviceRegion(): string | null {
+  try {
+    const tag = navigator.language || Intl.DateTimeFormat().resolvedOptions().locale
+    if (!tag) return null
+    const loc = new Intl.Locale(tag)
+    return loc.region ?? loc.maximize().region ?? null
+  } catch {
+    return null
+  }
 }
 
 const fmt = (v: number, digits: number) => v.toFixed(digits)
