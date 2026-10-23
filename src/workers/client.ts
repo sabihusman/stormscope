@@ -66,8 +66,8 @@ function call<T>(req: Req): Promise<T> {
 }
 
 export const geoWorker = {
-  flood: (grid: HourlyGrid, flowlines: Flowline[] | null, horizonHours: number, n: number, terrainZoom: number) =>
-    call<FloodResult>({ type: 'flood', grid, flowlines, horizonHours, n, terrainZoom }),
+  flood: (grid: HourlyGrid, flowlines: Flowline[] | null, horizonHours: number, n: number, terrainZoom: number, terrain = true) =>
+    call<FloodResult>({ type: 'flood', grid, flowlines, horizonHours, n, terrainZoom, terrain }),
   rainfallCells: (grid: HourlyGrid) => call<RainfallCellsResult>({ type: 'rainfallCells', grid }),
   nowcast: (grid: HourlyGrid, n: number, t0: number) =>
     call<NowcastResult>({ type: 'nowcast', grid, frameMinutes: NOWCAST_FRAME_MIN, hours: NOWCAST_HOURS, n, t0 }),

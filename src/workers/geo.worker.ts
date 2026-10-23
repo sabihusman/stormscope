@@ -16,7 +16,7 @@ import type { FloodCell, FloodResult, HourlyGrid } from '../types'
 import type { Flowline } from '../api/nhd'
 
 export type WorkerRequest =
-  | { id: number; type: 'flood'; grid: HourlyGrid; flowlines: Flowline[] | null; horizonHours: number; n: number; terrainZoom: number }
+  | { id: number; type: 'flood'; grid: HourlyGrid; flowlines: Flowline[] | null; horizonHours: number; n: number; terrainZoom: number; terrain?: boolean }
   | { id: number; type: 'rainfallCells'; grid: HourlyGrid }
   | { id: number; type: 'nowcast'; grid: HourlyGrid; frameMinutes: number; hours: number; n: number; t0: number }
 
@@ -111,7 +111,7 @@ async function sampleElevation(p: LngLat, z: number): Promise<number> {
 // ---------------------------------------------------------------------------
 // Flood risk
 // ---------------------------------------------------------------------------
-async function computeFlood(grid: HourlyGrid, flowlines: Flowline[] | null, horizonHours: number, n: number, terrainZoom: number): Promise<FloodResult> {
+async function computeFlood(grid: HourlyGrid, flowlines: Flowline[] | null, horizonHours: number, n: number, terrainZoom: number, terrain = true): Promise<FloodResult> {
   const sample = makeSampler(grid)
   const nowIdx = Math.max(0, grid.times.findIndex((t) => t > Date.now()) - 1)
   const endIdx = nowIdx + horizonHours
@@ -132,12 +132,13 @@ async function computeFlood(grid: HourlyGrid, flowlines: Flowline[] | null, hori
   const elev = new Float32Array(n * n)
   const tl = lngLatToTile(grid.spec.bbox.west, grid.spec.bbox.north, terrainZoom)
   const br = lngLatToTile(grid.spec.bbox.east, grid.spec.bbox.south, terrainZoom)
+  // The quick pass (terrain = false, while the drainage data loads) skips the tiles: model elevation only.
   const prefetch: Promise<unknown>[] = []
-  for (let x = tl.x; x <= br.x; x++) for (let y = tl.y; y <= br.y; y++) prefetch.push(loadTile(x, y, terrainZoom))
+  if (terrain) for (let x = tl.x; x <= br.x; x++) for (let y = tl.y; y <= br.y; y++) prefetch.push(loadTile(x, y, terrainZoom))
   await Promise.all(prefetch)
   let missing = 0
   for (let i = 0; i < centers.length; i++) {
-    const e = await sampleElevation(centers[i], terrainZoom)
+    const e = terrain ? await sampleElevation(centers[i], terrainZoom) : NaN
     if (Number.isFinite(e)) elev[i] = e
     else {
       elev[i] = NaN
@@ -344,7 +345,7 @@ self.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
   const msg = ev.data
   try {
     let result: unknown
-    if (msg.type === 'flood') result = await computeFlood(msg.grid, msg.flowlines, msg.horizonHours, msg.n, msg.terrainZoom)
+    if (msg.type === 'flood') result = await computeFlood(msg.grid, msg.flowlines, msg.horizonHours, msg.n, msg.terrainZoom, msg.terrain ?? true)
     else if (msg.type === 'rainfallCells') result = rainfallCells(msg.grid)
     else if (msg.type === 'nowcast') result = nowcast(msg.grid, msg.frameMinutes, msg.hours, msg.n, msg.t0)
     const res: WorkerResponse = { id: msg.id, ok: true, result }

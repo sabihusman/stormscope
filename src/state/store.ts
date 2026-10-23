@@ -83,7 +83,8 @@ export interface Block {
   id: BlockId
   bbox: BBox
   grid: Resource<HourlyGrid>
-  flowlines: Resource<{ lines: Flowline[]; truncated: boolean } | null>
+  /** USGS NHD drainage for the block; `saved` = served from the device's 30-day store (no request), with its size. */
+  flowlines: Resource<{ lines: Flowline[]; truncated: boolean; saved?: boolean; bytes?: number } | null>
   rainCells: Resource<RainfallCellsResult>
   flood: Resource<FloodResult>
   nowcast: Resource<NowcastResult>

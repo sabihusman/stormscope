@@ -72,6 +72,7 @@ const SUITES = [
   { name: 'playlabel', script: 'playlabel-check.mjs' },
   { name: 'observed', script: 'observed-check.mjs' },
   { name: 'search', script: 'search-check.mjs' },
+  { name: 'floodquick', script: 'floodquick-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'nowmap', script: 'nowmap-check.mjs' },
   { name: 'polish', script: 'polish-check.mjs' },

@@ -4,6 +4,7 @@ import { fetchSatFrames, GIBS_WMTS, SAT_LAYERS, satelliteFor } from '../api/gibs
 import { fetchHourlyGrid, fetchOpenMeteoCurrent, fetchPlaceForecast, OPEN_METEO_URL } from '../api/openMeteo'
 import { AIRNOW_CREDIT, fetchMonitorSites } from '../api/airnow'
 import { fetchFlowlines, NHD_URL } from '../api/nhd'
+import { loadDrainage, saveDrainage } from '../lib/drainageStore'
 import { fetchNwpsDetails, fetchNwpsGauges, NWPS_URL, nwpsValid, type NwpsGaugeDetail, type NwpsGaugeSummary } from '../api/nwps'
 import { fetchUsgsLatest, fetchUsgsNames, fetchUsgsRecentMedianFlow, USGS_OGC, type UsgsLatest } from '../api/usgsWater'
 import { fetchActiveAlerts, fetchNwsNearestObservation, NWS_URL, OutsideNwsCoverage } from '../api/nws'
@@ -342,8 +343,15 @@ export function DataController() {
     inflight.current.add(tag)
     updateBlock(b.key, (cur) => ({ flowlines: loading(cur.flowlines) }))
     try {
+      // Saved on this device from an earlier load (30 days): no request at all.
+      const saved = await loadDrainage(b.key)
+      if (saved) {
+        updateBlock(b.key, { flowlines: ready({ lines: saved.lines, truncated: saved.truncated, saved: true, bytes: saved.bytes }, 'USGS NHD flowlines (saved on this device)', NHD_URL, saved.at) })
+        return
+      }
       const r = await withSlot(nhdQueue.current, NHD_CONCURRENCY, () => fetchFlowlines(b.bbox))
-      updateBlock(b.key, { flowlines: ready(r, 'USGS NHD flowlines', NHD_URL) })
+      const row = await saveDrainage(b.key, r.lines, r.truncated)
+      updateBlock(b.key, { flowlines: ready({ ...r, saved: false, bytes: row?.bytes }, 'USGS NHD flowlines', NHD_URL) })
     } catch (e) {
       updateBlock(b.key, (cur) => ({ flowlines: { ...failed(cur.flowlines, e), data: null, state: 'ready' } }))
     } finally {
@@ -420,14 +428,34 @@ export function DataController() {
     }
 
     if (s.layers.flood || key === s.floodFor) {
-      await ensureFlowlines(b)
+      const horizon = Math.min(s.rainHorizon, 48)
+      const flowlinesDone = ensureFlowlines(b)
+      // While the drainage data is still loading (a live NHD query took 12–31 s), a quick rain-only pass (model
+      // elevation, no terrain tiles, no drainage) shows the level at once, marked preliminary; the full pass replaces it.
+      const pre = store.get().blocks[key]
+      if (pre && pre.flowlines.state === 'loading' && (!pre.flood.data || pre.flood.data.horizonHours !== horizon || (pre.flood.freshness?.fetchedAt ?? 0) < gridAt)) {
+        const qtag = `${key}:flood-quick`
+        if (!inflight.current.has(qtag)) {
+          inflight.current.add(qtag)
+          updateBlock(key, (c) => ({ flood: loading(c.flood) }))
+          await geoWorker
+            .flood(grid, null, horizon, FLOOD_N[b.id.level], TERRAIN_Z[b.id.level], false)
+            .then((r) => {
+              // Only while the full pass has not landed meanwhile.
+              const now = store.get().blocks[key]
+              if (now && now.flowlines.state === 'loading') updateBlock(key, { flood: ready({ ...r, preliminary: true }, 'Derived: Open-Meteo rain + model elevation (quick pass, refining)', OPEN_METEO_URL, r.computedAt) })
+            })
+            .catch(() => {})
+            .finally(() => inflight.current.delete(qtag))
+        }
+      }
+      await flowlinesDone
       const cur = store.get().blocks[key]
       const fl = cur?.flowlines
       if (cur && fl && fl.state !== 'loading') {
-        const horizon = Math.min(s.rainHorizon, 48)
         const flAt = fl.freshness?.fetchedAt ?? 0
         const needs =
-          !cur.flood.data || cur.flood.data.horizonHours !== horizon || (cur.flood.freshness?.fetchedAt ?? 0) < Math.max(gridAt, flAt)
+          !cur.flood.data || cur.flood.data.preliminary || cur.flood.data.horizonHours !== horizon || (cur.flood.freshness?.fetchedAt ?? 0) < Math.max(gridAt, flAt)
         const tag = `${key}:flood`
         if (needs && !inflight.current.has(tag)) {
           inflight.current.add(tag)

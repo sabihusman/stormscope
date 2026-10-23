@@ -486,7 +486,7 @@ function Tiles() {
   }, [floodKey])
   const here = place ? floodHere(flood, place.lngLat) : null
   const placeName = (label ?? place?.name ?? '').split(',')[0]
-  const floodLine = here ? `${riskWord(here.risk)} at ${placeName}` : flood?.error ? flood.error : flood && flood.state === 'loading' ? 'computing…' : 'Check flood risk ›'
+  const floodLine = here ? `${riskWord(here.risk)} at ${placeName}${flood?.data?.preliminary ? ' · refining…' : ''}` : flood?.error ? flood.error : flood && flood.state === 'loading' ? 'computing…' : 'Check flood risk ›'
   // The tile counts the NOAA forecast points whatever tier is loaded (the Rivers page adds the USGS-only sites to
   // its list): the same count and wording on every load, before and after that page.
   const noaa = rivers.data?.filter((g) => !!g.lid) ?? null

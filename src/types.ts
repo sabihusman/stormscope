@@ -119,6 +119,8 @@ export interface FloodResult {
   flowlineCount: number
   computedAt: number
   horizonHours: number
+  /** The quick rain-only pass shown while the drainage data loads ("refining…"); the full pass replaces it. */
+  preliminary?: boolean
 }
 
 // ---- Place forecast (the Now screen) ----

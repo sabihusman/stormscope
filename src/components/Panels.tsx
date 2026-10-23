@@ -222,7 +222,7 @@ export function FloodPanel() {
             </div>
             <small className="muted cond-foot">
               Indicative screening, not an official flood warning · computed {timeAgo(d!.computedAt, now)}
-              {d!.drainageAvailable ? '' : ' · drainage not available here — terrain + rain only'}
+              {d!.preliminary ? ' · refining… (rain only while the terrain and drainage data load)' : d!.drainageAvailable ? '' : ' · drainage not available here — terrain + rain only'}
             </small>
           </div>
           <div className="segmented small" role="radiogroup" aria-label="Rain horizon">
@@ -252,6 +252,7 @@ export function FloodPanel() {
             <p className="muted">
               Cells of ≈{U.distance(2300, units)} from: forecast rainfall over the horizon (Open-Meteo), elevation relative to the surroundings (AWS terrain tiles) and geodesic distance to mapped drainage (
               {d!.drainageAvailable ? `${d!.flowlineCount} USGS NHD flowlines` : 'not available here — terrain + rain only'}). Rain gates everything; terrain and drainage modulate it. The horizon follows the Rain timeline.
+              {block?.flowlines.data?.bytes != null ? ` Drainage for this place is saved on this device (${Math.max(1, Math.round(block.flowlines.data.bytes / 1024))} KB, kept 30 days${block.flowlines.data.saved ? ', used on this load' : ''}).` : ''}
             </p>
           </details>
         </>
