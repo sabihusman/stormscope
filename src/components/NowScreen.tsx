@@ -429,7 +429,6 @@ function MapWindow() {
 
 function Tiles() {
   const rivers = useApp((s) => s.rivers)
-  const tier = useApp((s) => s.riversTier)
   const station = useApp((s) => s.station)
   const units = useApp((s) => s.units)
   const now = useNow()
@@ -487,13 +486,15 @@ function Tiles() {
   const here = place ? floodHere(flood, place.lngLat) : null
   const placeName = (label ?? place?.name ?? '').split(',')[0]
   const floodLine = here ? `${riskWord(here.risk)} at ${placeName}` : flood?.error ? flood.error : flood && flood.state === 'loading' ? 'computing…' : 'Check flood risk ›'
-  const high = rivers.data?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
-  const what = tier === 'full' ? 'gauges' : 'NOAA gauges'
-  const riversLine = rivers.data
-    ? rivers.data.length
+  // The tile counts the NOAA forecast points whatever tier is loaded (the Rivers page adds the USGS-only sites to
+  // its list): the same count and wording on every load, before and after that page.
+  const noaa = rivers.data?.filter((g) => !!g.lid) ?? null
+  const high = noaa?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
+  const riversLine = noaa
+    ? noaa.length
       ? high
-        ? `${high} of ${rivers.data.length} ${what} high`
-        : `${rivers.data.length} ${what}, none high`
+        ? `${high} of ${noaa.length} NOAA gauges high`
+        : `${noaa.length} NOAA gauges, none high`
       : (rivers.error ?? 'no gauges nearby')
     : rivers.state === 'loading'
       ? 'loading…'

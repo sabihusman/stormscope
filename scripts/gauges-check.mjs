@@ -6,7 +6,7 @@ import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
-import { allowLocation, openMore } from './lib/ui.mjs'
+import { allowLocation, openMore, openNow } from './lib/ui.mjs'
 
 const argv = process.argv.slice(2)
 const MOCK = argv.includes('--mock')
@@ -51,6 +51,36 @@ check('The discontinued series (last value 1996) is not listed as a gauge at all
 const anyAge = rows.filter((r) => /(min|h) ago/.test(r.text)).length
 check('Fresh readings still show their stage or flow with an age in minutes or hours', anyAge >= 3, `${anyAge} rows with a recent age`)
 await page.screenshot({ path: `${OUT}/gauges.png` })
+
+// The Now tile's gauge count and wording: the same on every load of the same place (same mocked data), and the
+// same before and after the Rivers page has been opened — never "1 of 20 NOAA gauges" on one load and "1 of 43 gauges" on another.
+const tileText = async () => {
+  await openNow(page)
+  await page.locator('.tiles').scrollIntoViewIfNeeded()
+  await until(() => { const s = window.__store.get(); return s.rivers.state === 'ready' || !!s.rivers.error }, 20000)
+  await page.waitForTimeout(400)
+  return (await page.locator('.tiles .tile').first().innerText()).replace(/\n/g, ' | ')
+}
+const moreRow = async () => {
+  await openMore(page)
+  return (await page.getByRole('button', { name: /^Rivers & gauges/ }).innerText()).replace(/\n/g, ' | ')
+}
+const seen = [{ when: 'load 1, after the Rivers page', tile: await tileText(), more: await moreRow() }]
+for (let i = 2; i <= 3; i++) {
+  await page.goto(BASE, { waitUntil: 'load' })
+  await allowLocation(page)
+  await until(() => window.__store?.get().conditions.state === 'ready')
+  seen.push({ when: `load ${i}`, tile: await tileText(), more: await moreRow() })
+  if (i === 2) {
+    await openMore(page, 'Rivers & gauges')
+    await until(() => window.__store.get().rivers.state === 'ready' && window.__store.get().riversTier === 'full', 30000)
+    seen.push({ when: 'load 2, after the Rivers page', tile: await tileText(), more: await moreRow() })
+  }
+}
+const tiles = new Set(seen.map((x) => x.tile))
+const counts = seen.map((x) => ({ tile: x.tile.match(/(\d+) (?:NOAA )?gauges/)?.[1], more: x.more.match(/(\d+) (?:NOAA )?gauges/)?.[1] }))
+check('Rivers tile: identical count and wording on three loads of the same place, before and after the Rivers page', tiles.size === 1, seen.map((x) => `${x.when}: "${x.tile}"`).join(' || '))
+check('The More list\'s Rivers row counts the same gauges as the tile on every load', counts.every((c) => c.tile && c.tile === c.more), seen.map((x) => `${x.when}: "${x.more}"`).join(' || '))
 done()
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)

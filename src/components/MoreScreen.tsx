@@ -46,10 +46,12 @@ function MoreList() {
   const station = useApp((s) => s.station)
   const units = useApp((s) => s.units)
   const now = useNow()
-  const high = rivers.data?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
+  // The same NOAA count as the Now tile (the page itself lists the USGS-only sites as well).
+  const noaa = rivers.data?.filter((g) => !!g.lid) ?? null
+  const high = noaa?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
   const sub: Record<NonNullable<MorePage>, string> = {
     flood: 'Screening for a place: rain + terrain + drainage',
-    rivers: rivers.data ? (high ? `${high} of ${rivers.data.length} gauges high` : `${rivers.data.length} gauges nearby`) : rivers.state === 'loading' ? 'loading…' : 'Gauges and flood stages nearby',
+    rivers: noaa ? (high ? `${high} of ${noaa.length} NOAA gauges high` : `${noaa.length} NOAA gauges nearby`) : rivers.state === 'loading' ? 'loading…' : 'Gauges and flood stages nearby',
     station: station.data ? `${station.data.name} · ${timeAgo(station.data.observedAt, now)}` : station.state === 'loading' ? 'loading…' : 'not loaded',
     settings: `${units === 'imperial' ? 'Imperial' : 'Metric'} · motion · data budget`,
     about: 'Map and data sources, with credits',
