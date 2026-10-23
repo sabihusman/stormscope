@@ -78,9 +78,14 @@ for (let i = 2; i <= 3; i++) {
   }
 }
 const tiles = new Set(seen.map((x) => x.tile))
-const counts = seen.map((x) => ({ tile: x.tile.match(/(\d+) (?:NOAA )?gauges/)?.[1], more: x.more.match(/(\d+) (?:NOAA )?gauges/)?.[1] }))
+const num = (t) => t.match(/(\d+) (?:reporting )?(?:NOAA )?gauges/)?.[1]
+const counts = seen.map((x) => ({ tile: num(x.tile), more: num(x.more) }))
 check('Rivers tile: identical count and wording on three loads of the same place, before and after the Rivers page', tiles.size === 1, seen.map((x) => `${x.when}: "${x.tile}"`).join(' || '))
 check('The More list\'s Rivers row counts the same gauges as the tile on every load', counts.every((c) => c.tile && c.tile === c.more), seen.map((x) => `${x.when}: "${x.more}"`).join(' || '))
+// Only reporting gauges make the headline: the list carries a gauge last heard from 45 h ago and one out of service.
+const listed = await page.evaluate(() => { const s = window.__store.get(); const g = s.rivers.data ?? []; const noaa = g.filter((x) => x.lid); const stale = noaa.filter((x) => { const t = Math.max(x.stage?.time ?? 0, x.flow?.time ?? 0); return !t || Date.now() - t > 24 * 3_600_000 }); const oos = noaa.filter((x) => x.floodCategory === 'out_of_service' || x.floodCategory === 'obs_not_current'); return { noaa: noaa.length, stale: stale.length, oos: oos.length } })
+const tileN = Number(num(seen.at(-1).tile))
+check('The tile counts only reporting NOAA gauges — the 45-hour-old one and the out-of-service one are not in it, though the Rivers page lists them', listed.stale >= 1 && listed.oos >= 1 && tileN === listed.noaa - listed.stale - listed.oos && /reporting/.test(seen.at(-1).tile), `tile ${tileN}, NOAA ${listed.noaa}, stale ${listed.stale}, out of service ${listed.oos}; "${seen.at(-1).tile}"`)
 done()
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)

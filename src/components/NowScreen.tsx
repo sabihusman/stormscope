@@ -8,6 +8,7 @@ import { nearestMeasured } from '../lib/airnowHere'
 import { floodHere, floodKeyFor, riskWord } from '../lib/floodHere'
 import { clock, readingAge, timeAgo } from '../lib/time'
 import { U } from '../lib/units'
+import { reportingNoaa } from '../lib/rivers'
 import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
 import { go, setHourlySpan, setLayer, startPickOnMap, store, useApp, wantFlood, type HourlySpan } from '../state/store'
@@ -489,14 +490,15 @@ function Tiles() {
   const floodLine = here ? `${riskWord(here.risk)} at ${placeName}${flood?.data?.preliminary ? ' · refining…' : ''}` : flood?.error ? flood.error : flood && flood.state === 'loading' ? 'computing…' : 'Check flood risk ›'
   // The tile counts the NOAA forecast points whatever tier is loaded (the Rivers page adds the USGS-only sites to
   // its list): the same count and wording on every load, before and after that page.
-  const noaa = rivers.data?.filter((g) => !!g.lid) ?? null
+  // …and of those, only the ones reporting (a reading within 24 h, in service) make the headline count.
+  const noaa = rivers.data ? reportingNoaa(rivers.data, now) : null
   const high = noaa?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
   const riversLine = noaa
     ? noaa.length
       ? high
-        ? `${high} of ${noaa.length} NOAA gauges high`
-        : `${noaa.length} NOAA gauges, none high`
-      : (rivers.error ?? 'no gauges nearby')
+        ? `${high} of ${noaa.length} reporting NOAA gauges high`
+        : `${noaa.length} NOAA gauges reporting, none high`
+      : (rivers.error ?? (rivers.data?.length ? 'no NOAA gauge reporting nearby' : 'no gauges nearby'))
     : rivers.state === 'loading'
       ? 'loading…'
       : (rivers.error ?? 'nearby gauges ›')

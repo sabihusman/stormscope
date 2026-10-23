@@ -354,7 +354,8 @@ function nwps(url, focus) {
   const u = new URL(url)
   const lids = saved.rivers.nwpsLids
   const pos = (i) => ({ lat: focus.lat + 0.25 * Math.sin(i * 1.7) * (1 + (i % 3) / 3), lng: focus.lng + 0.3 * Math.cos(i * 1.3) * (1 + (i % 4) / 4) })
-  const status = (i) => ({ observed: { primary: 4 + (i % 9) * 0.7, primaryUnit: 'ft', secondary: 1.2 + (i % 5), secondaryUnit: 'kcfs', floodCategory: i % 11 === 0 ? 'action' : 'no_flooding', validTime: new Date(Date.now() - 20 * 60_000).toISOString() }, forecast: { primary: 4.2 + (i % 9) * 0.7, primaryUnit: 'ft', secondary: -999, secondaryUnit: 'kcfs', floodCategory: 'no_flooding', validTime: new Date(Date.now() + 6 * 3_600_000).toISOString() } })
+  // Every 7th gauge from 3 last reported 45 h ago; every 13th from 5 is out of service (both real NWPS states): neither counts as reporting.
+  const status = (i) => ({ observed: { primary: 4 + (i % 9) * 0.7, primaryUnit: 'ft', secondary: 1.2 + (i % 5), secondaryUnit: 'kcfs', floodCategory: i % 13 === 5 ? 'out_of_service' : i % 11 === 0 ? 'action' : 'no_flooding', validTime: new Date(Date.now() - (i % 7 === 3 ? 45 * 3_600_000 : 20 * 60_000)).toISOString() }, forecast: { primary: 4.2 + (i % 9) * 0.7, primaryUnit: 'ft', secondary: -999, secondaryUnit: 'kcfs', floodCategory: 'no_flooding', validTime: new Date(Date.now() + 6 * 3_600_000).toISOString() } })
   const m = u.pathname.match(/\/gauges\/([^/]+)$/)
   if (m) {
     const i = Math.max(0, lids.indexOf(m[1]))
