@@ -70,6 +70,7 @@ const SUITES = [
   { name: 'firstrun', script: 'firstrun-check.mjs' },
   { name: 'zoomchip', script: 'zoomchip-check.mjs' },
   { name: 'playlabel', script: 'playlabel-check.mjs' },
+  { name: 'observed', script: 'observed-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'nowmap', script: 'nowmap-check.mjs' },
   { name: 'polish', script: 'polish-check.mjs' },

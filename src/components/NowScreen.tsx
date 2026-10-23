@@ -152,9 +152,10 @@ function ConditionsCard() {
       </div>
     )
   const w = wmo(c.code, c.isDay)
-  // Observed line: only a real station reading that is fresh (< 30 min) and close (< 10 mi / 16 km).
+  // Observed line: only a real station reading under an hour old and close (< 10 mi / 16 km); it goes once the
+  // reading passes the hour and returns with the next reading under it (the station polls every 10 min).
   const o = station.data
-  const observed = o && o.provider === 'weather.gov' && place && now - o.observedAt < 30 * 60_000 && haversine(place.lngLat, o.lngLat) < 16_093 && o.tempC != null ? o : null
+  const observed = o && o.provider === 'weather.gov' && place && now - o.observedAt < 60 * 60_000 && haversine(place.lngLat, o.lngLat) < 16_093 && o.tempC != null ? o : null
   return (
     <div className={`card now-card conditions ${r.stale ? 'stale' : ''}`}>
       <div className="cond-main">
