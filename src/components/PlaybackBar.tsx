@@ -128,7 +128,10 @@ export function PlaybackBar() {
   const timeLabel = (t: number) => {
     const d = t - now
     if (Math.abs(d) < 5 * MIN) return 'Now'
-    return d > 0 ? relOffset(now, t) : clock(t)
+    // Forecast frames on the hour read whole hours counted from the current hour ("+10 h" for 9 h 44 min ahead,
+    // "+1 h" for the next hour); the radar nowcast's 10-minute frames inside the hour keep their minutes.
+    if (d > 0) return t % HOUR === 0 ? `+${Math.ceil(d / HOUR)} h` : relOffset(now, t)
+    return clock(t)
   }
   const current = ticks.length ? timeLabel(ticks[idx]) : '—'
   const name = (label ?? place?.name ?? 'my place').split(',')[0]
