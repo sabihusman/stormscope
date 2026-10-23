@@ -19,20 +19,22 @@ import { PlaceRow } from './PlaceRow'
 interface Props {
   onLocate: () => void
   locating: boolean
+  /** The first-run "Where are you?" dialog is up: the column shows no prompt of its own (one prompt, not two). */
+  promptOpen?: boolean
 }
 
 /**
  * Home: the answer for the place, in this order — active alerts, current conditions,
  * next 12 hours, a window onto the live map, then Trip and the reference tiles.
  */
-export function NowScreen({ onLocate, locating }: Props) {
+export function NowScreen({ onLocate, locating, promptOpen = false }: Props) {
   const place = useApp((s) => s.place)
   const online = useOnline()
   return (
     <section className="screen now" aria-label="Now">
       {!online && <div className="banner offline">Offline — showing the last saved data</div>}
       {!place ? (
-        <NoPlace onLocate={onLocate} locating={locating} />
+        !promptOpen && <NoPlace onLocate={onLocate} locating={locating} />
       ) : (
         <>
           <PlaceRow />

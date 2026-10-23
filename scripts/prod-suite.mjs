@@ -67,6 +67,7 @@ const SUITES = [
   { name: 'departure', script: 'departure-check.mjs' },
   { name: 'monitors', script: 'monitors-check.mjs' },
   { name: 'gauges', script: 'gauges-check.mjs' },
+  { name: 'firstrun', script: 'firstrun-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'nowmap', script: 'nowmap-check.mjs' },
   { name: 'polish', script: 'polish-check.mjs' },

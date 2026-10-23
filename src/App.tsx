@@ -165,7 +165,7 @@ export default function App() {
 
       {screen === 'now' && (
         <ErrorBoundary kind="panel" name="Now">
-          <NowScreen onLocate={geo.request} locating={geo.status === 'locating'} />
+          <NowScreen onLocate={geo.request} locating={geo.status === 'locating'} promptOpen={showPrompt} />
         </ErrorBoundary>
       )}
       {screen === 'trip' && (
