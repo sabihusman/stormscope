@@ -137,8 +137,15 @@ export function MapView({ children }: { children: ReactNode }) {
       )
       setMap(m)
     })
+    // Is the selected place still in view? (The playback bar's "Zoom to <place>" chip shows only once it is not.)
+    const updatePlaceInView = () => {
+      const p = store.get().place
+      const inView = !p || m.getBounds().contains([p.lngLat.lng, p.lngLat.lat])
+      if (store.get().placeInView !== inView) store.set({ placeInView: inView })
+    }
     // Forecast blocks: which fixed tiles intersect the view (padded 15%), nearest first.
     const updateBlocks = () => {
+      updatePlaceInView()
       const z = m.getZoom()
       if (z < MIN_BLOCK_ZOOM) {
         if (store.get().visibleBlocks.length) store.set({ visibleBlocks: [] })
@@ -244,6 +251,8 @@ export function MapView({ children }: { children: ReactNode }) {
     el.setAttribute('aria-label', 'Selected location')
     if (!placeMarker.current) placeMarker.current = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(place.lngLat).addTo(map)
     else placeMarker.current.setLngLat(place.lngLat)
+    // Against the current view now (the flight below updates it again when it lands).
+    store.set({ placeInView: map.getBounds().contains([place.lngLat.lng, place.lngLat.lat]) })
     // A planned journey owns the camera (RouteLayer fits the route); don't fly to the start and undo it.
     if (store.get().journey.routes.data?.routes.length) return
     map.flyTo({ center: place.lngLat, zoom: Math.max(map.getZoom(), 9.5), duration: reducedMotion ? 0 : 1400, essential: true })

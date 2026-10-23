@@ -127,6 +127,8 @@ export interface AppState {
   focus: LngLat | null
   /** Bumped by "back to my location". */
   recenterNonce: number
+  /** The selected place is inside the map's current view (false once the map has been moved away from it). */
+  placeInView: boolean
   layers: Record<LayerId, boolean>
   /** Layers that threw and were switched off by their error boundary, with the reason (cleared on re-enable). */
   layerErrors: Partial<Record<string, string>>
@@ -232,6 +234,7 @@ export const store = createStore<AppState>({
   placeLabel: null,
   focus: null,
   recenterNonce: 0,
+  placeInView: true,
   layers: {
     radar: true,
     satellite: false,

@@ -31,6 +31,7 @@ export function PlaybackBar() {
   const label = useApp((s) => s.placeLabel)
   const imageryLag = useApp((s) => s.imageryLag)
   const expandedPref = useApp((s) => s.playbarExpanded)
+  const placeInView = useApp((s) => s.placeInView)
   const blocks = useVisibleBlocks()
   const reduced = useReducedMotion()
   const wide = useWide()
@@ -198,10 +199,11 @@ export function PlaybackBar() {
         )}
       </div>
       <PlaybackScale layer={scaleLayer} />
-      {noBlocks && (
+      {/* "Zoom to <place>" only once the map has actually been moved away from the place (never while it lands on it after a reload). */}
+      {(noBlocks || (place && !placeInView)) && (
         <div className="playbar-note" role="status">
-          <span>Zoom in to see the forecast</span>
-          {place && (
+          {noBlocks && <span>Zoom in to see the forecast</span>}
+          {place && !placeInView && (
             <button className="btn small" onClick={zoomToPlace}>
               Zoom to {name}
             </button>
