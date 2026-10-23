@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useNow, useOnline, useReducedMotion, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
-import { clock, HOUR, MIN, relOffset, timeAgo } from '../lib/time'
+import { agoLabel, clock, HOUR, MIN, relOffset, timeAgo } from '../lib/time'
 import { aggregate, nearestFrame, setLayer, store, useApp, useVisibleBlocks, type AnimLayer } from '../state/store'
 import { NOWCAST_FRAME_MIN, NOWCAST_FRAMES } from '../workers/client'
 import type { RainHorizon } from '../types'
@@ -131,7 +131,8 @@ export function PlaybackBar() {
     // Forecast frames on the hour read whole hours counted from the current hour ("+10 h" for 9 h 44 min ahead,
     // "+1 h" for the next hour); the radar nowcast's 10-minute frames inside the hour keep their minutes.
     if (d > 0) return t % HOUR === 0 ? `+${Math.ceil(d / HOUR)} h` : relOffset(now, t)
-    return clock(t)
+    // Past frames read their age ("25 min ago"), not a clock time.
+    return agoLabel(t, now)
   }
   const current = ticks.length ? timeLabel(ticks[idx]) : '—'
   const name = (label ?? place?.name ?? 'my place').split(',')[0]

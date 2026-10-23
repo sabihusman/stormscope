@@ -48,5 +48,14 @@ export function relOffset(fromTs: number, toTs: number): string {
   return m ? `${sign}${h} h ${m} min` : `${sign}${h} h`
 }
 
+/** Playback label for a past frame: "25 min ago", "2 h 58 min ago", "3 h ago". */
+export function agoLabel(ts: number, now: number): string {
+  const m = Math.max(0, Math.round((now - ts) / 60000))
+  if (m < 60) return `${m} min ago`
+  const h = Math.floor(m / 60)
+  const r = m % 60
+  return r ? `${h} h ${r} min ago` : `${h} h ago`
+}
+
 export const MIN = 60_000
 export const HOUR = 3_600_000

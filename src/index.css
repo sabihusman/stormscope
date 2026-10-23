@@ -2526,12 +2526,13 @@ small {
     font-size: 11px;
     height: 28px;
   }
-  .playbar .play {
+  /* Written to outrank .icon-btn.round.big (54 px) and the later .playbar-close rule (40 px), which used to win. */
+  .playbar .play.big {
     width: 40px;
     height: 40px;
     font-size: 16px;
   }
-  .playbar-close {
+  .playbar .playbar-close {
     min-width: 32px;
     width: 32px;
     height: 32px;
@@ -2572,7 +2573,7 @@ small {
 .app.narrow.screen-map .playdock {
   bottom: calc(var(--nav-h) + var(--sab) + 12px);
 }
-.playpill .play {
+.playpill .play.big {
   width: 44px;
   height: 44px;
   font-size: 16px;
