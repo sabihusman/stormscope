@@ -106,7 +106,7 @@ export function StationPanel() {
         </div>
       </div>
       <Freshness r={r} now={now} />
-      <small className="muted">Auto-refreshes every {REFRESH.station / 60000} min and when you return to the app.</small>
+      <small className="muted">Checked every {REFRESH.station / 60000} min and when you return to the app. Airport stations report about once an hour, so the newest reading can be close to an hour old.</small>
     </div>
   )
 }
