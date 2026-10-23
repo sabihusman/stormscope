@@ -81,6 +81,9 @@ function NoPlace({ onLocate, locating }: Props) {
   )
 }
 
+/** How long the conditions card waits on skeletons before saying what it is waiting for. */
+const SLOW_LOAD_MS = 10_000
+
 const SEV_CLASS: Record<NwsAlert['severity'], string> = { Extreme: 'sev-extreme', Severe: 'sev-severe', Moderate: 'sev-moderate', Minor: 'sev-minor', Unknown: 'sev-minor' }
 
 function AlertsCard() {
@@ -133,6 +136,17 @@ function ConditionsCard() {
   const now = useNow()
   const retry = () => store.set((x) => ({ refreshNonce: x.refreshNonce + 1 }))
   const c = r.data?.current
+  // A first load that sits on skeletons: after 10 s say what it is waiting for, with a retry.
+  const waiting = !c && (r.state === 'loading' || r.state === 'idle')
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (!waiting) {
+      setSlow(false)
+      return
+    }
+    const t = setTimeout(() => setSlow(true), SLOW_LOAD_MS)
+    return () => clearTimeout(t)
+  }, [waiting])
   if (!c)
     return (
       <div className="card now-card conditions" aria-busy={r.state === 'loading'}>
@@ -141,6 +155,14 @@ function ConditionsCard() {
             <div className="skeleton w60" />
             <div className="skeleton tall w40" />
             <div className="skeleton w80" />
+            {slow && (
+              <p className="muted slow-note" role="status">
+                Still waiting for the forecast service (Open-Meteo) — it is answering slowly.{' '}
+                <button className="btn small" onClick={retry}>
+                  Retry
+                </button>
+              </p>
+            )}
           </>
         ) : (
           <p className="err-text">
