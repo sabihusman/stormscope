@@ -4,6 +4,7 @@ import { U, type Units } from '../lib/units'
 import { timeAgo } from '../lib/time'
 import { store, useApp } from '../state/store'
 import { useMap } from './MapView'
+import { attachTooltip } from './tooltip'
 import type { StationObs } from '../types'
 
 const SRC = 'station-marker'
@@ -57,7 +58,9 @@ export function StationLayer() {
       })
     }
     map.on('click', SRC, onClick)
+    const tip = attachTooltip(map, SRC, () => `${obs.name} · observed ${timeAgo(obs.observedAt)}`)
     return () => {
+      tip()
       map.off('click', SRC, onClick)
       if (map.getLayer(SRC)) map.removeLayer(SRC)
       if (map.getSource(SRC)) map.removeSource(SRC)

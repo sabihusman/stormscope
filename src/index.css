@@ -2844,3 +2844,53 @@ small {
 .tiles .tile-wide {
   grid-column: 1 / -1;
 }
+
+/* ---- Desktop interactions: hover tooltips, the collapsible column ---- */
+.map-tip .maplibregl-popup-content {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 8px;
+  background: var(--panel-solid);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+.map-tip .maplibregl-popup-tip {
+  border-top-color: var(--panel-solid);
+}
+.col-toggle {
+  display: none;
+}
+.app.wide .col-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  z-index: 26;
+  top: 50%;
+  left: calc(var(--rail-w) + var(--col-w) - 1px);
+  width: 20px;
+  height: 56px;
+  transform: translateY(-50%);
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 10px 10px 0;
+  background: var(--panel-solid);
+  color: var(--muted);
+  font-size: 16px;
+  transition: left 200ms;
+}
+.app.wide.col-collapsed .col-toggle {
+  left: calc(var(--rail-w) - 1px);
+}
+.app.wide.col-collapsed .screen {
+  display: none;
+}
+.app.wide.col-collapsed .map-root {
+  left: var(--rail-w);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app.wide .col-toggle {
+    transition: none;
+  }
+}

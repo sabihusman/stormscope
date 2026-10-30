@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { attachTooltip } from './tooltip'
 import type { MapLayerMouseEvent } from 'maplibre-gl'
 import { FLOOD_CATEGORY_LABELS } from '../lib/colors'
 import { timeAgo } from '../lib/time'
@@ -90,10 +91,12 @@ export function RiversLayer() {
     map.on('click', SRC, onClick)
     map.on('mouseenter', SRC, enter)
     map.on('mouseleave', SRC, leave)
+    const tip = attachTooltip(map, SRC, (p) => { const g = store.get().rivers.data?.find((x) => x.id === p.id); return g ? `${g.name} · ${FLOOD_CATEGORY_LABELS[g.floodCategory] ?? g.riskLevel}` : null })
     return () => {
       map.off('click', SRC, onClick)
       map.off('mouseenter', SRC, enter)
       map.off('mouseleave', SRC, leave)
+      tip()
       for (const id of [SRC, `${SRC}-halo`]) if (map.getLayer(id)) map.removeLayer(id)
       if (map.getSource(SRC)) map.removeSource(SRC)
     }

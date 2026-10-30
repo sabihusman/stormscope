@@ -47,6 +47,10 @@ export function LayerFab() {
   const wide = useWide()
   // "Map layers" on the Now screen opens the panel as the Map appears — once per tap, not on every remount.
   const openNonce = useApp((s) => s.openLayersNonce)
+  const closeNonce = useApp((s) => s.closePanelsNonce)
+  useEffect(() => {
+    if (closeNonce > 0) setOpen(false)
+  }, [closeNonce])
   useEffect(() => {
     if (openNonce > handledLayersNonce) {
       handledLayersNonce = openNonce

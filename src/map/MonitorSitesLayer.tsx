@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { attachTooltip } from './tooltip'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, Map as MlMap, MapMouseEvent } from 'maplibre-gl'
 import { AIRNOW_CREDIT, fetchMonitorSites, isFresh, type MonitorParameter, type MonitorSite, type MonitorSitesResponse } from '../api/airnow'
@@ -212,6 +213,7 @@ export function MonitorSitesLayer() {
     map.on('click', onClick)
     map.on('mouseenter', SRC, enter)
     map.on('mouseleave', SRC, leave)
+    const tip = attachTooltip(map, SRC, (p) => { const site = store.get().monitors.data?.sites.find((x) => x.id === p.id); return site ? `${site.name}${p.aqi != null && p.aqi !== '' ? ` · AQI ${p.aqi}` : ''}` : null })
     return () => {
       window.clearTimeout(timer)
       ctrl?.abort()
@@ -219,6 +221,7 @@ export function MonitorSitesLayer() {
       map.off('click', onClick)
       map.off('mouseenter', SRC, enter)
       map.off('mouseleave', SRC, leave)
+      tip()
       if (pulseMap === map) pulseMap = null
       if (map.getLayer(SRC)) map.removeLayer(SRC)
       if (map.getSource(SRC)) map.removeSource(SRC)

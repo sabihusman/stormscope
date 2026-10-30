@@ -191,6 +191,10 @@ export interface AppState {
   creditsOpen: boolean
   /** Bumped by the Now screen's "Map layers" entry: the layers panel opens when the Map shows. */
   openLayersNonce: number
+  /** Bumped by Escape: every open panel (layers, credits, picker, chooser, details sheet) closes. */
+  closePanelsNonce: number
+  /** Wide layouts: the content column folded away for a full-map view. */
+  columnCollapsed: boolean
   radarFrame: number
   rainFrame: number
   nowcastFrame: number
@@ -328,6 +332,8 @@ export const store = createStore<AppState>({
   playbarExpanded: false,
   creditsOpen: false,
   openLayersNonce: 0,
+  closePanelsNonce: 0,
+  columnCollapsed: false,
   radarFrame: 0,
   rainFrame: 0,
   nowcastFrame: 0,
@@ -597,6 +603,11 @@ export function forgetPlaces() {
     }
   }
   store.set({ place: null, placeLabel: null, focus: null, recentPlaces: [], selection: null, screen: 'now', morePage: null, pickerOpen: false, askPlace: true, journey: { ...store.get().journey, to: null, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0, gen: store.get().journey.gen + 1 } })
+}
+
+/** Escape: close whatever panel is open (the layers panel listens to the nonce; the rest are store flags). */
+export function closeAllPanels() {
+  store.set((s) => ({ closePanelsNonce: s.closePanelsNonce + 1, creditsOpen: false, pickerOpen: false, pickerMode: 'menu', dotChooser: null, legendOpen: false, sheet: s.selection ? 'peek' : s.sheet }))
 }
 
 /** The "Save this place on this device" choice; turning it off removes the saved place at once. */
