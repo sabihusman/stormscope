@@ -62,14 +62,14 @@ const frames = await walk()
 const HOUR = 3_600_000
 const future = frames.filter((f) => f.time != null && f.time - f.now >= 5 * 60_000)
 const past = frames.filter((f) => f.time != null && f.now - f.time >= 5 * 60_000)
-const CLOCK = /^\d{1,2}:\d{2}( ?[AP]M)?(\nforecast)?$/
+const CLOCK = /^\d{1,2}:\d{2}( ?[AP]M)?(\n(forecast|radar))?$/
 check('The scrubber walks a full timeline: past radar frames, the current one, then forecast frames', frames.length >= 20 && future.length >= 12 && past.length >= 5, `${frames.length} frames: ${frames.map((f) => f.label.replace(/\n/g, ' ')).join(' · ')}`)
 const notClock = frames.filter((f) => !CLOCK.test(f.label))
 check('Every frame reads a clock time, past and forecast alike (no "+2 h 18 min", no "25 min ago", no "Now")', notClock.length === 0, notClock.map((f) => f.label).join(' · ') || frames.map((f) => f.label.split('\n')[0]).join(' · '))
 const expected = (f) => new Date(f.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 const wrongClock = frames.filter((f) => f.label.split('\n')[0] !== expected(f))
 check('Each label is the clock time of that frame', wrongClock.length === 0, wrongClock.map((f) => `${f.label} vs ${expected(f)}`).join(' · ') || 'all match')
-check('Forecast frames say "forecast" under their time; past radar frames do not', future.every((f) => /\nforecast$/.test(f.label)) && past.every((f) => !/forecast/.test(f.label)), `future ${future.length}, past ${past.length}`)
+check('Forecast frames say "forecast" under their time; past frames say "radar" (one line always, so the bar keeps its height)', future.every((f) => /\nforecast$/.test(f.label)) && past.every((f) => /\nradar$/.test(f.label)), `future ${future.length}, past ${past.length}`)
 const boundaryText = await page.locator('.playbar-boundary').innerText().catch(() => '')
 check('The Now boundary is marked and labelled ("Now 7:52 PM · radar up to now, forecast after")', /^Now \d{1,2}:\d{2}( ?[AP]M)? · radar up to now, forecast after$/.test(boundaryText.trim()) && (await page.locator('.playbar-boundary .boundary-mark').count()) === 1, `"${boundaryText}"`)
 await page.screenshot({ path: `${OUT}/bar-last-frame.png` })
