@@ -159,7 +159,7 @@ export function PlaybackBar() {
           {playButton}
           <button className="pill-label" onClick={() => store.set({ playbarExpanded: true })} aria-label={`Show controls (${current}${isFuture ? ', forecast' : ''})`} aria-expanded={false}>
             {current}
-            {isFuture && <small className="pill-kind">forecast</small>}
+            <small className="pill-kind">{isFuture ? 'forecast' : 'radar'}</small>
           </button>
           <div className="pill-progress" aria-hidden="true" style={{ ['--now-pct' as string]: `${pct(nowIdx)}%` }}>
             <i className="pill-now" style={{ left: `${pct(nowIdx)}%` }} />
@@ -176,7 +176,8 @@ export function PlaybackBar() {
         {playButton}
         <strong className="playbar-time" aria-live="polite">
           {current}
-          {isFuture && <small className="time-kind">forecast</small>}
+          {/* Always present ("radar" / "forecast"): the label keeps one height, so crossing Now never re-lays out the bar. */}
+          <small className="time-kind">{isFuture ? 'forecast' : 'radar'}</small>
         </strong>
         <input
           className="scrubber"
