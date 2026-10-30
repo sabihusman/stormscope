@@ -2825,3 +2825,12 @@ small {
   background-repeat: no-repeat;
   background-position: center;
 }
+
+/* ---- Trip: the refreshing note and the collapsed no-reading sensors ---- */
+.trip-refreshing {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.no-reading-line span {
+  display: block;
+}

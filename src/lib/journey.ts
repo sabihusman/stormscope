@@ -45,6 +45,8 @@ export interface JourneyWeather {
   samples: JourneySample[]
   worst: Condition
   fetchedAt: number
+  /** The departure the samples' ETAs were built from (the panel re-anchors them when the departure changes before the refetch lands). */
+  departureMs: number
   /** Locations consumed from the Open-Meteo budget. */
   calls: number
   /** True when the trip is in the past and ERA5 reanalysis was used instead of a forecast. */
@@ -220,6 +222,7 @@ export async function fetchJourneyWeather(route: RouteResult, departureMs: numbe
     samples,
     worst,
     fetchedAt: Date.now(),
+    departureMs,
     calls: cachedRaw ? 0 : pts.length,
     historical,
     provider:

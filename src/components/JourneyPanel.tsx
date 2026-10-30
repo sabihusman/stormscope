@@ -45,6 +45,11 @@ export function JourneyPanel() {
   const route = routes[j.selected]
   const w = j.weather.data
   const arrival = route ? departure + route.durationS * 1000 : null
+  // The timeline is anchored to the selected departure: while the forecast for a new departure is still loading,
+  // the stops already shown keep their positions but read the new times (departure → arrival), matching the card.
+  const shift = w ? departure - w.departureMs : 0
+  const etaOf = (s: JourneySample) => s.eta + shift
+  const refreshing = shift !== 0 && j.weather.state === 'loading'
   const road = j.road.data
   const roadByIdx = new Map<number, RoadSample>((road?.samples ?? []).map((r) => [r.idx, r]))
   const cond = (s: JourneySample) => effectiveCondition(s, roadByIdx.get(s.idx), units)
@@ -176,7 +181,7 @@ export function JourneyPanel() {
               <HazardsSection r={j.hazards} units={units} />
               <div className={`arrival-card sev-${cond(w.samples[w.samples.length - 1]).severity}`}>
                 <small>{isCapped(route) ? `At the 24 h mark (arrive ${j.to.name.split(',')[0]} ${dayClock(arrival)})` : `Arrive ${j.to.name.split(',')[0]}`}</small>
-                <strong>{isCapped(route) ? dayClock(w.samples[w.samples.length - 1].eta) : dayClock(arrival)}</strong>
+                <strong>{isCapped(route) ? dayClock(etaOf(w.samples[w.samples.length - 1])) : dayClock(arrival)}</strong>
                 <span>
                   {iconFor(cond(w.samples[w.samples.length - 1]), w.samples[w.samples.length - 1])} {cond(w.samples[w.samples.length - 1]).label} · {U.temp(w.samples[w.samples.length - 1].tempC, units)}
                   {w.samples[w.samples.length - 1].precipMm ? ` · ${U.precip(w.samples[w.samples.length - 1].precipMm, units)}/h` : ''}
@@ -185,10 +190,15 @@ export function JourneyPanel() {
               <div className={`worst-line sev-${worst!.severity}`}>
                 Worst along the way: {ICON[worst!.code]} {worst!.label}
               </div>
+              {refreshing && (
+                <p className="muted trip-refreshing" role="status">
+                  Updating the forecast for the new departure… times below already follow it.
+                </p>
+              )}
               <ol className="journey-strip">
                 {thin(w.samples, 14).map((s) => (
-                  <li key={s.idx} className={`sev-${cond(s).severity}`} onClick={() => store.set({ selection: sampleSelection(s, units, roadByIdx.get(s.idx)) })}>
-                    <span className="strip-time">{clock(s.eta)}</span>
+                  <li key={s.idx} className={`sev-${cond(s).severity}`} onClick={() => store.set({ selection: sampleSelection({ ...s, eta: etaOf(s) }, units, roadByIdx.get(s.idx)) })}>
+                    <span className="strip-time">{clock(etaOf(s))}</span>
                     <span className="strip-icon" aria-hidden="true">
                       {iconFor(cond(s), s)}
                     </span>
@@ -206,8 +216,9 @@ export function JourneyPanel() {
                   </li>
                 ))}
               </ol>
-              <small className="muted">
-                {w.provider} · fetched {timeAgo(w.fetchedAt, now)} ({w.calls} points){w.historical ? '' : ' · 15-minutely where HRRR / ICON-D2 / AROME cover'}
+              <small className="muted trip-foot">
+                {w.samples.length > 14 ? `${Math.min(14, w.samples.length)} sampled stops from ${w.samples.length} forecast points` : `${w.samples.length} stops, one forecast point each`} · {w.provider} · fetched {timeAgo(w.fetchedAt, now)}
+                {w.historical ? '' : ' · 15-minutely where HRRR / ICON-D2 / AROME cover'}
               </small>
               <RoadSection r={j.road} replay={!!replay} />
             </>
@@ -315,7 +326,7 @@ function RoadSection({ r, replay }: { r: ReturnType<typeof store.get>['journey']
   return (
     <div className="hazards">
       <div className="panel-title">
-        <strong>Road conditions (RWIS pavement sensors)</strong>
+        <strong>Road conditions (RWIS pavement sensors within {U.distance(5_000, units)} of the route)</strong>
       </div>
       {!d ? (
         <p className="muted">{r.state === 'loading' ? 'Reading pavement sensors near the route…' : r.error ? `Unavailable: ${r.error}` : 'Waiting for the route forecast…'}</p>
@@ -323,10 +334,11 @@ function RoadSection({ r, replay }: { r: ReturnType<typeof store.get>['journey']
         <>
           {r.error && <p className="muted">{r.error}</p>}
           {d.stations.length === 0 ? (
-            <p className="muted">No pavement sensor within 5 km of this route — ice can only be "possible" (forecast), never confirmed.</p>
+            <p className="muted">No pavement sensor within {U.distance(5_000, units)} of this route — ice can only be "possible" (forecast), never confirmed.</p>
           ) : (
             <ul className="station-chips">
-              {d.stations.map((st) => (
+              {/* Sensors with a reading get a chip each; the ones without a reading collapse into one line below. */}
+              {d.stations.filter((st) => st.obsTime != null).map((st) => (
                 <li key={st.id} className={`chip-${st.stale ? 'stale' : st.state}`}>
                   <strong>{st.name}</strong>
                   <span>
@@ -346,10 +358,16 @@ function RoadSection({ r, replay }: { r: ReturnType<typeof store.get>['journey']
                   </span>
                 </li>
               ))}
+              {d.stations.some((st) => st.obsTime == null) && (
+                <li className="chip-unknown no-reading-line">
+                  <strong>{d.stations.filter((st) => st.obsTime == null).length} sensor{d.stations.filter((st) => st.obsTime == null).length === 1 ? '' : 's'} without a reading</strong>
+                  <span>{d.stations.filter((st) => st.obsTime == null).map((st) => st.name).join(', ')} — no observation, so neither ice nor its absence is confirmed</span>
+                </li>
+              )}
             </ul>
           )}
           <small className="muted">
-            A sensor confirms "icy" only within 5 km of the route and when your ETA is within 90 min of its observation
+            A sensor confirms "icy" only within {U.distance(5_000, units)} of the route and when your ETA is within 90 min of its observation
             {replay ? '' : '; readings older than 60 min are stale'}. Only "Warning", "Frost" and ice/snow statuses confirm; "Ice Watch" / "Snow Watch" (thin or spotty moisture at or below
             freezing) count as possible ice. Otherwise the forecast can only say "possible ice". Checked {timeAgo(d.evaluatedAt, now)}.
           </small>

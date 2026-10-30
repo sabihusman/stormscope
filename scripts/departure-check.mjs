@@ -60,6 +60,28 @@ const trip = await page.evaluate(() => {
 const nowChip = trip.chips.find((c) => c.label === 'Now')
 check('The departure is "now" at planning time: the Now chip is selected and the first stop\'s ETA is 21:11 (±2 min), not the 21:00 the app was opened at', nowChip?.on === 'true' && trip.firstEta != null && Math.abs(trip.firstEta - nowMs) < 2 * 60_000, `Now chip ${nowChip?.on}; first ETA ${trip.firstEta ? new Date(trip.firstEta).toTimeString().slice(0, 5) : 'none'} vs now ${new Date(nowMs).toTimeString().slice(0, 5)}`)
 check('The arrival (the last stop\'s ETA on the arrival card) is now + the route duration (within 2 min)', !!trip.durationS && trip.lastEta != null && Math.abs(trip.lastEta - (nowMs + trip.durationS * 1000)) < 2 * 60_000 && /Arrive/.test(trip.arrivalCard), `last ETA ${trip.lastEta ? new Date(trip.lastEta).toTimeString().slice(0, 5) : 'none'}, now + ${Math.round((trip.durationS ?? 0) / 60)} min = ${new Date(nowMs + (trip.durationS ?? 0) * 1000).toTimeString().slice(0, 5)}; card "${trip.arrivalCard.slice(0, 30)}"`)
+// Redesign 9: the timeline is anchored to the departure. Pick +1 h: at once (before the forecast refetch lands) and
+// after it, the first stop reads the departure time and the last stop the arrival card's time; the footer counts honestly;
+// sensors without a reading collapse into one line.
+await page.getByRole('radio', { name: '+1 h' }).tap()
+await page.waitForTimeout(250)
+const stripTimes = () => page.evaluate(() => ({ strip: [...document.querySelectorAll('.journey-strip .strip-time')].map((el) => el.textContent.trim()), arrival: document.querySelector('.arrival-card strong')?.textContent.trim() ?? '', departure: window.__store.get().journey.departure, loading: window.__store.get().journey.weather.state === 'loading', note: document.querySelector('.trip-refreshing')?.textContent ?? '' }))
+const clockOf = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+const t1 = await stripTimes()
+const dep1 = t1.departure
+check(`+1 h picked: the first stop reads the departure time (${clockOf(dep1)}) and the last stop the arrival card's time, straight away${t1.loading ? ' (forecast still refreshing, note shown)' : ''}`, t1.strip[0] === clockOf(dep1) && t1.arrival.endsWith(t1.strip[t1.strip.length - 1]) && (!t1.loading || /Updating the forecast for the new departure/.test(t1.note)), `strip ${t1.strip[0]} … ${t1.strip.at(-1)}, card "${t1.arrival}", loading ${t1.loading}`)
+await until(() => window.__store.get().journey.weather.state === 'ready' && window.__store.get().journey.weather.data?.departureMs === window.__store.get().journey.departure, 40000)
+await page.waitForTimeout(400)
+const t2 = await stripTimes()
+check('Once the refreshed forecast lands the timeline still runs departure → arrival and the note is gone', t2.strip[0] === clockOf(dep1) && t2.arrival.endsWith(t2.strip[t2.strip.length - 1]) && t2.note === '', `strip ${t2.strip[0]} … ${t2.strip.at(-1)}, card "${t2.arrival}"`)
+const foot = await page.locator('.trip-foot').innerText()
+const counts = await page.evaluate(() => ({ samples: window.__store.get().journey.weather.data.samples.length, shown: document.querySelectorAll('.journey-strip li').length }))
+check('The footer counts honestly: "N sampled stops from M forecast points" when thinned, or "N stops, one forecast point each"', counts.samples > 14 ? new RegExp(`^${counts.shown} sampled stops from ${counts.samples} forecast points`).test(foot) : new RegExp(`^${counts.samples} stops, one forecast point each`).test(foot), `"${foot.slice(0, 80)}" (shown ${counts.shown}, points ${counts.samples})`)
+const sensors = await page.evaluate(() => { const st = window.__store.get().journey.road.data?.stations ?? []; return { noObs: st.filter((x) => x.obsTime == null).length, chips: [...document.querySelectorAll('.station-chips li:not(.no-reading-line)')].map((li) => li.innerText.replace(/\n/g, ' ')), line: document.querySelector('.no-reading-line')?.innerText.replace(/\n/g, ' ') ?? '' } })
+check('Sensors without a reading are one line, never chips alongside live readings; every chip has a reading', sensors.chips.every((c) => !/no observation/.test(c)) && (sensors.noObs === 0 ? sensors.line === '' : new RegExp(`^${sensors.noObs} sensors? without a reading`).test(sensors.line)), `${sensors.noObs} without a reading; line "${sensors.line.slice(0, 80)}"; ${sensors.chips.length} chips`)
+await page.getByRole('radio', { name: 'Now' }).tap()
+await until(() => window.__store.get().journey.weather.state === 'ready' && window.__store.get().journey.departure === null, 40000)
+await page.waitForTimeout(300)
 // M2 on the trip: at 21:11 the stops are at night — a clear stop shows a moon, never a sun.
 const icons = await page.evaluate(() => [...document.querySelectorAll('.screen.trip li, .screen.trip .stop')].map((el) => el.textContent).filter((t) => /☀️|🌙/.test(t)))
 check('Trip stops at night show 🌙 for clear skies, never ☀️', icons.length > 0 && icons.every((t) => !t.includes('☀️')) && icons.some((t) => t.includes('🌙')), `${icons.length} stop(s) with a sky icon; suns: ${icons.filter((t) => t.includes('☀️')).length}`)
