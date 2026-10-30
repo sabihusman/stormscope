@@ -2763,3 +2763,18 @@ small {
   min-width: 40px;
   min-height: 36px;
 }
+
+/* ---- Station page: observation age as the headline, the fetch time secondary ---- */
+.obs-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.obs-headline {
+  font-size: 17px;
+}
+.obs-fetched {
+  font-size: 12px;
+  opacity: 0.85;
+}

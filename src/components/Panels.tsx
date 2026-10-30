@@ -90,12 +90,17 @@ export function StationPanel() {
   const trend = o.pressureTrendHpa3h
   return (
     <div className="panel">
-      <div className="panel-title">
-        <strong>{o.name}</strong>
-        <small className="muted">
-          {o.provider === 'weather.gov' ? `${o.stationId} · ${U.distance(o.distanceM, units)} from your place` : 'Model analysis (no station nearby)'} · observed{' '}
-          {timeAgo(o.observedAt, now)}
+      {/* The observation's age is the headline; when the app fetched it is the smaller line below. */}
+      <div className="panel-title obs-head">
+        <strong className="obs-headline">
+          Observed {timeAgo(o.observedAt, now)}
+          {o.provider === 'weather.gov' ? ` at ${o.stationId}` : ' (model analysis)'}
+        </strong>
+        <small className="muted obs-station">
+          {o.name}
+          {o.provider === 'weather.gov' ? ` · ${U.distance(o.distanceM, units)} from your place` : ' · no station nearby'}
         </small>
+        <small className="muted obs-fetched">Data fetched {timeAgo(r.freshness?.fetchedAt, now)}{r.freshness?.source ? ` from ${r.freshness.source}` : ''}{r.stale ? ' · stale' : ''}{r.error ? ` · last fetch failed: ${r.error}` : ''}</small>
       </div>
       {o.textDescription && <p className="muted">{o.textDescription}</p>}
       <div className="stat-grid">
@@ -144,8 +149,7 @@ export function StationPanel() {
           </div>
         </div>
       </div>
-      <Freshness r={r} now={now} />
-      <small className="muted">Checked every {REFRESH.station / 60000} min and when you return to the app. Airport stations report about once an hour, so the newest reading can be close to an hour old.</small>
+      <small className="muted">The app fetches every {REFRESH.station / 60000} min and when you return to it; the station itself reports about once an hour, so the observation above can be older than the last fetch.</small>
     </div>
   )
 }

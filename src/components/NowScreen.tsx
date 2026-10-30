@@ -621,8 +621,8 @@ function AirNowCard() {
       )}
       <small className="muted aqi-attrib">
         {AIRNOW_CREDIT}
-        {r.freshness?.fetchedAt ? ` · checked ${timeAgo(r.freshness.fetchedAt, now)}` : ''}
-        {' · monitors report hourly averages once the hour ends'}
+        {r.freshness?.fetchedAt ? ` · data fetched ${timeAgo(r.freshness.fetchedAt, now)}` : ''}
+        {' · each reading shows its own observation time; monitors report hourly averages once the hour ends'}
       </small>
     </div>
   )
