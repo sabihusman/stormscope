@@ -1,5 +1,24 @@
 # Build log
 
+## Oct 30 — UI/UX redesign, prompts 1–12 (phone and desktop), one commit each
+
+From "StormScope Redesign Implementation Prompts.md". Where a prompt contradicted an earlier decision the user chose first: units stay region-based with a one-tap chip (not Celsius for all); playback uses clock times with a labelled Now boundary (replacing the Oct 22 "+10 h" / "25 min ago"); the gauge headline stays NOAA-only with a "+N USGS on the Rivers page" note (the middle path, no extra requests); the desktop breakpoint stays at 768 px. Every prompt verified on a 390 px phone (prompts 1–10) or at 1280 / 1600 (11–12) with a mocked check that fails on the build before it.
+
+1. **First-run choice (060e363)** — the dialog states nothing is saved unless the Save toggle (off by default) is on; a place chosen with it off is used but never stored and asked for again next open; × closes into the empty state with the same three options. firstrun 18/18.
+2. **Privacy controls (67bec25)** — Forget in Settings and in the picker (back to the first-run choice at once); × on every recent entry in the picker and the search box; search works with location denied. firstrun 24/24.
+3. **Units chip (e96029d)** — °C / °F on the Now header, synced with Settings, conversion only (temps, wind, rain, rain legend, scale bar), remembered. firstrun 27/27.
+4. **Search ranking (d777bb0)** — exact-name matches first (biggest first), then the other names; state or region and country on every row. search 8/8.
+5. **Station freshness (719797c)** — "Observed 23 min ago at KDSM" as the headline, "Data fetched just now" secondary, the footer saying stations report hourly; the air-quality footer distinguishes fetched from observed. observed 9/9.
+6. **Gauge headline (c0dd7e5)** — the Rivers page: "N current gauges (NOAA + USGS) · none high", stale / out-of-service in their own section, "Loading gauges (NOAA and USGS)…" until both sources are in; the tile keeps the NOAA count plus the USGS note. gauges 12/12.
+7. **Flood explanation (9b1f93a)** — one plain paragraph on the card: what "surroundings" means, how far below or above, why it matters. floodquick 9/9.
+8. **Playback clock times (405f8fd)** — every frame a clock time, forecast frames marked, "Now 7:52 PM · radar up to now, forecast after". playlabel 8/8, playbar 54/54.
+9. **Trip (20098c8)** — timeline anchored to the departure (re-anchored while the refetch loads; mock reproduced the auditor's 9:11 PM strip against an 11:59 PM card), sensors within 5 km with no-reading ones collapsed to one line, "14 sampled stops from 63 forecast points". departure 10/10.
+10. **Discoverability (bcb32b7)** — Now tiles named River gauges / Flood risk / Station observations / Map layers (opens the Map with the panel) / Settings & data sources; every skeleton labelled. loadtime-check before → after on the phone: Now 4.1 → 4.3 s, Map 4.3 → 4.8 s, Trip 4.5 → 4.9 s, More 4.3 → 4.3 s to data (±0.5 s run noise), no overflow.
+11. **Desktop layout (636a82b)** — the layers panel docked open by default from 1024 px, collapsible from ☰ and remembered; rail + column + map, detail pages beside the map, all phone fixes present. desktop 26/26.
+12. **Desktop interactions (f6376d0)** — hover tooltips on gauge, monitor and station points; arrow keys scrub, Escape closes every panel; a collapsible column for a full-map view. desktop 40/40, data in well under 8 s at both widths.
+
+New suites in prod-suite: loadtime, desktop (43 suites).
+
 ## Oct 23 — re-audit of production: the four new issues (22b16ac, 12e7b24, d9af6a0, 91afd07), preview t1tw2fzir
 
 The auditor's Oct 23 pass ran against production (bundle BdpcQM6R, Oct 19), which carries none of the round-2 fixes — every "still present" item is fixed on the previews. The four new issues, each reproduced or measured first, one commit each, the check failing before and passing after: **station cadence wording** — "Checked every 10 min…; airport stations report about once an hour" (and the air-quality card's "monitors report hourly averages once the hour ends"); **"-65 ft vs surroundings"** — checked live for Des Moines: the place cell 244 m against a 264 m window average (238–297 m) is the river valley, so the figure stands and the line now says "65 ft below the average of the surrounding 10 mi"; **gauge headline** — only reporting NOAA gauges (a reading within 24 h, in service) are counted, the Rivers page still lists the rest; **blank first load** — not reproduced; after 10 s on skeletons the conditions card now says it is waiting for Open-Meteo with a Retry. New suite slowload (40 suites). Mocked suite 39/39 locally; preview t1tw2fzir (bundle D8pdL272): dry run green (one earlier red run: the headed windows were closed mid-run and slowload timed its 10 s from the navigation instead of the card — test fixed in 06619f4 / e818a35, bundle unchanged). The push to GitHub main is still refused by the account's email-privacy setting. Not promoted.
