@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { searchPlaces, type GeoResult } from '../api/geocode'
 import { useDebouncedValue } from '../hooks/useMisc'
-import { useApp, type RecentPlace } from '../state/store'
+import { removeRecent, useApp, type RecentPlace } from '../state/store'
 
 interface Props {
   placeholder?: string
@@ -77,9 +77,12 @@ export function PlaceSearch({ placeholder = 'City, postcode or place', autoFocus
         <ul className="search-results inline recents" role="listbox" aria-label="Recent places">
           <li className="muted">Recent</li>
           {recent.map((r: RecentPlace) => (
-            <li key={r.name} role="option" aria-selected={false}>
+            <li key={r.name} role="option" aria-selected={false} className="recent-item">
               <button type="button" onClick={() => pick(r)}>
                 <span>{r.name}</span>
+              </button>
+              <button type="button" className="icon-btn recent-x" onClick={() => removeRecent(r.name)} aria-label={`Remove ${r.name.split(',')[0]} from recent places`}>
+                ×
               </button>
             </li>
           ))}

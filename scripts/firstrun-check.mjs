@@ -176,6 +176,69 @@ for (const [locale, want] of [['en-US', { sym: '°F', units: 'imperial' }], ['en
   await ctx.close()
 }
 
+// ---- Redesign 2. Forget in Settings and in the picker; per-item removal of recents; search with location denied ----
+{
+  // Location denied by the browser; a saved place and three recents.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  await ctx.addInitScript(() => {
+    try {
+      if (sessionStorage.getItem('seeded')) return
+      sessionStorage.setItem('seeded', '1')
+      localStorage.setItem('stormscope.place', JSON.stringify({ name: 'Johnston, Iowa', lngLat: { lng: -93.698, lat: 41.673 }, source: 'search', label: 'Johnston, Iowa' }))
+      localStorage.setItem('stormscope.recent', JSON.stringify([{ name: 'Johnston, Iowa', lngLat: { lng: -93.698, lat: 41.673 } }, { name: 'Ames, Iowa', lngLat: { lng: -93.632, lat: 42.031 } }, { name: 'Cedar Rapids, Iowa', lngLat: { lng: -91.666, lat: 41.978 } }]))
+      localStorage.setItem('stormscope.geo.asked', '1')
+    } catch {}
+    // The browser denies location.
+    navigator.geolocation.getCurrentPosition = (_ok, err) => err && err({ code: 1, PERMISSION_DENIED: 1, TIMEOUT: 3, message: 'denied' })
+  })
+  const page = await ctx.newPage()
+  const done = trackTraffic(page, 'firstrun-check.mjs privacy (mock)')
+  await installMocks(ctx, {})
+  await page.goto(BASE, { waitUntil: 'load' })
+  await untilReady(page)
+  // Per-item removal in the picker: × on Ames removes Ames only.
+  await page.getByRole('button', { name: 'Change place' }).first().click()
+  await page.waitForTimeout(300)
+  const before = await page.evaluate(() => window.__store.get().recentPlaces.map((r) => r.name))
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove Ames from recent places' }).click()
+  await page.waitForTimeout(200)
+  const afterX = await page.evaluate(() => ({ recents: window.__store.get().recentPlaces.map((r) => r.name), stored: JSON.parse(localStorage.getItem('stormscope.recent') ?? '[]').map((r) => r.name), chips: [...document.querySelectorAll('[role=dialog] .chip-main')].map((b) => b.textContent.trim()) }))
+  check('[privacy] × on a recent entry in the picker removes that entry only (store, storage and the chips agree)', before.length === 3 && afterX.recents.join() === 'Johnston, Iowa,Cedar Rapids, Iowa' && afterX.stored.join() === afterX.recents.join() && afterX.chips.join() === 'Johnston,Cedar Rapids', JSON.stringify(afterX))
+  // The same × in the search box's recent list (the Trip destination search uses the same box).
+  await page.getByRole('dialog').getByRole('button', { name: /Search for a place/ }).click()
+  await page.waitForTimeout(200)
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove Cedar Rapids from recent places' }).click()
+  await page.waitForTimeout(200)
+  check('[privacy] × in the search box\'s recent list removes that entry only', (await page.evaluate(() => window.__store.get().recentPlaces.map((r) => r.name).join())) === 'Johnston, Iowa', await page.evaluate(() => window.__store.get().recentPlaces.map((r) => r.name).join()))
+  // Search still works with location denied.
+  await page.getByRole('dialog').getByRole('searchbox').fill('Ames')
+  await page.waitForTimeout(800)
+  await page.getByRole('dialog').getByRole('option').first().click()
+  await untilReady(page)
+  check('[privacy] manual search sets a place while location is denied', /Ames/.test((await page.evaluate(() => window.__store.get().place?.name)) ?? ''), await page.evaluate(() => window.__store.get().place?.name ?? 'none'))
+  await page.screenshot({ path: `${OUT}/privacy-search-denied.png` })
+  // The picker has a Forget control; Settings has one too. Forget from Settings: storage empty and the first-run choice back at once.
+  await page.getByRole('button', { name: 'Change place' }).first().click()
+  await page.waitForTimeout(300)
+  check('[privacy] the place picker offers "Forget my location and recent places"', (await page.getByRole('dialog').getByRole('button', { name: 'Forget my location and recent places' }).count()) === 1)
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.waitForTimeout(300)
+  await page.getByRole('button', { name: /^Sources, freshness & settings/ }).click()
+  await page.waitForTimeout(400)
+  const settingsBtn = page.getByRole('button', { name: 'Forget my location and recent places' })
+  check('[privacy] Settings offers "Forget my location and recent places"', (await settingsBtn.count()) === 1)
+  await settingsBtn.click()
+  await page.waitForTimeout(200)
+  await page.getByRole('button', { name: 'Forget', exact: true }).click()
+  await page.waitForTimeout(600)
+  const gone = await page.evaluate(() => ({ keys: ['stormscope.place', 'stormscope.recent', 'stormscope.geo.asked'].map((k) => localStorage.getItem(k)), place: window.__store.get().place, recents: window.__store.get().recentPlaces.length }))
+  check('[privacy] forgetting from Settings clears the place and every recent, leaves nothing behind, and shows the first-run choice at once (no reload)', gone.keys.every((v) => v === null) && gone.place === null && gone.recents === 0 && (await prompts(page)).join() === 'dialog', `${JSON.stringify(gone)}; prompts ${JSON.stringify(await prompts(page))}`)
+  await page.screenshot({ path: `${OUT}/privacy-forgot.png` })
+  done()
+  await ctx.close()
+}
+
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)
 process.exit(results.every(Boolean) ? 0 : 1)

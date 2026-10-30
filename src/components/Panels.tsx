@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { FLOOD_CATEGORY_COLORS, FLOOD_CATEGORY_LABELS, FLOOD_STOPS } from '../lib/colors'
 import { floodHere, floodKeyFor, riskLabel, riskWord } from '../lib/floodHere'
 import type { RainHorizon } from '../types'
@@ -8,7 +8,7 @@ import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
 import { describeGauge, RISK_COLORS } from '../map/RiversLayer'
-import { aggregate, go, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
+import { aggregate, forgetPlaces, go, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/openMeteo'
 import type { Resource } from '../types'
@@ -33,6 +33,34 @@ export function UnitsToggle() {
           {u === 'metric' ? 'Metric · °C km mm' : 'Imperial · °F mi in'}
         </button>
       ))}
+    </div>
+  )
+}
+
+/** "Forget my location and recent places" with a confirm step; back to the first-run choice afterwards. */
+export function ForgetControl() {
+  const hasAny = useApp((s) => !!s.place || s.recentPlaces.length > 0)
+  const [confirming, setConfirming] = useState(false)
+  if (!hasAny) return null
+  return (
+    <div className="forget-inline" role="group" aria-label="Forget my location and recent places">
+      {confirming ? (
+        <>
+          <small className="muted">Forget the saved place and the recent places on this device? Units, layers and other settings stay.</small>
+          <div className="prompt-actions row">
+            <button className="btn small primary" onClick={forgetPlaces}>
+              Forget
+            </button>
+            <button className="btn small" onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <button className="btn ghost small forget-link" onClick={() => setConfirming(true)}>
+          Forget my location and recent places
+        </button>
+      )}
     </div>
   )
 }
@@ -311,6 +339,7 @@ export function SourcesPanel() {
       </div>
       <UnitsToggle />
       <SavePlaceToggle />
+      <ForgetControl />
       <small className="muted">Motion: {reduced ? 'reduced (from your system setting) — animations are simplified' : 'full — set “reduce motion” in your OS to simplify animations'}</small>
 
       <div className="panel-title" style={{ marginTop: 8 }}>

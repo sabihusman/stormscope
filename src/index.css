@@ -2698,3 +2698,50 @@ small {
   height: 20px;
   accent-color: var(--accent);
 }
+
+/* ---- Recent places: per-item removal; the forget control in the picker and Settings ---- */
+.chip-removable {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0;
+}
+.chip-removable .chip-main {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0 4px 0 10px;
+  min-height: 36px;
+}
+.chip-x {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  min-width: 32px;
+  min-height: 36px;
+  border-radius: 0 999px 999px 0;
+}
+.chip-x:hover,
+.chip-x:focus-visible {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--text);
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+}
+.recent-item > button:first-child {
+  flex: 1;
+}
+.recent-x {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+.forget-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}

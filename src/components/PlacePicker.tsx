@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { setPlace, startPickOnMap, store, useApp } from '../state/store'
+import { forgetPlaces, removeRecent, setPlace, startPickOnMap, store, useApp } from '../state/store'
 import { PlaceSearch } from './PlaceSearch'
 
 interface Props {
@@ -58,6 +58,7 @@ export function PlacePicker({ onLocate, locating }: Props) {
           </div>
         )}
         {!searching && <Recents />}
+        {!searching && <ForgetButton />}
       </div>
     </div>
   )
@@ -71,11 +72,40 @@ function Recents() {
       <small className="muted">Recent</small>
       <div className="chips">
         {recent.map((r) => (
-          <button key={r.name} className="chip" onClick={() => setPlace({ name: r.name, lngLat: r.lngLat, source: 'search' }, r.name)}>
-            {r.name.split(',')[0]}
-          </button>
+          <span key={r.name} className="chip chip-removable">
+            <button className="chip-main" onClick={() => setPlace({ name: r.name, lngLat: r.lngLat, source: 'search' }, r.name)}>
+              {r.name.split(',')[0]}
+            </button>
+            <button className="chip-x" onClick={() => removeRecent(r.name)} aria-label={`Remove ${r.name.split(',')[0]} from recent places`}>
+              ×
+            </button>
+          </span>
         ))}
       </div>
     </div>
+  )
+}
+
+/** Privacy control in the picker itself: forget the saved place and the recents, back to the first-run choice. */
+function ForgetButton() {
+  const hasAny = useApp((s) => !!s.place || s.recentPlaces.length > 0)
+  const [confirming, setConfirming] = useState(false)
+  if (!hasAny) return null
+  return confirming ? (
+    <div className="forget-inline">
+      <small className="muted">Forget the saved place and the recent places on this device?</small>
+      <div className="prompt-actions row">
+        <button className="btn small primary" onClick={forgetPlaces}>
+          Forget
+        </button>
+        <button className="btn small" onClick={() => setConfirming(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  ) : (
+    <button className="btn ghost small forget-link" onClick={() => setConfirming(true)}>
+      Forget my location and recent places
+    </button>
   )
 }
