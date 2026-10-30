@@ -2745,3 +2745,21 @@ small {
   gap: 6px;
   margin-top: 6px;
 }
+
+/* ---- Now: the place row with the one-tap units chip beside it ---- */
+.now-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.now-head .place-row {
+  flex: 1;
+  min-width: 0;
+}
+.units-chip {
+  flex: none;
+}
+.units-chip button {
+  min-width: 40px;
+  min-height: 36px;
+}

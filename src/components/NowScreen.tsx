@@ -11,7 +11,7 @@ import { U } from '../lib/units'
 import { reportingNoaa } from '../lib/rivers'
 import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
-import { go, setHourlySpan, setLayer, startPickOnMap, store, useApp, wantFlood, type HourlySpan } from '../state/store'
+import { go, setHourlySpan, setLayer, setUnits, startPickOnMap, store, useApp, wantFlood, type HourlySpan } from '../state/store'
 import { REPLAY_IN_URL } from '../state/DataController'
 import type { DayPoint, NwsAlert } from '../types'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -38,7 +38,10 @@ export function NowScreen({ onLocate, locating, promptOpen = false }: Props) {
         !promptOpen && <NoPlace onLocate={onLocate} locating={locating} />
       ) : (
         <>
-          <PlaceRow />
+          <div className="now-head">
+            <PlaceRow />
+            <UnitsChip />
+          </div>
           <AlertsCard />
           <ConditionsCard />
           <HourlyCard />
@@ -58,6 +61,21 @@ export function NowScreen({ onLocate, locating, promptOpen = false }: Props) {
         </>
       )}
     </section>
+  )
+}
+
+/** One-tap °C / °F on the Now screen — the same setting as Sources & settings (client-side conversion only). */
+function UnitsChip() {
+  const units = useApp((s) => s.units)
+  return (
+    <div className="segmented small units-chip" role="radiogroup" aria-label="Temperature units">
+      <button role="radio" aria-checked={units === 'metric'} className={units === 'metric' ? 'on' : ''} onClick={() => setUnits('metric')}>
+        °C
+      </button>
+      <button role="radio" aria-checked={units === 'imperial'} className={units === 'imperial' ? 'on' : ''} onClick={() => setUnits('imperial')}>
+        °F
+      </button>
+    </div>
   )
 }
 

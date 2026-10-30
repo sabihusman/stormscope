@@ -118,6 +118,28 @@ for (const [locale, want] of [['en-US', { sym: '°F', units: 'imperial' }], ['en
   const temp = await page.locator('.cond-temp').innerText()
   const units = await page.evaluate(() => window.__store.get().units)
   check(`[${locale}] fresh profile: the temperature reads in ${want.sym} (${want.units})`, temp.includes(want.sym) && units === want.units, `"${temp}", units ${units}, navigator.language ${await page.evaluate(() => navigator.language)}`)
+  if (locale === 'en-US') {
+    // Redesign 3: one tap on the Now screen's °C / °F chip flips every number — conditions, the hourly rain line,
+    // the rain legend scale and the map scale bar — with no new request; the choice survives a reload.
+    const chip = page.locator('.screen.now .units-chip')
+    check('[en-US] the Now screen carries a °C / °F chip with °F selected', (await chip.count()) === 1 && (await chip.getByRole('radio', { name: '°F' }).getAttribute('aria-checked')) === 'true')
+    await chip.getByRole('radio', { name: '°C' }).click()
+    await page.waitForTimeout(400)
+    await page.evaluate(() => window.__store.set((s) => ({ layers: { ...s.layers, rainfall: true } })))
+    await page.waitForTimeout(600)
+    const after = await page.evaluate(() => ({ temp: document.querySelector('.cond-temp')?.innerText, rainLine: document.querySelector('.hourly')?.innerText.match(/Rain next[^\n]*/)?.[0] ?? '', scale: document.querySelector('.maplibregl-ctrl-scale')?.innerText ?? '', units: window.__store.get().units }))
+    await page.getByRole('button', { name: 'Map', exact: true }).click()
+    await page.waitForTimeout(500)
+    await page.locator('.fab-main').click()
+    await page.waitForTimeout(400)
+    const legend = await page.locator('.fab-menu .legend-rows').innerText().catch(() => '')
+    check('[en-US] one tap on °C: temperature in °C, the hourly rain line in mm, the rain legend in mm and the scale bar in km', /°C/.test(after.temp ?? '') && /\bmm\b/.test(after.rainLine) && /\bkm\b|\bm\b/.test(after.scale) && /mm/.test(legend) && after.units === 'metric', `${JSON.stringify(after)}; legend "${legend.split('\n').slice(0, 2).join(' | ')}"`)
+    await page.locator('.fab-main').click()
+    await page.getByRole('button', { name: /^Now/ }).click()
+    await page.reload({ waitUntil: 'load' })
+    await untilReady(page)
+    check('[en-US] the °C choice from the chip survives a reload and matches Settings', /°C/.test(await page.locator('.cond-temp').innerText()) && (await page.evaluate(() => window.__store.get().units)) === 'metric' && (await page.locator('.screen.now .units-chip').getByRole('radio', { name: '°C' }).getAttribute('aria-checked')) === 'true')
+  }
   if (locale === 'en-CA') {
     // The user picks Imperial in Settings: it wins now and after a reload.
     await setUnits(page, 'Imperial')
