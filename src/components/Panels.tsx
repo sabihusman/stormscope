@@ -10,6 +10,7 @@ import { compass, windLabel } from '../map/StationLayer'
 import { describeGauge, RISK_COLORS } from '../map/RiversLayer'
 import { aggregate, forgetPlaces, go, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
+import { splitGauges } from '../lib/rivers'
 import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/openMeteo'
 import type { Resource } from '../types'
 
@@ -156,23 +157,18 @@ export function StationPanel() {
 
 export function RiversPanel() {
   const r = useApp((s) => s.rivers)
+  const tier = useApp((s) => s.riversTier)
   const place = useApp((s) => s.place)
   const units = useApp((s) => s.units)
   const now = useNow()
-  const list = r.data
-  return (
-    <div className="panel">
-      <div className="panel-title">
-        <strong>River gauges nearby</strong>
-        <Freshness r={r} now={now} />
-      </div>
-      {!list ? (
-        <p className="muted">{r.state === 'loading' ? 'Loading gauges…' : (r.error ?? 'Pick a location.')}</p>
-      ) : list.length === 0 ? (
-        <p className="muted">{r.error ?? `No stream gauges within ${U.distance(40_000, units)}.`}</p>
-      ) : (
-        <ul className="gauge-list">
-          {list.map((g) => (
+  // Both sources in (the full tier) before any count is published: the summary tier alone would show a number that jumps.
+  const list = tier === 'full' ? r.data : null
+  const { current, stale } = splitGauges(list, now)
+  const high = current.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length
+  const sources = list ? [...new Set(list.flatMap((g) => g.sources))].map((s) => s.replace('NOAA NWPS', 'NOAA')).join(' + ') : ''
+  const gaugeRows = (gs: typeof current) => (
+    <ul className="gauge-list">
+      {gs.map((g) => (
             <li key={g.id}>
               <button
                 className="gauge-row"
@@ -201,8 +197,34 @@ export function RiversPanel() {
                 </div>
               </button>
             </li>
-          ))}
-        </ul>
+      ))}
+    </ul>
+  )
+  return (
+    <div className="panel">
+      <div className="panel-title">
+        <strong>River gauges nearby</strong>
+        <Freshness r={r} now={now} />
+      </div>
+      {!list ? (
+        <p className="muted" aria-busy="true">{r.state === 'loading' || (r.data && tier !== 'full') ? 'Loading gauges (NOAA and USGS)…' : (r.error ?? 'Pick a location.')}</p>
+      ) : list.length === 0 ? (
+        <p className="muted">{r.error ?? `No stream gauges within ${U.distance(40_000, units)}.`}</p>
+      ) : (
+        <>
+          <p className="gauge-headline">
+            <strong>{current.length} current gauge{current.length === 1 ? '' : 's'}</strong> ({sources}) · {high ? `${high} high` : 'none high'}
+            {stale.length ? <span className="muted"> · {stale.length} stale or out of service below</span> : ''}
+          </p>
+          {gaugeRows(current)}
+          {stale.length > 0 && (
+            <>
+              <h4 className="strip-title gauge-stale-title">Stale or out of service ({stale.length})</h4>
+              <small className="muted">No reading in the last 24 hours, or marked out of service — not in the count above.</small>
+              {gaugeRows(stale)}
+            </>
+          )}
+        </>
       )}
     </div>
   )

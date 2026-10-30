@@ -52,6 +52,39 @@ const anyAge = rows.filter((r) => /(min|h) ago/.test(r.text)).length
 check('Fresh readings still show their stage or flow with an age in minutes or hours', anyAge >= 3, `${anyAge} rows with a recent age`)
 await page.screenshot({ path: `${OUT}/gauges.png` })
 
+// Redesign 6: a stable, honest page headline — current gauges only with the source set, stale / out-of-service
+// gauges in their own section below, and "Loading gauges" rather than a partial count while a source is still loading.
+const headline = await page.locator('.gauge-headline').innerText().catch(() => '')
+const staleTitle = await page.locator('.gauge-stale-title').innerText().catch(() => '')
+const sections = await page.evaluate(() => { const lists = [...document.querySelectorAll('.gauge-list')]; return lists.map((ul) => [...ul.querySelectorAll('li')].map((li) => li.innerText.replace(/\n/g, ' | '))) })
+const staleRows = sections[1] ?? []
+check('The page headline counts current gauges only and names the source set ("N current gauges (NOAA + USGS) · none high")', /^\d+ current gauges \(NOAA \+ USGS\) · (none high|\d+ high)/.test(headline) && Number(headline.match(/^(\d+)/)?.[1]) === (sections[0]?.length ?? -1), `"${headline}"; current rows ${sections[0]?.length}`)
+check('Stale and out-of-service gauges sit in their own section below, out of the headline count', /^Stale or out of service \(\d+\)/.test(staleTitle) && staleRows.length >= 2 && staleRows.some((t) => /Out of service/.test(t)) && staleRows.some((t) => /\b(1|2) d ago|4[0-9] h ago/.test(t)), `${staleTitle}; ${staleRows.map((t) => t.slice(0, 60)).join(' || ')}`)
+// Loading: a place change on the page shows "Loading gauges" until both sources are in — never the NOAA-only count first.
+const seenDuringLoad = []
+await page.getByRole('button', { name: 'Change place' }).first().click()
+await page.waitForTimeout(300)
+await page.getByRole('dialog').getByRole('button', { name: /Search for a place/ }).click()
+await page.getByRole('dialog').getByRole('searchbox').fill('Ames')
+await page.waitForTimeout(700)
+await page.getByRole('dialog').getByRole('option').first().click()
+for (let i = 0; i < 80; i++) {
+  const t = await page.locator('.page-body').innerText().catch(() => '')
+  seenDuringLoad.push(t.match(/Loading gauges[^\n]*|^\d+ current gauges[^\n]*/m)?.[0] ?? '')
+  if (/current gauges/.test(t) && !/Loading gauges/.test(t)) break
+  await page.waitForTimeout(100)
+}
+const headlines = seenDuringLoad.filter((t) => /current gauges/.test(t))
+check('After a place change the page says "Loading gauges (NOAA and USGS)…", then one headline that does not change', seenDuringLoad.some((t) => /Loading gauges \(NOAA and USGS\)/.test(t)) && new Set(headlines).size === 1, `${[...new Set(seenDuringLoad)].join(' → ')}`)
+// Back to the original place for the tile checks below.
+await page.getByRole('button', { name: 'Change place' }).first().click()
+await page.waitForTimeout(300)
+await page.getByRole('dialog').getByRole('button', { name: /Search for a place/ }).click()
+await page.getByRole('dialog').getByRole('searchbox').fill('Johnston')
+await page.waitForTimeout(700)
+await page.getByRole('dialog').getByRole('option').first().click()
+await until(() => window.__store.get().rivers.state === 'ready' && window.__store.get().riversTier === 'full', 30000)
+
 // The Now tile's gauge count and wording: the same on every load of the same place (same mocked data), and the
 // same before and after the Rivers page has been opened — never "1 of 20 NOAA gauges" on one load and "1 of 43 gauges" on another.
 const tileText = async () => {
@@ -77,15 +110,19 @@ for (let i = 2; i <= 3; i++) {
     seen.push({ when: 'load 2, after the Rivers page', tile: await tileText(), more: await moreRow() })
   }
 }
-const tiles = new Set(seen.map((x) => x.tile))
+const tiles = new Set(seen.map((x) => x.tile.replace(/ \(\+\d+ USGS on the Rivers page\)/, '')))
 const num = (t) => t.match(/(\d+) (?:reporting )?(?:NOAA )?gauges/)?.[1]
 const counts = seen.map((x) => ({ tile: num(x.tile), more: num(x.more) }))
-check('Rivers tile: identical count and wording on three loads of the same place, before and after the Rivers page', tiles.size === 1, seen.map((x) => `${x.when}: "${x.tile}"`).join(' || '))
+check('Rivers tile: identical count and wording on three loads of the same place, before and after the Rivers page (the USGS note aside)', tiles.size === 1, seen.map((x) => `${x.when}: "${x.tile}"`).join(' || '))
 check('The More list\'s Rivers row counts the same gauges as the tile on every load', counts.every((c) => c.tile && c.tile === c.more), seen.map((x) => `${x.when}: "${x.more}"`).join(' || '))
 // Only reporting gauges make the headline: the list carries a gauge last heard from 45 h ago and one out of service.
 const listed = await page.evaluate(() => { const s = window.__store.get(); const g = s.rivers.data ?? []; const noaa = g.filter((x) => x.lid); const stale = noaa.filter((x) => { const t = Math.max(x.stage?.time ?? 0, x.flow?.time ?? 0); return !t || Date.now() - t > 24 * 3_600_000 }); const oos = noaa.filter((x) => x.floodCategory === 'out_of_service' || x.floodCategory === 'obs_not_current'); return { noaa: noaa.length, stale: stale.length, oos: oos.length } })
 const tileN = Number(num(seen.at(-1).tile))
 check('The tile counts only reporting NOAA gauges — the 45-hour-old one and the out-of-service one are not in it, though the Rivers page lists them', listed.stale >= 1 && listed.oos >= 1 && tileN === listed.noaa - listed.stale - listed.oos && /reporting/.test(seen.at(-1).tile), `tile ${tileN}, NOAA ${listed.noaa}, stale ${listed.stale}, out of service ${listed.oos}; "${seen.at(-1).tile}"`)
+// The middle path: once the Rivers page has loaded the USGS sites, the tile notes them without changing its count.
+const afterPage = seen.find((x) => /after the Rivers page/.test(x.when))
+const freshLoad = seen.find((x) => x.when === 'load 3')
+check('After the Rivers page the tile adds "(+N USGS on the Rivers page)" while its NOAA count stays the same; a fresh load has no note', /\(\+\d+ USGS on the Rivers page\)/.test(afterPage?.tile ?? '') && !/USGS/.test(freshLoad?.tile ?? '') && num(afterPage?.tile ?? '') === num(freshLoad?.tile ?? ''), `"${afterPage?.tile}" vs "${freshLoad?.tile}"`)
 done()
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)

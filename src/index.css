@@ -2778,3 +2778,12 @@ small {
   font-size: 12px;
   opacity: 0.85;
 }
+
+/* ---- Rivers page: the current-gauges headline and the stale section ---- */
+.gauge-headline {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.gauge-stale-title {
+  margin-top: 12px;
+}

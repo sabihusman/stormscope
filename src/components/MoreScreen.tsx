@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNow } from '../hooks/useMisc'
 import { Credits } from './Credits'
 import { timeAgo } from '../lib/time'
-import { reportingNoaa } from '../lib/rivers'
+import { currentUsgsOnly, reportingNoaa } from '../lib/rivers'
 import { forgetPlaces, store, useApp, type MorePage } from '../state/store'
 import { ErrorBoundary } from './ErrorBoundary'
 import { FloodPanel, RiversPanel, SourcesPanel, StationPanel } from './Panels'
@@ -49,11 +49,14 @@ function MoreList() {
   const units = useApp((s) => s.units)
   const now = useNow()
   // The same NOAA count as the Now tile (the page itself lists the USGS-only sites as well).
+  const tier = useApp((s) => s.riversTier)
   const noaa = rivers.data ? reportingNoaa(rivers.data, now) : null
   const high = noaa?.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length ?? 0
+  const usgs = tier === 'full' ? currentUsgsOnly(rivers.data, now).length : 0
+  const usgsNote = usgs ? ` (+${usgs} USGS on the Rivers page)` : ''
   const sub: Record<NonNullable<MorePage>, string> = {
     flood: 'Screening for a place: rain + terrain + drainage',
-    rivers: noaa ? (high ? `${high} of ${noaa.length} reporting NOAA gauges high` : `${noaa.length} NOAA gauges reporting`) : rivers.state === 'loading' ? 'loading…' : 'Gauges and flood stages nearby',
+    rivers: noaa ? (high ? `${high} of ${noaa.length} reporting NOAA gauges high${usgsNote}` : `${noaa.length} NOAA gauges reporting${usgsNote}`) : rivers.state === 'loading' ? 'loading…' : 'Gauges and flood stages nearby',
     station: station.data ? `${station.data.name} · ${timeAgo(station.data.observedAt, now)}` : station.state === 'loading' ? 'loading…' : 'not loaded',
     settings: `${units === 'imperial' ? 'Imperial' : 'Metric'} · motion · data budget`,
     about: 'Map and data sources, with credits',
