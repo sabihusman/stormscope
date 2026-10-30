@@ -189,6 +189,8 @@ export interface AppState {
   playbarExpanded: boolean
   /** The map's credits panel (the (i) button). */
   creditsOpen: boolean
+  /** Bumped by the Now screen's "Map layers" entry: the layers panel opens when the Map shows. */
+  openLayersNonce: number
   radarFrame: number
   rainFrame: number
   nowcastFrame: number
@@ -325,6 +327,7 @@ export const store = createStore<AppState>({
   playTime: null,
   playbarExpanded: false,
   creditsOpen: false,
+  openLayersNonce: 0,
   radarFrame: 0,
   rainFrame: 0,
   nowcastFrame: 0,

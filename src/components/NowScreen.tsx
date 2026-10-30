@@ -170,6 +170,7 @@ function ConditionsCard() {
       <div className="card now-card conditions" aria-busy={r.state === 'loading'}>
         {r.state === 'loading' || r.state === 'idle' ? (
           <>
+            <small className="muted loading-label">Loading current conditions…</small>
             <div className="skeleton w60" />
             <div className="skeleton tall w40" />
             <div className="skeleton w80" />
@@ -260,6 +261,7 @@ function DailyCard() {
       <h4>Next 7 days</h4>
       {loading ? (
         <>
+          <small className="muted loading-label">Loading the 7-day forecast…</small>
           <div className="skeleton w100" />
           <div className="skeleton w80" />
           <div className="skeleton w90" />
@@ -355,7 +357,10 @@ function HourlyCard() {
         </div>
       </div>
       {!cards.length ? (
-        <div className="skeleton w100" />
+        <>
+          <small className="muted loading-label">Loading the hourly forecast…</small>
+          <div className="skeleton w100" />
+        </>
       ) : (
         <ol ref={stripRef} className="hour-strip" aria-label={`Forecast for the next ${span} hours`}>
           {cards.map((x, i) => {
@@ -544,13 +549,17 @@ function Tiles() {
         : `${noaa.length} NOAA gauges reporting, none high${usgsNote}`
       : (rivers.error ?? (rivers.data?.length ? 'no NOAA gauge reporting nearby' : 'no gauges nearby'))
     : rivers.state === 'loading'
-      ? 'loading…'
+      ? 'Loading gauges…'
       : (rivers.error ?? 'nearby gauges ›')
   const o = station.data
+  const openLayers = () => {
+    store.set((s) => ({ openLayersNonce: s.openLayersNonce + 1 }))
+    go('map')
+  }
   return (
     <div className="tiles">
       <button className="card tile" ref={riversTile} onClick={() => go('more', 'rivers')}>
-        <small>📈 Rivers</small>
+        <small>📈 River gauges</small>
         <span className={high ? 'warn-text' : ''}>{riversLine}</span>
       </button>
       <button className={`card tile ${here ? `risk-${riskWord(here.risk).toLowerCase()}` : ''}`} ref={floodTile} onClick={() => go('more', 'flood')}>
@@ -558,13 +567,17 @@ function Tiles() {
         <span className={here && here.risk >= 0.5 ? 'warn-text' : ''}>{floodLine}</span>
       </button>
       <button className="card tile" onClick={() => go('more', 'station')}>
-        <small>🌡 Station</small>
-        <span>{o ? `${o.name.split(/,| Airport/)[0]} · ${timeAgo(o.observedAt, now)}` : station.state === 'loading' ? 'loading…' : station.error ?? 'not loaded'}</span>
+        <small>🌡 Station observations</small>
+        <span>{o ? `${o.name.split(/,| Airport/)[0]} · observed ${timeAgo(o.observedAt, now)}` : station.state === 'loading' ? 'Loading station…' : station.error ?? 'not loaded'}</span>
         {o && <small className="muted">{U.pressure(o.pressureHpa, units)} · {o.humidityPct != null ? `${Math.round(o.humidityPct)} %` : '—'}</small>}
       </button>
-      <button className="card tile" onClick={() => go('more', 'settings')}>
-        <small>ℹ Sources &amp; settings</small>
-        <span>units, freshness ›</span>
+      <button className="card tile" onClick={openLayers}>
+        <small>🗺 Map layers</small>
+        <span>radar, satellite, rain, flood, air quality ›</span>
+      </button>
+      <button className="card tile tile-wide" onClick={() => go('more', 'settings')}>
+        <small>⚙ Settings &amp; data sources</small>
+        <span>units, saved place, freshness ›</span>
       </button>
     </div>
   )
@@ -590,7 +603,10 @@ function AirNowCard() {
     <div className={`card now-card airnow ${r.stale ? 'stale' : ''}`} aria-busy={r.state === 'loading' && !r.data}>
       <h4>Air quality · measured (EPA AirNow)</h4>
       {!r.data && (r.state === 'loading' || r.state === 'idle') ? (
-        <div className="skeleton w80" />
+        <>
+          <small className="muted loading-label">Loading air quality…</small>
+          <div className="skeleton w80" />
+        </>
       ) : !r.data ? (
         <p className={notSet ? 'muted' : 'err-text'}>
           {notSet ? r.error : `Monitors unavailable — ${r.error ?? 'not loaded'}`}{' '}

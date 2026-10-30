@@ -5,6 +5,9 @@ import { setAqPollutant, setFabCorner, setFabCornerWide, setLayer, setSatProduct
 import { LegendRows } from './Legend'
 import type { LayerId } from '../types'
 
+/** The last Now-screen "Map layers" tap this module has acted on (the component remounts with the Map screen). */
+let handledLayersNonce = 0
+
 /** Forecast overlays are one at a time (they stack into an unreadable quilt otherwise). */
 const OVERLAYS: { id: LayerId; label: string; icon: string }[] = [
   { id: 'rainfall', label: 'Rain next 24 h', icon: '🌧' },
@@ -35,6 +38,14 @@ export function LayerFab() {
   const rainHorizon = useApp((s) => s.rainHorizon)
   const [open, setOpen] = useState(false)
   const wide = useWide()
+  // "Map layers" on the Now screen opens the panel as the Map appears — once per tap, not on every remount.
+  const openNonce = useApp((s) => s.openLayersNonce)
+  useEffect(() => {
+    if (openNonce > handledLayersNonce) {
+      handledLayersNonce = openNonce
+      setOpen(true)
+    }
+  }, [openNonce])
   // The panel fades and slides in and out (150 ms, opacity and transform only); it stays mounted while closing.
   const panel = usePresence(open)
   // Wide layouts: the panel is tied to the button; when the space between the button and the playback bar

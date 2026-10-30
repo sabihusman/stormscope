@@ -15,7 +15,7 @@ import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/ope
 import type { Resource } from '../types'
 
 function Freshness({ r, now }: { r: Resource<unknown>; now: number }) {
-  if (!r.freshness) return <small className="muted">{r.state === 'loading' ? 'loading…' : r.error ? r.error : 'not loaded'}</small>
+  if (!r.freshness) return <small className="muted">{r.state === 'loading' ? 'Loading…' : r.error ? r.error : 'not loaded'}</small>
   return (
     <small className={`fresh ${r.stale ? 'stale' : ''}`}>
       {r.freshness.source} · updated {timeAgo(r.freshness.fetchedAt, now)}

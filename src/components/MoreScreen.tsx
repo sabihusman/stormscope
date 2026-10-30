@@ -56,8 +56,8 @@ function MoreList() {
   const usgsNote = usgs ? ` (+${usgs} USGS on the Rivers page)` : ''
   const sub: Record<NonNullable<MorePage>, string> = {
     flood: 'Screening for a place: rain + terrain + drainage',
-    rivers: noaa ? (high ? `${high} of ${noaa.length} reporting NOAA gauges high${usgsNote}` : `${noaa.length} NOAA gauges reporting${usgsNote}`) : rivers.state === 'loading' ? 'loading…' : 'Gauges and flood stages nearby',
-    station: station.data ? `${station.data.name} · ${timeAgo(station.data.observedAt, now)}` : station.state === 'loading' ? 'loading…' : 'not loaded',
+    rivers: noaa ? (high ? `${high} of ${noaa.length} reporting NOAA gauges high${usgsNote}` : `${noaa.length} NOAA gauges reporting${usgsNote}`) : rivers.state === 'loading' ? 'Loading gauges…' : 'Gauges and flood stages nearby',
+    station: station.data ? `${station.data.name} · ${timeAgo(station.data.observedAt, now)}` : station.state === 'loading' ? 'Loading station…' : 'not loaded',
     settings: `${units === 'imperial' ? 'Imperial' : 'Metric'} · motion · data budget`,
     about: 'Map and data sources, with credits',
   }

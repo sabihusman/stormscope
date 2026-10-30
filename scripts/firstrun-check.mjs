@@ -119,6 +119,17 @@ for (const [locale, want] of [['en-US', { sym: '°F', units: 'imperial' }], ['en
   const units = await page.evaluate(() => window.__store.get().units)
   check(`[${locale}] fresh profile: the temperature reads in ${want.sym} (${want.units})`, temp.includes(want.sym) && units === want.units, `"${temp}", units ${units}, navigator.language ${await page.evaluate(() => navigator.language)}`)
   if (locale === 'en-US') {
+    // Redesign 10: clearly labelled entry points on Now (no generic "More"), and "Map layers" opens the Map with the panel open.
+    const tileLabels = await page.evaluate(() => [...document.querySelectorAll('.tiles .tile > small:first-child')].map((el) => el.textContent.trim()))
+    check('[en-US] the Now screen names its entry points: River gauges, Flood risk, Station observations, Map layers, Settings & data sources', tileLabels.join(' | ') === '📈 River gauges | 🌊 Flood risk | 🌡 Station observations | 🗺 Map layers | ⚙ Settings & data sources', tileLabels.join(' | '))
+    await page.locator('.tiles').scrollIntoViewIfNeeded()
+    await page.getByRole('button', { name: /Map layers/ }).click()
+    await page.waitForTimeout(600)
+    check('[en-US] "Map layers" opens the Map with the layers panel open', (await page.evaluate(() => window.__store.get().screen)) === 'map' && (await page.locator('.fab-menu').count()) === 1 && (await page.locator('.fab-menu').isVisible()), `screen ${await page.evaluate(() => window.__store.get().screen)}, menu ${await page.locator('.fab-menu').count()}`)
+    await page.locator('.fab-main').click()
+    await page.waitForTimeout(300)
+    await page.getByRole('button', { name: /^Now/ }).click()
+    await page.waitForTimeout(300)
     // Redesign 3: one tap on the Now screen's °C / °F chip flips every number — conditions, the hourly rain line,
     // the rain legend scale and the map scale bar — with no new request; the choice survives a reload.
     const chip = page.locator('.screen.now .units-chip')

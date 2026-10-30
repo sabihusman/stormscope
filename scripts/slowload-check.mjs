@@ -50,6 +50,10 @@ while (Date.now() - t0 < 20000) {
 }
 await granted
 check('Skeletons show first, without the note', tSkel != null, tSkel != null ? `skeletons at ${(tSkel / 1000).toFixed(1)} s` : 'no skeletons seen')
+// Redesign 10: every skeleton says what it is loading.
+const labels = await page.evaluate(() => [...document.querySelectorAll('.screen.now .loading-label')].map((el) => el.textContent.trim()))
+const aqDone = await page.evaluate(() => !!document.querySelector('.airnow .aq-value, .airnow .aqi-rows, .airnow li'))
+check('The loading states are labelled: conditions, hourly and 7-day say what is loading (air quality too, unless its monitors already answered)', ['Loading current conditions…', 'Loading the hourly forecast…', 'Loading the 7-day forecast…'].every((l) => labels.includes(l)) && (labels.includes('Loading air quality…') || aqDone), `${labels.join(' | ')}; air quality loaded ${aqDone}`)
 const sinceSkel = tNote - (tSkel ?? 0)
 check(`About 10 s after it started waiting the card says it is still waiting for Open-Meteo, with a Retry (${(sinceSkel / 1000).toFixed(1)} s after the skeletons)`, shown && /Still waiting for the forecast service \(Open-Meteo\)/.test(await note()) && (await page.locator('.conditions .slow-note button', { hasText: 'Retry' }).count()) === 1 && sinceSkel >= 9000 && sinceSkel <= 13000, `"${await note()}"`)
 await page.screenshot({ path: `${OUT}/waiting.png` })

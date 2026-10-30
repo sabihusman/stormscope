@@ -2834,3 +2834,13 @@ small {
 .no-reading-line span {
   display: block;
 }
+
+/* ---- Now: labelled loading states, the Map layers tile, the wide settings tile ---- */
+.loading-label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.tiles .tile-wide {
+  grid-column: 1 / -1;
+}
