@@ -2787,3 +2787,10 @@ small {
 .gauge-stale-title {
   margin-top: 12px;
 }
+
+/* ---- Flood page: the elevation figure explained on the card ---- */
+.flood-why {
+  margin: 6px 0 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}

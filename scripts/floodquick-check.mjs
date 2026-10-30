@@ -73,6 +73,12 @@ await page.screenshot({ path: `${OUT}/second-load.png` })
 // The terrain line names what the figure compares with (the average of the surrounding 10 mi window), never a bare "vs surroundings".
 const terrainLine = (await page.locator('.flood-here').innerText()).replace(/\n/g, ' | ')
 check('The flood card\'s terrain wording names the comparison: "level with the surrounding 10 mi" or "N ft below/above the average of the surrounding 10 mi"', /level with the surrounding 10 mi|ft (below|above) the average of the surrounding 10 mi/.test(terrainLine) && !/vs surroundings/.test(terrainLine), terrainLine.slice(0, 200))
+// Redesign 7: the elevation figure is explained in plain words on the result itself, outside the scoring note.
+const why = await page.locator('.flood-here .flood-why').innerText().catch(() => '')
+const rel = await page.evaluate(() => { const s = window.__store.get(); const b = s.blocks[s.floodFor]; const p = s.place.lngLat; const cells = b.flood.data.cells; return cells.reduce((best, c) => (Math.hypot(c.center.lng - p.lng, c.center.lat - p.lat) < Math.hypot(best.center.lng - p.lng, best.center.lat - p.lat) ? c : best)).relElevation })
+const expectWord = Math.abs(rel) < 2 ? /level with the land around it/ : rel < 0 ? /below it\. Rain runs downhill and collects on low ground/ : /above it\. Rain runs off high ground/
+check(`The result explains "surroundings" (the average elevation of the 10 mi around the place) and why the figure matters, on the card itself (rel ${rel.toFixed(1)} m)`, /"Surroundings" means the average elevation of the 10 mi around the place|"surroundings" means the average elevation of the 10 mi around the place/.test(why) && expectWord.test(why) && !(await page.locator('.flood-page details.method').evaluate((el) => el.contains(document.querySelector('.flood-why')))), why.slice(0, 220))
+check('The rain horizon options (6 / 12 / 24 / 48 h), the cell counts and "Show on the map" are still there', (await page.getByRole('radio', { name: /^next (6|12|24|48) h$/ }).count()) === 4 && (await page.locator('.flood-page .stat-grid .stat').count()) >= 3 && (await page.getByRole('button', { name: 'Show on the map' }).count()) === 1)
 done()
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)

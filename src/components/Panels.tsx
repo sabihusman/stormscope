@@ -287,6 +287,14 @@ export function FloodPanel() {
                 </span>
               </div>
             </div>
+            {/* The elevation figure explained on the result itself, in plain words (no need to open the scoring note). */}
+            <p className="muted flood-why">
+              {Math.abs(here.relElevation) < 2
+                ? `${name} sits level with the land around it: "surroundings" means the average elevation of the ${U.distance(16_100, units)} around the place. Level ground neither sheds nor collects water, so the figure neither raises nor lowers the risk.`
+                : here.relElevation < 0
+                  ? `"Surroundings" means the average elevation of the ${U.distance(16_100, units)} around the place; ${name} sits ${U.height(Math.abs(here.relElevation), units)} below it. Rain runs downhill and collects on low ground, so a place this far below its surroundings floods more easily — that is why the figure raises the risk.`
+                  : `"Surroundings" means the average elevation of the ${U.distance(16_100, units)} around the place; ${name} sits ${U.height(here.relElevation, units)} above it. Rain runs off high ground rather than collecting on it, so the figure lowers the risk.`}
+            </p>
             <small className="muted cond-foot">
               Indicative screening, not an official flood warning · computed {timeAgo(d!.computedAt, now)}
               {d!.preliminary ? ' · refining… (rain only while the terrain and drainage data load)' : d!.drainageAvailable ? '' : ' · drainage not available here — terrain + rain only'}
