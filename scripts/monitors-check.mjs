@@ -299,17 +299,17 @@ const nowLines = (page) => page.evaluate(() => [...document.querySelectorAll('.n
   const first = calls.length
   const readCard = () => page.evaluate(() => ({ attrib: document.querySelector('.now-card.airnow .aqi-attrib')?.textContent ?? '', badges: [...document.querySelectorAll('.now-card.airnow .aqi-badge')].map((b) => b.textContent), raw: (window.__store.get().monitorsNear.data?.sites ?? []).flatMap((s) => s.readings.map((r) => String(Math.round(r.value)))) }))
   const c0 = await readCard()
-  check('Now card says when it checked ("checked just now") and the badges are AQI values, none equal to a raw ppb / µg number', /checked just now/.test(c0.attrib) && c0.badges.length === 2 && c0.badges.every((b) => !c0.raw.includes(b)), `${c0.attrib.slice(-30)} badges ${c0.badges.join(',')} raw ${c0.raw.join(',')}`)
+  check('Now card says when it fetched ("data fetched just now") and the badges are AQI values, none equal to a raw ppb / µg number', /data fetched just now/.test(c0.attrib) && c0.badges.length === 2 && c0.badges.every((b) => !c0.raw.includes(b)), `${c0.attrib.slice(0, 60)} badges ${c0.badges.join(',')} raw ${c0.raw.join(',')}`)
   // 9 minutes: no refresh yet; the "checked" age grows.
   await page.clock.runFor(9 * 60_000)
   await page.waitForTimeout(400)
   const c9 = await readCard()
-  check('After 9 minutes: no second request yet, the card reads "checked 9 min ago"', calls.length === first && /checked 9 min ago/.test(c9.attrib), `${calls.length - first} new request(s); ${c9.attrib.slice(-24)}`)
+  check('After 9 minutes: no second request yet, the card reads "data fetched 9 min ago"', calls.length === first && /data fetched 9 min ago/.test(c9.attrib), `${calls.length - first} new request(s); ${c9.attrib.match(/data fetched[^·]*/)?.[0] ?? c9.attrib.slice(0, 60)}`)
   // 10 minutes: the Now tab refreshes on its own (the map's monitor cadence) and the card says so.
   await page.clock.runFor(61_000)
-  await until(() => /checked (just now|\d+s ago|1 min ago)/.test(document.querySelector('.now-card.airnow .aqi-attrib')?.textContent ?? ''), 8000)
+  await until(() => /data fetched (just now|\d+s ago|1 min ago)/.test(document.querySelector('.now-card.airnow .aqi-attrib')?.textContent ?? ''), 8000)
   const c10 = await readCard()
-  check('At 10 minutes the Now tab refreshed on its own: a second service request, and the card\'s "checked" age restarted', calls.length === first + 1 && /checked (just now|\d+s ago|1 min ago)/.test(c10.attrib), `${calls.length - first} new request(s); ${c10.attrib.slice(-24)}`)
+  check('At 10 minutes the Now tab refreshed on its own: a second service request, and the card\'s "checked" age restarted', calls.length === first + 1 && /data fetched (just now|\d+s ago|1 min ago)/.test(c10.attrib), `${calls.length - first} new request(s); ${c10.attrib.match(/data fetched[^·]*/)?.[0] ?? c10.attrib.slice(0, 60)}`)
   done()
   await ctx.close()
 }

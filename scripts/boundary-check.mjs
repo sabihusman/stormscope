@@ -78,14 +78,17 @@ await page.waitForTimeout(2500)
 s = await st()
 check('Re-enabling the layer after the cause is fixed retries it (on, error cleared)', s.layers.rainfall === true && !s.errors?.rainfall && (await page.evaluate(() => !!window.__map.getSource('rain-cells'))), JSON.stringify({ rainfall: s.layers.rainfall, error: s.errors?.rainfall ?? null }))
 
+const untilRiversFull = async (page) => { const t0 = Date.now(); while (Date.now() - t0 < 30000) { if (await page.evaluate(() => { const s = window.__store.get(); return s.rivers.state === 'ready' && s.riversTier === 'full' && (s.rivers.data?.length ?? 0) > 0 }).catch(() => false)) return; await page.waitForTimeout(200) } }
+
 // ---- 2. A panel throws during render: a gauge whose `name` getter throws. The map layer only reads
 // `name` inside its click handler, so this hits the Rivers panel's render path alone.
+await openMore(page, 'Rivers & gauges')
+await untilRiversFull(page)
 await page.evaluate(() => window.__store.set((x) => {
   const g = { ...x.rivers.data[0] }
   Object.defineProperty(g, 'name', { get() { throw new Error('injected: panel-only failure') }, enumerable: true })
   return { rivers: { ...x.rivers, data: [g, ...x.rivers.data.slice(1)] } }
 }))
-await openMore(page, 'Rivers & gauges')
 await page.waitForTimeout(600)
 const body = await page.locator('.screen.more').innerText()
 check('Throwing panel shows "unavailable — reason" with Retry, instead of unmounting the app', /Rivers & gauges unavailable —/.test(body) && (await page.getByRole('button', { name: 'Retry' }).count()) === 1, body.split('\n').find((l) => /unavailable/.test(l)))

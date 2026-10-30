@@ -75,7 +75,8 @@ const waitFor = async (pred, ms = 60000) => {
   }
   return s
 }
-const openMenu = () => page.getByRole('button', { name: /layer menu/ }).click()
+// Opens the layers panel when it is closed (desktop docks it open by default since the redesign).
+const openMenu = async () => { const b = page.getByRole('button', { name: 'Open layer menu' }); if (await b.count()) await b.click(); await page.waitForTimeout(300) }
 
 // ---- Baseline: radar on, satellite off (default), station on, rivers off (not under test).
 let s = await waitFor((x) => x.radarFrames > 0)

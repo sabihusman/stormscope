@@ -88,7 +88,8 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   check(`[${name}] bar row: play, time, scrubber, horizon; plus a colour scale for the scrubbed layer`, (await count('.playbar .play')) === 1 && (await count('.playbar-time')) === 1 && (await count('.playbar .scrubber')) === 1 && (await count('.playbar .horizon button')) === 4 && (await count('.playbar .playbar-scale')) === 1)
 
   // Floating controls: ☰, its menu (open, with the legend inside), the zoom buttons — none overlaps the bar, all in view.
-  await page.locator('.fab-main').click()
+  // (Desktop docks the panel open by default since the redesign; phones and tablets open it from ☰.)
+  if (!(await count('.fab-menu'))) await page.locator('.fab-main').click()
   await page.waitForTimeout(400)
   const fab = await box('.fab-main')
   const menu = await box('.fab-menu')

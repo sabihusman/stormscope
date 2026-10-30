@@ -115,7 +115,13 @@ const mmToIn = (mm) => mm / 25.4
   await pick(page, 48)
   const r48 = await read(page)
   const dayAfter = new Date(FIXED + 48 * 3_600_000).toLocaleDateString([], { weekday: 'short' })
-  check(`48 h at 21:00: "Now" and two cards without a day, then 24 hourly cards with "${tomorrow}", then 21 with "${dayAfter}" (the last is 8 PM the day after tomorrow)`, r48.n === 48 && r48.labels[0] === 'Now' && r48.labels.filter((l) => l.startsWith(`${tomorrow} `)).length === 24 && r48.labels.filter((l) => l.startsWith(`${dayAfter} `)).length === 21 && /8 PM$/.test(r48.labels[47]), r48.labels.slice(0, 5).join(' | ') + ' … ' + r48.labels.slice(-2).join(' | '))
+  // Expected per-day counts and the last clock from the real local times (a DST change inside the window shifts them).
+  const times48 = Array.from({ length: 48 }, (_, i) => FIXED + i * 3_600_000)
+  const dayOf = (t) => new Date(t).toLocaleDateString([], { weekday: 'short' })
+  const expTomorrow = times48.filter((t) => dayOf(t) === tomorrow).length
+  const expDayAfter = times48.filter((t) => dayOf(t) === dayAfter).length
+  const expLast = new Date(times48[47]).toLocaleTimeString([], { hour: 'numeric' })
+  check(`48 h at 21:00: "Now" and two cards without a day, then ${expTomorrow} hourly cards with "${tomorrow}", then ${expDayAfter} with "${dayAfter}" (the last is ${expLast} the day after tomorrow)`, r48.n === 48 && r48.labels[0] === 'Now' && r48.labels.filter((l) => l.startsWith(`${tomorrow} `)).length === expTomorrow && r48.labels.filter((l) => l.startsWith(`${dayAfter} `)).length === expDayAfter && r48.labels[47].endsWith(expLast), r48.labels.slice(0, 5).join(' | ') + ' … ' + r48.labels.slice(-2).join(' | '))
   await page.screenshot({ path: `${OUT}/midnight.png` })
   done()
   await ctx.close()

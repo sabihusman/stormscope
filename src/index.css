@@ -1698,7 +1698,7 @@ small {
   to { transform: scale(1.5); opacity: 0; }
 }
 /* Now cards while loading: placeholders as tall as the loaded card (measured on a 390 px phone, Oct 18:
-   conditions 151, next hours 208 (with the span switch; the same for 12 / 24 / 48 h), 7 days 293, air quality 227 (with the "checked" line), tiles 167), so nothing below them moves when
+   conditions 151, next hours 208 (with the span switch; the same for 12 / 24 / 48 h), 7 days 293, air quality 247 (Oct 30: the fetched / observed footer wraps to three lines), tiles 167), so nothing below them moves when
    the data lands. min-height only: a taller card still grows. */
 .app.narrow .now-card.conditions[aria-busy='true'] {
   min-height: 151px;
@@ -1710,7 +1710,7 @@ small {
   min-height: 293px;
 }
 .app.narrow .now-card.airnow[aria-busy='true'] {
-  min-height: 227px;
+  min-height: 247px;
 }
 .app.narrow .screen.now .tiles {
   min-height: 167px;

@@ -52,7 +52,7 @@ const conditionsVisible = () => !!document.querySelector('.cond-temp') && window
   const ms = await until(page, conditionsVisible, N_MS + 5000)
   check(`First run (granted): current conditions on screen within ${N_MS / 1000} s`, ms != null && Date.now() - t0 <= N_MS + 2000, `${Date.now() - t0} ms from navigation`)
   const now = await page.locator('.screen.now').innerText()
-  check('Now shows alerts line first, then conditions, next 12 h, map window, Plan a trip', /NWS|alert/i.test(now.split('\n').slice(0, 6).join(' ')) && /Feels like/.test(now) && /NEXT 12 HOURS/i.test(now) && (await page.locator('.now-map-window').count()) === 1 && (await page.getByRole('button', { name: 'Plan a trip' }).count()) === 1)
+  check('Now shows alerts line first, then conditions, next 12 h, map window, Plan a trip', now.search(/NWS|alert/i) >= 0 && now.search(/NWS|alert/i) < now.indexOf('Feels like') && /Feels like/.test(now) && /NEXT 12 HOURS/i.test(now) && (await page.locator('.now-map-window').count()) === 1 && (await page.getByRole('button', { name: 'Plan a trip' }).count()) === 1)
   const obs = await page.locator('.cond-observed').innerText().catch(() => '')
   check('Observed line only when a fresh (< 1 h), near (< 10 mi) station reading exists', obs === '' || /Observed .*°.* at .*, .*ago/.test(obs), obs || '(no observed line)')
   if (MOCK) check('Mocked alert is shown as the first card', (await page.locator('.now-card.alert').first().innerText()).includes('Severe Thunderstorm Warning'))
