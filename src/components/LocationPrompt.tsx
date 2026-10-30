@@ -1,4 +1,5 @@
 import type { GeoStatus } from '../hooks/useGeolocation'
+import { setSavePlacePref, useApp } from '../state/store'
 
 interface Props {
   status: GeoStatus
@@ -6,6 +7,8 @@ interface Props {
   onAllow: () => void
   onSearch: () => void
   onPickOnMap: () => void
+  /** Closed without choosing: the Now screen shows its empty state with the same three options. */
+  onClose: () => void
 }
 
 /**
@@ -13,16 +16,25 @@ interface Props {
  * search, or a point on the map) so the Now screen is never empty. After a denial or timeout
  * the primary action becomes Search.
  */
-export function LocationPrompt({ status, message, onAllow, onSearch, onPickOnMap }: Props) {
+export function LocationPrompt({ status, message, onAllow, onSearch, onPickOnMap, onClose }: Props) {
   const failed = status === 'denied' || status === 'timeout' || status === 'unavailable'
+  const savePref = useApp((s) => s.savePlacePref)
   return (
     <div className="overlay-center" role="dialog" aria-modal="true" aria-labelledby="loc-title">
       <div className="card prompt-card">
+        <button className="icon-btn prompt-close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
         <div className="prompt-icon" aria-hidden="true">
           📍
         </div>
         <h2 id="loc-title">{failed ? "Couldn't get your location" : 'Where are you?'}</h2>
-        <p>{failed ? message : 'Conditions, warnings and radar for your place. Your location stays on this device — it is only sent to the weather services to fetch data for that spot.'}</p>
+        <p>{failed ? message : 'Conditions, warnings and radar for your place. Your location is only sent to the weather services to fetch data for that spot.'}</p>
+        <p className="muted prompt-privacy">Nothing is saved on this device unless you turn this on.</p>
+        <label className="toggle-row">
+          <input type="checkbox" checked={savePref} onChange={(e) => setSavePlacePref(e.target.checked)} />
+          <span>Save this place on this device</span>
+        </label>
         <div className="prompt-actions">
           {failed ? (
             <>

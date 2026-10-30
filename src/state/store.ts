@@ -130,6 +130,10 @@ export interface AppState {
   recenterNonce: number
   /** The selected place is inside the map's current view (false once the map has been moved away from it). */
   placeInView: boolean
+  /** "Save this place on this device": off by default on a first visit; nothing about the place is stored until it is on. */
+  savePlacePref: boolean
+  /** Forgetting a place (or a first visit) asks for a place again: the first-run choice is shown while this is set and no place is chosen. */
+  askPlace: boolean
   layers: Record<LayerId, boolean>
   /** Layers that threw and were switched off by their error boundary, with the reason (cleared on re-enable). */
   layerErrors: Partial<Record<string, string>>
@@ -236,6 +240,23 @@ export const store = createStore<AppState>({
   focus: null,
   recenterNonce: 0,
   placeInView: true,
+  // Returning users who saved a place before the toggle existed keep saving (the saved place is the opt-in).
+  savePlacePref: ((): boolean => {
+    try {
+      const v = localStorage.getItem('stormscope.savePlace')
+      return v === null ? !!localStorage.getItem('stormscope.place') : v === '1'
+    } catch {
+      return false
+    }
+  })(),
+  // No saved place (a first visit, or Save off): ask on every open, never pick a city silently.
+  askPlace: ((): boolean => {
+    try {
+      return !localStorage.getItem('stormscope.place')
+    } catch {
+      return true
+    }
+  })(),
   layers: {
     radar: true,
     satellite: false,
@@ -495,7 +516,7 @@ export function setPlace(place: Place, label?: string) {
         /* ignore */
       }
     }
-    return { place, placeLabel: label ?? (place.source === 'search' ? place.name : s.placeLabel), selection: null, pickerOpen: false, pickMode: false, recentPlaces }
+    return { place, placeLabel: label ?? (place.source === 'search' ? place.name : s.placeLabel), selection: null, pickerOpen: false, pickMode: false, recentPlaces, askPlace: false }
   })
 }
 
@@ -561,7 +582,8 @@ export function setUnits(units: Units) {
 
 /**
  * "Forget my location and recent places": the saved place, the recent list and the first-run flag go from this
- * device; units, layers and the other settings stay. The app returns to Now, which asks again as on a first visit.
+ * device; units, layers and the other settings stay. The app returns to Now and asks for a place again, as on a
+ * first visit (the first-run choice screen, not a silently chosen default).
  */
 export function forgetPlaces() {
   for (const k of ['stormscope.place', 'stormscope.recent', 'stormscope.geo.asked']) {
@@ -571,13 +593,38 @@ export function forgetPlaces() {
       /* ignore */
     }
   }
-  store.set({ place: null, placeLabel: null, focus: null, recentPlaces: [], selection: null, screen: 'now', morePage: null, journey: { ...store.get().journey, to: null, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0, gen: store.get().journey.gen + 1 } })
+  store.set({ place: null, placeLabel: null, focus: null, recentPlaces: [], selection: null, screen: 'now', morePage: null, pickerOpen: false, askPlace: true, journey: { ...store.get().journey, to: null, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0, gen: store.get().journey.gen + 1 } })
 }
 
-/** Persist the last place so a returning user lands where they left off. */
+/** The "Save this place on this device" choice; turning it off removes the saved place at once. */
+export function setSavePlacePref(on: boolean) {
+  store.set({ savePlacePref: on })
+  try {
+    localStorage.setItem('stormscope.savePlace', on ? '1' : '0')
+    if (on) savePlace(store.get().place, store.get().placeLabel)
+    else localStorage.removeItem('stormscope.place')
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Remove one entry from the recent places. */
+export function removeRecent(name: string) {
+  store.set((s) => {
+    const recentPlaces = s.recentPlaces.filter((r) => r.name !== name)
+    try {
+      localStorage.setItem('stormscope.recent', JSON.stringify(recentPlaces))
+    } catch {
+      /* ignore */
+    }
+    return { recentPlaces }
+  })
+}
+
+/** Persist the last place so a returning user lands where they left off — only with "Save this place" on. */
 export function savePlace(p: Place | null, label: string | null) {
   try {
-    if (p) localStorage.setItem('stormscope.place', JSON.stringify({ ...p, label }))
+    if (p && store.get().savePlacePref) localStorage.setItem('stormscope.place', JSON.stringify({ ...p, label }))
   } catch {
     /* ignore */
   }

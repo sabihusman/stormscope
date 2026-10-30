@@ -8,7 +8,7 @@ import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
 import { describeGauge, RISK_COLORS } from '../map/RiversLayer'
-import { aggregate, go, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
+import { aggregate, go, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/openMeteo'
 import type { Resource } from '../types'
@@ -34,6 +34,17 @@ export function UnitsToggle() {
         </button>
       ))}
     </div>
+  )
+}
+
+/** "Save this place on this device" — the same choice as on the first-run screen. */
+export function SavePlaceToggle() {
+  const on = useApp((s) => s.savePlacePref)
+  return (
+    <label className="toggle-row">
+      <input type="checkbox" checked={on} onChange={(e) => setSavePlacePref(e.target.checked)} />
+      <span>Save this place on this device{on ? '' : ' (off: the place is forgotten when you close the app)'}</span>
+    </label>
   )
 }
 
@@ -299,6 +310,7 @@ export function SourcesPanel() {
         <strong>Settings</strong>
       </div>
       <UnitsToggle />
+      <SavePlaceToggle />
       <small className="muted">Motion: {reduced ? 'reduced (from your system setting) — animations are simplified' : 'full — set “reduce motion” in your OS to simplify animations'}</small>
 
       <div className="panel-title" style={{ marginTop: 8 }}>

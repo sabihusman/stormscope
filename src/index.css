@@ -2671,3 +2671,30 @@ small {
   flex-direction: row;
   gap: 8px;
 }
+
+/* ---- First-run choice: close button, privacy line, the save toggle ---- */
+.prompt-card {
+  position: relative;
+}
+.prompt-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.prompt-privacy {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.toggle-row input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}

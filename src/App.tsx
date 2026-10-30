@@ -96,7 +96,8 @@ export default function App() {
 
   // Phones: the expanded playback bar lifts the layers button above it (CSS .playbar-open).
   const playbarExpanded = useApp((s) => s.playbarExpanded)
-  const showPrompt = !place && (geo.status === 'prompt' || geo.status === 'locating' || geo.status === 'denied' || geo.status === 'timeout' || geo.status === 'unavailable') && !pickerOpen && !pickMode
+  const askPlace = useApp((s) => s.askPlace)
+  const showPrompt = !place && (askPlace || geo.status === 'prompt' || geo.status === 'locating' || geo.status === 'denied' || geo.status === 'timeout' || geo.status === 'unavailable') && !pickerOpen && !pickMode
 
   const confirmPick = () => {
     const m = (window as unknown as { __map?: { getCenter: () => { lng: number; lat: number } } }).__map
@@ -179,16 +180,22 @@ export default function App() {
 
       {showPrompt && (
         <LocationPrompt
-          status={geo.status}
+          status={askPlace && geo.status === 'idle' ? 'prompt' : geo.status}
           message={geo.message}
           onAllow={geo.request}
           onSearch={() => {
             geo.dismiss()
-            store.set({ pickerOpen: true, pickerMode: 'search' })
+            store.set({ pickerOpen: true, pickerMode: 'search', askPlace: false })
           }}
           onPickOnMap={() => {
             geo.dismiss()
+            store.set({ askPlace: false })
             startPickOnMap()
+          }}
+          onClose={() => {
+            // Closed without choosing: the Now column's empty state with the same three options, never a default city.
+            geo.dismiss()
+            store.set({ askPlace: false })
           }}
         />
       )}

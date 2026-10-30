@@ -55,9 +55,58 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   await ctx.close()
 }
 
+const untilReady = async (page) => { const t0 = Date.now(); while (Date.now() - t0 < 30000) { if (await page.evaluate(() => window.__store?.get().conditions.state === 'ready').catch(() => false)) return; await page.waitForTimeout(200) } }
+
+// ---- Redesign 1. The first-run choice: a privacy sentence, "Save this place" off by default, close → empty state ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  const page = await ctx.newPage()
+  const done = trackTraffic(page, 'firstrun-check.mjs first-run choice (mock)')
+  await installMocks(ctx, {})
+  await page.goto(BASE, { waitUntil: 'load' })
+  await page.waitForTimeout(1200)
+  const dlg = page.getByRole('dialog')
+  const dlgText = await dlg.innerText()
+  const toggle = dlg.getByRole('checkbox', { name: /Save this place/ })
+  check('[first-run] the choice screen offers the three ways in, says nothing is saved unless opted in, and its Save toggle is off', /Use my location/.test(dlgText) && /Search for a place/.test(dlgText) && /Pick a point on the map/.test(dlgText) && /Nothing is saved on this device unless you turn this on/.test(dlgText) && (await toggle.count()) === 1 && !(await toggle.isChecked()), dlgText.replace(/\n/g, ' | ').slice(0, 200))
+  await page.screenshot({ path: `${OUT}/first-run-choice.png` })
+  // Close without choosing: the empty state with the same three options, no place, nothing stored.
+  await dlg.getByRole('button', { name: 'Close' }).click()
+  await page.waitForTimeout(400)
+  const empty = await page.locator('.screen.now').innerText()
+  const stored = await page.evaluate(() => ({ place: localStorage.getItem('stormscope.place'), storePlace: window.__store.get().place, temps: document.querySelectorAll('.cond-temp').length }))
+  check('[first-run] closing it shows the empty state with the same three options — no default city, no place stored', (await page.getByRole('dialog').count()) === 0 && /Where are you\?/.test(empty) && /Use my location/.test(empty) && /Search for a place/.test(empty) && /Pick a point on the map/.test(empty) && stored.place === null && stored.storePlace === null && stored.temps === 0, `${JSON.stringify(stored)}; ${empty.replace(/\n/g, ' | ').slice(0, 120)}`)
+  await page.screenshot({ path: `${OUT}/first-run-closed.png` })
+  // Pick a place with the toggle off: shown now, not saved — a reload asks again.
+  await page.getByRole('button', { name: /Search for a place/ }).click()
+  await page.waitForTimeout(300)
+  const pickerSearch = page.getByRole('dialog').getByRole('button', { name: /Search for a place/ })
+  if (await pickerSearch.count()) await pickerSearch.click()
+  await page.getByRole('dialog').getByRole('searchbox').fill('Ames')
+  await page.waitForTimeout(800)
+  await page.getByRole('dialog').getByRole('option').first().click()
+  await untilReady(page)
+  const notSaved = await page.evaluate(() => ({ place: window.__store.get().place?.name, key: localStorage.getItem('stormscope.place') }))
+  check('[first-run] a place chosen with Save off is used now but not stored', /Ames/.test(notSaved.place ?? '') && notSaved.key === null, JSON.stringify(notSaved))
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForTimeout(1200)
+  check('[first-run] after a reload with Save off the app asks again (the choice screen), no remembered place', (await prompts(page)).length === 1 && (await page.evaluate(() => window.__store.get().place)) === null, `prompts ${JSON.stringify(await prompts(page))}`)
+  // Turn Save on, choose again: stored, and back after a reload.
+  await page.getByRole('dialog').getByRole('checkbox', { name: /Save this place/ }).check()
+  await page.getByRole('dialog').getByRole('button', { name: 'Search for a place' }).click()
+  await page.getByRole('dialog').getByRole('searchbox').fill('Ames')
+  await page.waitForTimeout(800)
+  await page.getByRole('dialog').getByRole('option').first().click()
+  await untilReady(page)
+  await page.reload({ waitUntil: 'load' })
+  await untilReady(page)
+  check('[first-run] with Save on the chosen place is stored and back after a reload', /Ames/.test((await page.evaluate(() => window.__store.get().place?.name)) ?? '') && (await page.evaluate(() => localStorage.getItem('stormscope.savePlace'))) === '1', await page.evaluate(() => window.__store.get().place?.name ?? 'none'))
+  done()
+  await ctx.close()
+}
+
 // ---- 10. Default units follow the device's region; a Settings choice overrides it and is remembered ----
 const GEO = { geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] }
-const untilReady = async (page) => { const t0 = Date.now(); while (Date.now() - t0 < 30000) { if (await page.evaluate(() => window.__store?.get().conditions.state === 'ready').catch(() => false)) return; await page.waitForTimeout(200) } }
 for (const [locale, want] of [['en-US', { sym: '°F', units: 'imperial' }], ['en-CA', { sym: '°C', units: 'metric' }]]) {
   const ctx = await browser.newContext({ ...VIEWPORTS.phone, viewport: { width: 390, height: 844 }, ...GEO, locale })
   const page = await ctx.newPage()
