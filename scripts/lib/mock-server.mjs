@@ -331,6 +331,7 @@ function geocode(q) {
 const PHOTON_PLACES = [
   { name: 'Chicago', state: 'Illinois', kind: 'city', lat: 41.8755, lng: -87.6244 },
   { name: 'Chicago Heights', state: 'Illinois', kind: 'town', lat: 41.5061, lng: -87.6356 },
+  { name: 'Chicago', state: 'Suchitepéquez', country: 'Guatemala', cc: 'GT', kind: 'village', lat: 14.087, lng: -91.608 },
   { name: 'North Chicago', state: 'Illinois', kind: 'town', lat: 42.3256, lng: -87.8412 },
   { name: 'Des Moines', state: 'Iowa', kind: 'city', lat: 41.5868, lng: -93.625 },
   { name: 'West Des Moines', state: 'Iowa', kind: 'city', lat: 41.5772, lng: -93.7113 },
@@ -348,7 +349,7 @@ function photon(url) {
   const rank = { city: 0, town: 1, village: 2 }
   const hits = PHOTON_PLACES.filter((p) => { const n = p.name.toLowerCase(); return n.startsWith(q) || n.includes(q) || edits(n, q) <= 2 || n.split(' ').some((w) => edits(w, q) <= 1) }).sort((a, b) => rank[a.kind] - rank[b.kind])
   const seen = new Set()
-  return { type: 'FeatureCollection', features: hits.filter((p) => !seen.has(p.name) && seen.add(p.name)).map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: { name: p.name, osm_key: 'place', osm_value: p.kind, state: p.state, country: 'United States', countrycode: 'US', type: 'city' } })) }
+  return { type: 'FeatureCollection', features: hits.filter((p) => !seen.has(p.name + p.state) && seen.add(p.name + p.state)).map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: { name: p.name, osm_key: 'place', osm_value: p.kind, state: p.state, country: p.country ?? 'United States', countrycode: p.cc ?? 'US', type: 'city' } })) }
 }
 function nwps(url, focus) {
   const u = new URL(url)

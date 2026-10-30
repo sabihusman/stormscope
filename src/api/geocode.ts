@@ -24,6 +24,8 @@ interface NomResult {
 export const PHOTON_URL = 'https://photon.komoot.io/api/'
 /** Biggest first: cities, then towns, then villages (Photon's own order within each). */
 const PLACE_RANK: Record<string, number> = { city: 0, town: 1, village: 2 }
+/** Case- and accent-insensitive comparison for "the same name as the query". */
+const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 
 /**
  * Place search: cities and towns only, biggest first — no hotels, businesses or street addresses.
@@ -38,18 +40,21 @@ export async function searchPlaces(q: string, signal?: AbortSignal): Promise<Geo
   if (looksLikePostcode) return searchPostcode(query, signal)
   const url = `${PHOTON_URL}?q=${encodeURIComponent(query)}&limit=10&lang=en&osm_tag=place:city&osm_tag=place:town&osm_tag=place:village`
   const j = await fetchJSON<{ features?: PhotonFeature[] }>(url, { signal, timeoutMs: 8000 })
-  const out: GeoResult[] = []
+  // Ranking: places named exactly what was typed first (biggest first among them), then the other matches (biggest
+  // first); Photon's place filter keeps unrelated kinds out. Every row shows its state or region and its country.
+  const wanted = fold(query)
+  const out: (GeoResult & { rank: number; exact: boolean })[] = []
   for (const f of j.features ?? []) {
     const p = f.properties
     if (!p.name || !f.geometry?.coordinates) continue
     const lngLat = { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }
     if (out.some((o) => o.name === p.name && Math.abs(o.lngLat.lat - lngLat.lat) < 0.02 && Math.abs(o.lngLat.lng - lngLat.lng) < 0.02)) continue
-    out.push({ name: p.name, detail: [p.state, p.country].filter(Boolean).join(', '), lngLat, rank: PLACE_RANK[p.osm_value ?? ''] ?? 3 } as GeoResult & { rank: number })
+    out.push({ name: p.name, detail: [p.state ?? p.county, p.country].filter(Boolean).join(', '), lngLat, rank: PLACE_RANK[p.osm_value ?? ''] ?? 3, exact: fold(p.name) === wanted })
   }
-  return (out as (GeoResult & { rank: number })[])
-    .sort((a, b) => a.rank - b.rank)
+  return out
+    .sort((a, b) => Number(b.exact) - Number(a.exact) || a.rank - b.rank)
     .slice(0, 8)
-    .map(({ rank: _rank, ...r }) => r)
+    .map(({ rank: _rank, exact: _exact, ...r }) => r)
 }
 
 /** Postcodes via Nominatim: the postcode area or the settlement it belongs to, never a business or an address. */
