@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useNow, useOnline, useReducedMotion, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
-import { agoLabel, clock, HOUR, MIN, relOffset, timeAgo } from '../lib/time'
+import { clock, HOUR, MIN, timeAgo } from '../lib/time'
 import { aggregate, nearestFrame, setLayer, store, useApp, useVisibleBlocks, type AnimLayer } from '../state/store'
 import { NOWCAST_FRAME_MIN, NOWCAST_FRAMES } from '../workers/client'
 import type { RainHorizon } from '../types'
@@ -125,16 +125,15 @@ export function PlaybackBar() {
 
   if (nothingOn) return null
 
-  const timeLabel = (t: number) => {
-    const d = t - now
-    if (Math.abs(d) < 5 * MIN) return 'Now'
-    // Forecast frames on the hour read whole hours counted from the current hour ("+10 h" for 9 h 44 min ahead,
-    // "+1 h" for the next hour); the radar nowcast's 10-minute frames inside the hour keep their minutes.
-    if (d > 0) return t % HOUR === 0 ? `+${Math.ceil(d / HOUR)} h` : relOffset(now, t)
-    // Past frames read their age ("25 min ago"), not a clock time.
-    return agoLabel(t, now)
-  }
+  // Every frame reads its clock time (past radar and forecast alike); the Now boundary is marked and labelled separately.
+  const timeLabel = (t: number) => clock(t)
   const current = ticks.length ? timeLabel(ticks[idx]) : '—'
+  const isFuture = ticks.length ? ticks[idx] - now > 5 * MIN : false
+  const boundary = (
+    <small className="playbar-boundary" aria-label={`Now ${clock(now)}: radar up to now, forecast after`}>
+      <i className="boundary-mark" aria-hidden="true" /> Now {clock(now)} · radar up to now, forecast after
+    </small>
+  )
   const name = (label ?? place?.name ?? 'my place').split(',')[0]
   const zoomToPlace = () => {
     if (!place) return
@@ -158,8 +157,9 @@ export function PlaybackBar() {
         <StatusStrip />
         <div className="playpill">
           {playButton}
-          <button className="pill-label" onClick={() => store.set({ playbarExpanded: true })} aria-label={`Show controls (${current})`} aria-expanded={false}>
+          <button className="pill-label" onClick={() => store.set({ playbarExpanded: true })} aria-label={`Show controls (${current}${isFuture ? ', forecast' : ''})`} aria-expanded={false}>
             {current}
+            {isFuture && <small className="pill-kind">forecast</small>}
           </button>
           <div className="pill-progress" aria-hidden="true" style={{ ['--now-pct' as string]: `${pct(nowIdx)}%` }}>
             <i className="pill-now" style={{ left: `${pct(nowIdx)}%` }} />
@@ -176,6 +176,7 @@ export function PlaybackBar() {
         {playButton}
         <strong className="playbar-time" aria-live="polite">
           {current}
+          {isFuture && <small className="time-kind">forecast</small>}
         </strong>
         <input
           className="scrubber"
@@ -202,6 +203,7 @@ export function PlaybackBar() {
           </button>
         )}
       </div>
+      {boundary}
       <PlaybackScale layer={scaleLayer} />
       {/* "Zoom to <place>" only once the map has actually been moved away from the place (never while it lands on it after a reload). */}
       {(noBlocks || (place && !placeInView)) && (

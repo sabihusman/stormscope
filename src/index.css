@@ -2794,3 +2794,34 @@ small {
   font-size: 13px;
   line-height: 1.4;
 }
+
+/* ---- Playback: clock times throughout, the Now boundary labelled ---- */
+.playbar-boundary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.boundary-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--accent);
+  flex: none;
+}
+.playbar-time .time-kind,
+.pill-label .pill-kind {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1;
+}
+.playbar .scrubber {
+  background: linear-gradient(90deg, var(--accent) var(--now-pct, 50%), rgba(148, 163, 184, 0.45) var(--now-pct, 50%));
+  background-size: 100% 2px;
+  background-repeat: no-repeat;
+  background-position: center;
+}

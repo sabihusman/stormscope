@@ -1,6 +1,6 @@
 // Playback time labels on a small phone (375 × 667), mocked only, by walking the scrubber frame by frame with the
-// keyboard (radar + the rain overlay): every hourly forecast frame reads a whole number of hours ("+10 h", never
-// "+9 h 44 min"); the radar nowcast frames inside the hour keep their minutes; the clock frame reads "Now".
+// keyboard (radar + the rain overlay): every frame, past radar and forecast alike, reads a clock time; the Now
+// boundary between them is marked and labelled "radar up to now, forecast after"; forecast frames say so.
 //   node scripts/playlabel-check.mjs [base-url] [shots-dir] [--mock]
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
@@ -61,21 +61,20 @@ const walk = async () => {
 const frames = await walk()
 const HOUR = 3_600_000
 const future = frames.filter((f) => f.time != null && f.time - f.now >= 5 * 60_000)
-const hourly = future.filter((f) => f.time % HOUR === 0)
-const nowcast = future.filter((f) => f.time % HOUR !== 0)
-check('The scrubber walks a full timeline: past radar frames, Now, then the rain overlay\'s hourly frames', frames.length >= 20 && hourly.length >= 12 && frames.some((f) => f.label === 'Now'), `${frames.length} frames: ${frames.map((f) => f.label).join(' · ')}`)
-const badHour = hourly.filter((f) => !/^\+\d+ h$/.test(f.label))
-check('Every hourly forecast frame reads a whole number of hours ("+10 h"), never hours and minutes', hourly.length > 0 && badHour.length === 0, badHour.length ? badHour.map((f) => f.label).join(' · ') : hourly.map((f) => f.label).join(' · '))
-// The whole hours count from the current hour: the k-th hourly frame after the current hour reads "+k h".
-const wrongCount = hourly.filter((f) => f.label !== `+${Math.ceil((f.time - f.now) / HOUR)} h`)
-check('The hour count is the number of the frame\'s hour after the current one (+1 h for the next hour, "+10 h" for 9 h 44 min ahead)', wrongCount.length === 0, wrongCount.map((f) => `${f.label} for ${Math.round((f.time - f.now) / 60_000)} min ahead`).join(' · ') || 'all consistent')
-check('Radar nowcast frames inside the hour keep their minutes ("+10 min")', nowcast.every((f) => /^\+\d+ min$/.test(f.label)), nowcast.map((f) => f.label).join(' · '))
+const past = frames.filter((f) => f.time != null && f.now - f.time >= 5 * 60_000)
+const CLOCK = /^\d{1,2}:\d{2}( ?[AP]M)?(\nforecast)?$/
+check('The scrubber walks a full timeline: past radar frames, the current one, then forecast frames', frames.length >= 20 && future.length >= 12 && past.length >= 5, `${frames.length} frames: ${frames.map((f) => f.label.replace(/\n/g, ' ')).join(' · ')}`)
+const notClock = frames.filter((f) => !CLOCK.test(f.label))
+check('Every frame reads a clock time, past and forecast alike (no "+2 h 18 min", no "25 min ago", no "Now")', notClock.length === 0, notClock.map((f) => f.label).join(' · ') || frames.map((f) => f.label.split('\n')[0]).join(' · '))
+const expected = (f) => new Date(f.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+const wrongClock = frames.filter((f) => f.label.split('\n')[0] !== expected(f))
+check('Each label is the clock time of that frame', wrongClock.length === 0, wrongClock.map((f) => `${f.label} vs ${expected(f)}`).join(' · ') || 'all match')
+check('Forecast frames say "forecast" under their time; past radar frames do not', future.every((f) => /\nforecast$/.test(f.label)) && past.every((f) => !/forecast/.test(f.label)), `future ${future.length}, past ${past.length}`)
+const boundaryText = await page.locator('.playbar-boundary').innerText().catch(() => '')
+check('The Now boundary is marked and labelled ("Now 7:52 PM · radar up to now, forecast after")', /^Now \d{1,2}:\d{2}( ?[AP]M)? · radar up to now, forecast after$/.test(boundaryText.trim()) && (await page.locator('.playbar-boundary .boundary-mark').count()) === 1, `"${boundaryText}"`)
 await page.screenshot({ path: `${OUT}/bar-last-frame.png` })
 
 // ---- Past frames and the buttons (audit r2 #9) ----
-const past = frames.filter((f) => f.time != null && f.now - f.time >= 5 * 60_000)
-const AGO = /^\d+ min ago$|^\d+ h( \d+ min)? ago$/
-check('Past frames read how long ago ("25 min ago"), never a clock time', past.length >= 5 && past.every((f) => AGO.test(f.label)), past.map((f) => f.label).join(' · '))
 const size = async (sel) => { const b = await page.locator(sel).boundingBox(); return b ? { w: Math.round(b.width), h: Math.round(b.height), right: Math.round(b.x + b.width) } : null }
 const play = await size('.playbar .play')
 const close = await size('.playbar .playbar-close')
@@ -92,7 +91,7 @@ const longest = await page.locator('.playbar-time').innerText()
 const close2 = await size('.playbar .playbar-close')
 const rowFits = await page.evaluate(() => [...document.querySelectorAll('.playbar-row > *')].every((el) => { const r = el.getBoundingClientRect(); return r.right <= window.innerWidth + 0.5 && r.left >= -0.5 }))
 const timeFits = await page.evaluate(() => { const el = document.querySelector('.playbar-time'); return el.scrollWidth <= el.clientWidth + 1 })
-check(`The longest label ("${longest}") fits the expanded bar at 375 px: every control inside the viewport, ✕ fully visible, the label not clipped`, /h \d+ min ago/.test(longest) && rowFits && timeFits && close2 && close2.right <= 375, `✕ ${JSON.stringify(close2)}, row fits ${rowFits}, label fits ${timeFits}`)
+check(`The oldest satellite frame's label ("${longest.replace(/\n/g, ' ')}") fits the expanded bar at 375 px: every control inside the viewport, ✕ fully visible, the label not clipped`, CLOCK.test(longest) && rowFits && timeFits && close2 && close2.right <= 375, `✕ ${JSON.stringify(close2)}, row fits ${rowFits}, label fits ${timeFits}`)
 await page.screenshot({ path: `${OUT}/bar-longest-label.png` })
 await page.locator('.playbar .playbar-close').click()
 await page.waitForTimeout(400)
@@ -100,7 +99,7 @@ const pill = await size('.playpill')
 const pillPlay = await size('.playpill .play')
 const pillLabel = await page.evaluate(() => { const el = document.querySelector('.playpill .pill-label'); return { text: el.innerText, fits: el.scrollWidth <= el.clientWidth + 1 } })
 const fab = await size('.fab-main')
-check('The longest label fits the pill at 375 px (pill inside the viewport, label not clipped, clear of ☰; ▶ 44 px)', !!pill && pill.right <= 375 && pillLabel.fits && /ago/.test(pillLabel.text) && pillPlay?.w === 44 && (!fab || pill.right <= 375 - fab.w - 8), `pill ${JSON.stringify(pill)} label "${pillLabel.text}" fits ${pillLabel.fits} ▶ ${JSON.stringify(pillPlay)} fab ${JSON.stringify(fab)}`)
+check('That label fits the pill at 375 px (pill inside the viewport, label not clipped, clear of ☰; ▶ 44 px)', !!pill && pill.right <= 375 && pillLabel.fits && CLOCK.test(pillLabel.text) && pillPlay?.w === 44 && (!fab || pill.right <= 375 - fab.w - 8), `pill ${JSON.stringify(pill)} label "${pillLabel.text}" fits ${pillLabel.fits} ▶ ${JSON.stringify(pillPlay)} fab ${JSON.stringify(fab)}`)
 await page.screenshot({ path: `${OUT}/pill-longest-label.png` })
 done()
 await browser.close()
