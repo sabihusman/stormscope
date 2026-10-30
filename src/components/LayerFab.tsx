@@ -36,7 +36,14 @@ export function LayerFab() {
   const satProduct = useApp((s) => s.satProduct)
   const aqPollutant = useApp((s) => s.aqPollutant)
   const rainHorizon = useApp((s) => s.rainHorizon)
-  const [open, setOpen] = useState(false)
+  // Desktop (1024 px and up): the panel is docked open unless the user collapsed it (remembered); tablets and phones start closed.
+  const [open, setOpen] = useState(() => {
+    try {
+      return window.innerWidth >= 1024 && localStorage.getItem('stormscope.layersDocked') !== '0'
+    } catch {
+      return false
+    }
+  })
   const wide = useWide()
   // "Map layers" on the Now screen opens the panel as the Map appears — once per tap, not on every remount.
   const openNonce = useApp((s) => s.openLayersNonce)
@@ -146,7 +153,17 @@ export function LayerFab() {
       justDragged.current = false
       return
     }
-    setOpen((o) => !o)
+    setOpen((o) => {
+      // On wide layouts the collapse / reopen is the docking preference.
+      if (wide) {
+        try {
+          localStorage.setItem('stormscope.layersDocked', o ? '0' : '1')
+        } catch {
+          /* ignore */
+        }
+      }
+      return !o
+    })
   }
   void CORNER_ORDER
   void corner

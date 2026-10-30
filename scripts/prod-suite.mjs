@@ -75,6 +75,7 @@ const SUITES = [
   { name: 'floodquick', script: 'floodquick-check.mjs' },
   { name: 'slowload', script: 'slowload-check.mjs' },
   { name: 'loadtime', script: 'loadtime-check.mjs' },
+  { name: 'desktop', script: 'desktop-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'nowmap', script: 'nowmap-check.mjs' },
   { name: 'polish', script: 'polish-check.mjs' },
