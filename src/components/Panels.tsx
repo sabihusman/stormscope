@@ -287,7 +287,21 @@ export function FloodPanel() {
                 </span>
               </div>
             </div>
-            {/* The elevation figure explained on the result itself, in plain words (no need to open the scoring note). */}
+            {/* Why this result, as three plain rows, then the elevation figure explained in words. */}
+            <dl className="flood-why-rows">
+              <div>
+                <dt>Rain</dt>
+                <dd>{U.precip(here.rain24, units)} in the next {d!.horizonHours} h</dd>
+              </div>
+              <div>
+                <dt>Ground height</dt>
+                <dd>{Math.abs(here.relElevation) < 2 ? 'level with nearby ground' : `about ${U.height(Math.abs(here.relElevation), units)} ${here.relElevation < 0 ? 'lower' : 'higher'} than the average nearby ground`}</dd>
+              </div>
+              <div>
+                <dt>Nearest mapped stream</dt>
+                <dd>{here.drainageDistM != null ? `${U.distance(here.drainageDistM, units)} away` : d!.drainageAvailable ? 'none within the screened area' : 'drainage data not available here'}</dd>
+              </div>
+            </dl>
             <p className="muted flood-why">
               {Math.abs(here.relElevation) < 2
                 ? `${name} sits level with the land around it: "surroundings" means the average elevation of the ${U.distance(16_100, units)} around the place. Level ground neither sheds nor collects water, so the figure neither raises nor lowers the risk.`
