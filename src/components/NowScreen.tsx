@@ -44,6 +44,7 @@ export function NowScreen({ onLocate, locating, promptOpen = false }: Props) {
           </div>
           <AlertsCard />
           <ConditionsCard />
+          <NowSummary />
           <HourlyCard />
           <ErrorBoundary kind="panel" name="7-day forecast">
             <DailyCard />
@@ -198,8 +199,16 @@ function ConditionsCard() {
   // reading passes the hour and returns with the next reading under it (the station polls every 10 min).
   const o = station.data
   const observed = o && o.provider === 'weather.gov' && place && now - o.observedAt < 60 * 60_000 && haversine(place.lngLat, o.lngLat) < 16_093 && o.tempC != null ? o : null
+  // The moment this card describes, in the place's own zone ("Now · Sat 24 Oct, 10:30 AM").
+  let stamp = ''
+  try {
+    stamp = new Intl.DateTimeFormat([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: r.data!.timezone }).format(new Date(now))
+  } catch {
+    stamp = new Date(now).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  }
   return (
     <div className={`card now-card conditions ${r.stale ? 'stale' : ''}`}>
+      <small className="muted cond-stamp">Now · {stamp}</small>
       <div className="cond-main">
         <span className="cond-temp">{U.temp(c.tempC, units)}</span>
         <div className="cond-text">
@@ -226,6 +235,40 @@ function ConditionsCard() {
         {r.error ? ` · last refresh failed: ${r.error}` : ''}
       </small>
     </div>
+  )
+}
+
+/**
+ * One line that answers "anything to worry about?": active alerts first, else rain expected in the next 24 h, else
+ * all clear — with the place's flood screening appended once it has been computed. Reads only what is already loaded.
+ */
+function NowSummary() {
+  const r = useApp((s) => s.conditions)
+  const alerts = useApp((s) => s.alerts.data?.alerts.length ?? 0)
+  const place = useApp((s) => s.place)
+  const flood = useApp((s) => (place ? s.blocks[floodKeyFor(place.lngLat)]?.flood : undefined))
+  const units = useApp((s) => s.units)
+  // Its slot is reserved while the forecast loads, so nothing below moves when the line appears.
+  if (!r.data) return <p className="now-summary placeholder" aria-busy="true" aria-hidden="true" />
+  const rain24 = r.data.hourly.slice(0, 24).reduce((a, x) => a + (x.precipMm ?? 0), 0)
+  const here = place ? floodHere(flood, place.lngLat) : null
+  const floodNote = here ? ` · Flood screening: ${riskWord(here.risk)}` : ''
+  if (alerts > 0)
+    return (
+      <p className="now-summary amber" role="status">
+        ⚠ <strong>{alerts} active NWS alert{alerts === 1 ? '' : 's'}</strong> for this place — details above{floodNote}
+      </p>
+    )
+  if (rain24 >= 1)
+    return (
+      <p className="now-summary amber" role="status">
+        🌧 <strong>Rain coming:</strong> about {U.precip(rain24, units)} expected in the next 24 h{floodNote}
+      </p>
+    )
+  return (
+    <p className="now-summary green" role="status">
+      ✓ <strong>All clear for now.</strong> No rain expected in the next 24 h{floodNote}
+    </p>
   )
 }
 
