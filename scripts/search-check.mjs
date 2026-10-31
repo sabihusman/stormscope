@@ -45,7 +45,8 @@ const search = async (q) => {
   } else await searchPlace(page, q)
   await until(() => { const d = document.querySelector('[role=dialog]'); const t = d?.innerText ?? ''; return !/Searching…/.test(t) && (d?.querySelectorAll('[role=listbox][aria-label="Search results"] [role=option]').length > 0 || /No places found|Search failed/.test(t)) }, 10000)
   await page.waitForTimeout(200)
-  const options = await page.evaluate(() => [...document.querySelectorAll('[role=dialog] [role=listbox][aria-label="Search results"] [role=option]')].map((li) => li.innerText.replace(/\n/g, ', ')))
+  // The row's text without its "Best match" tag (the tag is read separately).
+  const options = await page.evaluate(() => [...document.querySelectorAll('[role=dialog] [role=listbox][aria-label="Search results"] [role=option]')].map((li) => { const tag = li.querySelector('.tag'); const txt = tag ? li.innerText.replace(tag.innerText, '') : li.innerText; return txt.replace(/\n+/g, ', ').replace(/, ,/g, ',').trim() }))
   const msg = await page.evaluate(() => document.querySelector('[role=dialog] [role=listbox][aria-label="Search results"] li.muted')?.innerText ?? '')
   return { options, msg }
 }
