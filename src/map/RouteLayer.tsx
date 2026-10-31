@@ -121,7 +121,13 @@ export function RouteLayer() {
       [w, s],
       [e, n],
     ]
-    const padding = { top: 80, bottom: window.innerWidth < 720 ? Math.min(window.innerHeight * 0.46, 420) + 40 : 60, left: 40, right: window.innerWidth < 720 ? 40 : 440 }
+    // Padding from the map's own box, not the window: on desktop the trip dock sits beside the map (the map area can be
+    // under 400 px wide there), so a fixed 440 px right margin left no room and MapLibre skipped the fit altogether.
+    const box = map.getContainer().getBoundingClientRect()
+    const side = (frac: number, max: number) => Math.min(max, Math.round(box.width * frac))
+    const padding = window.innerWidth < 720
+      ? { top: 80, bottom: Math.min(window.innerHeight * 0.46, 420) + 40, left: 40, right: 40 }
+      : { top: Math.min(80, Math.round(box.height * 0.12)), bottom: Math.min(60, Math.round(box.height * 0.1)), left: side(0.08, 40), right: document.querySelector('.app.dock-open') ? side(0.08, 40) : side(0.35, 440) }
     // "Moved" is measured from the camera as it was right before our first fitBounds call, so an
     // in-flight programmatic animation (e.g. the fly-to-place) is taken over, not treated as the
     // user having moved on; retries only re-fit when that first call was cancelled before moving.

@@ -196,7 +196,11 @@ export function MapView({ children }: { children: ReactNode }) {
       // A point chip: the headline is built from the forecast grid by PointChip; coordinates stay in Details.
       store.set({ selection: { kind: 'point', lngLat: { lng: e.lngLat.lng, lat: e.lngLat.lat }, title: 'This point', lines: [] } })
     })
+    // The map's box changes without a window resize (the desktop dock opening, the column folding): keep the canvas in step.
+    const ro = typeof ResizeObserver !== 'undefined' && container.current ? new ResizeObserver(() => m.resize()) : null
+    if (ro && container.current) ro.observe(container.current)
     return () => {
+      ro?.disconnect()
       setMap(null)
       m.remove()
     }
