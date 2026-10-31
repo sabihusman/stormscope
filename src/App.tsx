@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useRef, type ReactNode } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { MapView } from './map/MapView'
 import { RadarLayer } from './map/RadarLayer'
@@ -16,9 +16,9 @@ import { CreditsPanel } from './components/Credits'
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
 import { DataController } from './state/DataController'
-import { closeAllPanels, endPickOnMap, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
+import { closeAllPanels, endPickOnMap, go, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
 import { useGeolocation } from './hooks/useGeolocation'
-import { useWide } from './hooks/useMisc'
+import { useDesktop, useWide } from './hooks/useMisc'
 import { haversine } from './lib/geo'
 import { WARM_CACHE_NO_REFETCH } from './lib/perfFlags'
 import { LocationPrompt } from './components/LocationPrompt'
@@ -56,6 +56,10 @@ export default function App() {
   const pickMode = useApp((s) => s.pickMode)
   const pickerOpen = useApp((s) => s.pickerOpen)
   const wide = useWide()
+  // Desktop (≥ 1024 px): the Now column is always on the left; Trip and More dock on the right, beside the map.
+  const desktop = useDesktop()
+  const desk = wide && desktop
+  const dockOpen = desk && (screen === 'trip' || screen === 'more') && !pickMode
 
   // PWA update prompt.
   const { needRefresh, updateServiceWorker } = useRegisterSW({
@@ -97,9 +101,15 @@ export default function App() {
   // Phones: the expanded playback bar lifts the layers button above it (CSS .playbar-open).
   const playbarExpanded = useApp((s) => s.playbarExpanded)
   // Keyboard: Escape closes every open panel (the arrow keys already scrub the focused playback slider).
+  const dockRef = useRef(dockOpen)
+  dockRef.current = dockOpen
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeAllPanels()
+      if (e.key !== 'Escape') return
+      const hadPanel = store.get().pickerOpen || store.get().creditsOpen || !!store.get().dotChooser || store.get().legendOpen
+      closeAllPanels()
+      // With no floating panel to close, Escape closes the desktop dock (Trip / More) back to Now.
+      if (!hadPanel && dockRef.current) go('now')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -119,7 +129,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} fabw-${fabCornerWide} ${wide ? 'wide' : 'narrow'} ${pickMode ? 'picking' : ''} ${playbarExpanded ? 'playbar-open' : ''} ${wide && columnCollapsed && screen !== 'map' ? 'col-collapsed' : ''}`}>
+    <div className={`app screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} fabw-${fabCornerWide} ${wide ? 'wide' : 'narrow'} ${desk ? 'desk' : ''} ${dockOpen ? 'dock-open' : ''} ${pickMode ? 'picking' : ''} ${playbarExpanded ? 'playbar-open' : ''} ${wide && columnCollapsed && (desk || screen !== 'map') ? 'col-collapsed' : ''}`}>
       <MapView>
         {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
         <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
@@ -174,10 +184,15 @@ export default function App() {
         </div>
       )}
 
-      {screen === 'now' && (
+      {(screen === 'now' || (desk && !pickMode)) && (
         <ErrorBoundary kind="panel" name="Now">
           <NowScreen onLocate={geo.request} locating={geo.status === 'locating'} promptOpen={showPrompt} />
         </ErrorBoundary>
+      )}
+      {dockOpen && (
+        <button className="dock-close" onClick={() => go('now')} aria-label="Close this panel (Escape)" title="Close (Esc)">
+          ✕
+        </button>
       )}
       {screen === 'trip' && (
         <ErrorBoundary kind="panel" name="Trip"><TripScreen /></ErrorBoundary>
@@ -186,7 +201,7 @@ export default function App() {
         <ErrorBoundary kind="panel" name="More"><MoreScreen /></ErrorBoundary>
       )}
       <Nav />
-      {wide && screen !== 'map' && !pickMode && (
+      {wide && (desk || screen !== 'map') && !pickMode && (
         <button className="col-toggle" onClick={() => store.set({ columnCollapsed: !columnCollapsed })} aria-label={columnCollapsed ? 'Show the panel' : 'Hide the panel for a full-map view'} aria-expanded={!columnCollapsed} title={columnCollapsed ? 'Show the panel' : 'Full-map view'}>
           {columnCollapsed ? '›' : '‹'}
         </button>

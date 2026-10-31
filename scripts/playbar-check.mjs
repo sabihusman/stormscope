@@ -84,7 +84,9 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   }
 
   const bar = await box('.playbar')
-  check(`[${name}] bar docked along the bottom edge, full map width, fully in view`, inside(bar, vp.width, vp.height) && bar.width >= (wide ? vp.width - 64 - 1 : vp.width - 1) && Math.abs(bar.y + bar.height - navTop) <= 1, fmt(bar))
+  // Wide layouts: the bar spans the map area (on desktop the Now column stays beside the map, so that is less than the viewport minus the rail).
+  const mapArea = await box('.map-root')
+  check(`[${name}] bar docked along the bottom edge, full map width, fully in view`, inside(bar, vp.width, vp.height) && bar.width >= (wide ? mapArea.width - 1 : vp.width - 1) && Math.abs(bar.x - (wide ? mapArea.x : 0)) <= 1 && Math.abs(bar.y + bar.height - navTop) <= 1, `${fmt(bar)} map ${fmt(mapArea)}`)
   check(`[${name}] bar row: play, time, scrubber, horizon; plus a colour scale for the scrubbed layer`, (await count('.playbar .play')) === 1 && (await count('.playbar-time')) === 1 && (await count('.playbar .scrubber')) === 1 && (await count('.playbar .horizon button')) === 4 && (await count('.playbar .playbar-scale')) === 1)
 
   // Floating controls: ☰, its menu (open, with the legend inside), the zoom buttons — none overlaps the bar, all in view.
@@ -100,7 +102,8 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   check(`[${name}] layer menu ${wide ? 'beside the zoom column' : 'anchored to ☰ (same edge)'}, fully on screen, clear of the bar`, !!menu && inside(menu, vp.width, vp.height) && !overlap(menu, bar) && (wide ? menu.x + menu.width <= zoom.x + 1 && !overlap(menu, zoom) : Math.abs(menu.x + menu.width - (fab.x + fab.width)) <= 24), `menu ${fmt(menu)}`)
   check(`[${name}] legend inside the layer menu, active layers only (radar + rivers, no rain)`, /Radar \(RainViewer\)/.test(legendText) && /River gauges/.test(legendText) && !/Rain next/.test(legendText) && (await count('.legend-chip, .legend')) === 0, legendText.split('\n').slice(0, 2).join(' | '))
   check(`[${name}] zoom buttons in view, clear of the bar`, inside(zoom, vp.width, vp.height) && !overlap(zoom, bar), fmt(zoom))
-  const clipped = await page.evaluate(() => [...document.querySelectorAll('.app button, .app .pill, .app .maplibregl-ctrl')].filter((el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && cs.visibility !== 'hidden' && (r.right > window.innerWidth + 1 || r.left < -1 || r.bottom > window.innerHeight + 1 || r.top < -1) }).map((el) => `${el.className || el.tagName}@${Math.round(el.getBoundingClientRect().left)},${Math.round(el.getBoundingClientRect().top)}`))
+  // Controls inside a scrolling content column (the Now column on desktop) are reachable by scrolling, not clipped.
+  const clipped = await page.evaluate(() => [...document.querySelectorAll('.app button, .app .pill, .app .maplibregl-ctrl')].filter((el) => !el.closest('.screen')).filter((el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && cs.visibility !== 'hidden' && (r.right > window.innerWidth + 1 || r.left < -1 || r.bottom > window.innerHeight + 1 || r.top < -1) }).map((el) => `${el.className || el.tagName}@${Math.round(el.getBoundingClientRect().left)},${Math.round(el.getBoundingClientRect().top)}`))
   check(`[${name}] no control is clipped by the viewport edge`, clipped.length === 0, clipped.join(' | ') || 'none')
   const chips = await page.evaluate(() => [...document.querySelectorAll('.playbar-status .pill')].map((el) => ({ w: el.scrollWidth, cw: el.clientWidth, r: el.getBoundingClientRect().right })))
   check(`[${name}] status chips are not cut off`, chips.every((c) => c.w <= c.cw + 1 && c.r <= vp.width + 1), `${chips.length} chips`)

@@ -3029,3 +3029,91 @@ small {
   margin: 6px 0 2px;
   font-size: 13px;
 }
+
+/* ---- Desktop (≥ 1024 px): Now always on the left, Trip / More docked on the right beside the map ---- */
+.app.desk {
+  --dock-w: 360px;
+}
+.app.desk .screen.now {
+  left: var(--rail-w);
+  width: var(--col-w);
+}
+/* The map keeps the Now column beside it on the Map tab too. */
+.app.desk.screen-map .map-root,
+.app.desk.screen-map .topbar,
+.app.desk.screen-map .playbar,
+.app.desk.screen-map .sheet,
+.app.desk.screen-map .legend,
+.app.desk.screen-map .legend-chip {
+  left: calc(var(--rail-w) + var(--col-w));
+}
+.app.desk.screen-map .topbar,
+.app.desk.screen-map .legend,
+.app.desk.screen-map .legend-chip {
+  left: calc(var(--rail-w) + var(--col-w) + 10px);
+}
+.app.desk.screen-map .sheet {
+  left: calc(var(--rail-w) + var(--col-w) + 12px);
+}
+/* Trip and More: a dock on the right edge. */
+.app.desk .screen.trip,
+.app.desk .screen.more {
+  left: auto;
+  right: 0;
+  width: var(--dock-w);
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+.app.desk.dock-open .map-root,
+.app.desk.dock-open .playbar {
+  right: var(--dock-w);
+}
+.app.desk.dock-open .topbar {
+  right: calc(var(--dock-w) + 10px);
+}
+.app.desk.dock-open .fab-stack,
+.app.desk.dock-open.fab-bl .fab-stack,
+.app.desk.dock-open.fab-tl .fab-stack,
+.app.desk.dock-open.fab-tr .fab-stack {
+  right: calc(var(--sar) + 8px + var(--dock-w));
+}
+.app.desk.dock-open .toast {
+  right: calc(var(--dock-w) + 12px);
+}
+.dock-close {
+  display: none;
+}
+.app.desk.dock-open .dock-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  z-index: 27;
+  top: calc(var(--sat) + 10px);
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  color: var(--text);
+  font-size: 16px;
+}
+/* The column toggle folds the Now column only; the dock keeps its place. */
+.app.desk.col-collapsed .screen.now {
+  display: none;
+}
+.app.desk.col-collapsed .screen.trip,
+.app.desk.col-collapsed .screen.more {
+  display: block;
+}
+.app.desk.col-collapsed .map-root,
+.app.desk.col-collapsed .playbar,
+.app.desk.col-collapsed.screen-map .map-root,
+.app.desk.col-collapsed.screen-map .playbar {
+  left: var(--rail-w);
+}
+.app.desk.col-collapsed .topbar,
+.app.desk.col-collapsed.screen-map .topbar {
+  left: calc(var(--rail-w) + 10px);
+}

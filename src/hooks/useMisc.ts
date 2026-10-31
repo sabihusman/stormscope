@@ -40,6 +40,18 @@ export function useWide(): boolean {
   return wide
 }
 
+/** ≥ 1024 px (desktop): the Now column stays on the left and Trip / More open as a dock beside the map. */
+export function useDesktop(): boolean {
+  const [desk, setDesk] = useState(() => window.matchMedia('(min-width: 1024px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const on = () => setDesk(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return desk
+}
+
 /** Ticks every `ms` so "updated X ago" labels stay honest. */
 export function useNow(ms = 15_000): number {
   const [now, setNow] = useState(Date.now())
