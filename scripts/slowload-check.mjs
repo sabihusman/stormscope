@@ -30,6 +30,16 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, is
 const page = await ctx.newPage()
 const done = trackTraffic(page, 'slowload-check.mjs (mock)')
 await installMocks(ctx, { delayHosts: { 'api.open-meteo.com': HOLD } })
+// The page timestamps the moments itself (a polling test sees them late on a slow deployment): the first conditions
+// skeleton and the slow note, on the page's own clock.
+await ctx.addInitScript(() => {
+  window.__slow = {}
+  new MutationObserver(() => {
+    const t = performance.now()
+    if (window.__slow.skel == null && document.querySelector('.conditions .skeleton')) window.__slow.skel = t
+    if (window.__slow.note == null && document.querySelector('.conditions .slow-note')) window.__slow.note = t
+  }).observe(document, { childList: true, subtree: true })
+})
 const t0 = Date.now()
 await page.goto(BASE, { waitUntil: 'load' })
 // The grant is not awaited: the poll below must already be running when the card first appears.
@@ -54,8 +64,9 @@ check('Skeletons show first, without the note', tSkel != null, tSkel != null ? `
 const labels = await page.evaluate(() => [...document.querySelectorAll('.screen.now .loading-label')].map((el) => el.textContent.trim()))
 const aqDone = await page.evaluate(() => !!document.querySelector('.airnow .aq-value, .airnow .aqi-rows, .airnow li'))
 check('The loading states are labelled: conditions, hourly and 7-day say what is loading (air quality too, unless its monitors already answered)', ['Loading current conditions…', 'Loading the hourly forecast…', 'Loading the 7-day forecast…'].every((l) => labels.includes(l)) && (labels.includes('Loading air quality…') || aqDone), `${labels.join(' | ')}; air quality loaded ${aqDone}`)
-const sinceSkel = tNote - (tSkel ?? 0)
-check(`About 10 s after it started waiting the card says it is still waiting for Open-Meteo, with a Retry (${(sinceSkel / 1000).toFixed(1)} s after the skeletons)`, shown && /Still waiting for the forecast service \(Open-Meteo\)/.test(await note()) && (await page.locator('.conditions .slow-note button', { hasText: 'Retry' }).count()) === 1 && sinceSkel >= 9000 && sinceSkel <= 13000, `"${await note()}"`)
+const marks = await page.evaluate(() => window.__slow)
+const sinceSkel = marks.note != null && marks.skel != null ? marks.note - marks.skel : tNote - (tSkel ?? 0)
+check(`About 10 s after it started waiting the card says it is still waiting for Open-Meteo, with a Retry (${(sinceSkel / 1000).toFixed(1)} s after the skeletons, timed in the page)`, shown && /Still waiting for the forecast service \(Open-Meteo\)/.test(await note()) && (await page.locator('.conditions .slow-note button', { hasText: 'Retry' }).count()) === 1 && sinceSkel >= 9000 && sinceSkel <= 13000, `"${await note()}"`)
 await page.screenshot({ path: `${OUT}/waiting.png` })
 const landed = await until(() => window.__store.get().conditions.state === 'ready', HOLD + 10000)
 await page.waitForTimeout(300)
