@@ -8,7 +8,7 @@ import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
 import { describeGauge, RISK_COLORS } from '../map/RiversLayer'
-import { aggregate, forgetPlaces, go, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
+import { aggregate, forgetPlaces, go, removeRecent, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { splitGauges } from '../lib/rivers'
 import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/openMeteo'
@@ -34,6 +34,44 @@ export function UnitsToggle() {
           {u === 'metric' ? 'Metric · °C km mm' : 'Imperial · °F mi in'}
         </button>
       ))}
+    </div>
+  )
+}
+
+/** Location & privacy in one card: the saved place, the Remember toggle, Forget, and the recent places with × and Clear all. */
+function PrivacyCard() {
+  const place = useApp((s) => s.place)
+  const label = useApp((s) => s.placeLabel)
+  const saved = useApp((s) => s.savePlacePref)
+  const recent = useApp((s) => s.recentPlaces)
+  return (
+    <div className="card privacy-card">
+      <div className="panel-title">
+        <strong>Location &amp; privacy</strong>
+      </div>
+      <small className="muted">
+        {place ? `Current place: ${label ?? place.name}${saved ? ' · remembered on this device' : ' · not remembered (forgotten when you close the app)'}` : 'No place chosen.'} Location access itself is never stored.
+      </small>
+      <SavePlaceToggle />
+      <ForgetControl />
+      {recent.length > 0 && (
+        <>
+          <h4 className="strip-title">Recent places</h4>
+          <ul className="recent-settings">
+            {recent.map((r) => (
+              <li key={r.name}>
+                <span>{r.name}</span>
+                <button className="btn small ghost" onClick={() => removeRecent(r.name)} aria-label={`Remove ${r.name.split(',')[0]} from recent places`}>
+                  Remove ×
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button className="btn small" onClick={() => recent.forEach((r) => removeRecent(r.name))}>
+            Clear all recent places
+          </button>
+        </>
+      )}
     </div>
   )
 }
@@ -386,9 +424,9 @@ export function SourcesPanel() {
         <strong>Settings</strong>
       </div>
       <UnitsToggle />
-      <SavePlaceToggle />
-      <ForgetControl />
       <small className="muted">Motion: {reduced ? 'reduced (from your system setting) — animations are simplified' : 'full — set “reduce motion” in your OS to simplify animations'}</small>
+
+      <PrivacyCard />
 
       <div className="panel-title" style={{ marginTop: 8 }}>
         <strong>Data sources &amp; freshness</strong>
@@ -396,6 +434,7 @@ export function SourcesPanel() {
           Refresh all now
         </button>
       </div>
+      <small className="muted fresh-key">“Fetched” is when the app asked; “observed” or “reading” is when the measurement itself was taken. The first never stands in for the second.</small>
       <ul className="source-list">
         {rows.map(({ name, r, cadence }) => (
           <li key={name}>
