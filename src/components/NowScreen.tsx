@@ -250,26 +250,55 @@ function NowSummary() {
   const units = useApp((s) => s.units)
   // Its slot is reserved while the forecast loads, so nothing below moves when the line appears.
   if (!r.data) return <p className="now-summary placeholder" aria-busy="true" aria-hidden="true" />
-  const rain24 = r.data.hourly.slice(0, 24).reduce((a, x) => a + (x.precipMm ?? 0), 0)
+  const hours = r.data.hourly.slice(0, 24)
+  const rain24 = hours.reduce((a, x) => a + (x.precipMm ?? 0), 0)
+  // "Wet" weather codes (WMO): drizzle 51–57, rain 61–67, rain showers 80–82, thunderstorm 95–99.
+  const wetCode = (c: number | null | undefined) => c != null && ((c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95)
+  const cur = r.data.current
+  const first = hours[0]
+  // Raining now: any precipitation in the current reading or the current hour, or a wet weather code for either.
+  const rainingNow = (cur.precipMm ?? 0) > 0 || (first?.precipMm ?? 0) > 0 || wetCode(cur.code) || wetCode(first?.code)
+  // Rain later: any hour with ≥ 0.1 mm, or a ≥ 50 % chance, in the next 24 h.
+  const wetHours = hours.filter((x) => (x.precipMm ?? 0) >= 0.1 || (x.precipProb ?? 0) >= 50)
   const here = place ? floodHere(flood, place.lngLat) : null
   const floodNote = here ? ` · Flood screening: ${riskWord(here.risk)}` : ''
+  const total = rain24 >= 0.05 ? ` · about ${U.precip(rain24, units)} over the next 24 h` : ''
   if (alerts > 0)
     return (
       <p className="now-summary amber" role="status">
         ⚠ <strong>{alerts} active NWS alert{alerts === 1 ? '' : 's'}</strong> for this place — details above{floodNote}
       </p>
     )
-  if (rain24 >= 1)
+  if (rainingNow)
     return (
       <p className="now-summary amber" role="status">
-        🌧 <strong>Rain coming:</strong> about {U.precip(rain24, units)} expected in the next 24 h{floodNote}
+        🌧 <strong>{rain24 < 2.5 ? 'Light rain now.' : 'Raining now.'}</strong>
+        {total}
+        {floodNote}
+      </p>
+    )
+  if (wetHours.length)
+    return (
+      <p className="now-summary amber" role="status">
+        🌦 <strong>{rain24 < 2.5 ? 'Light rain likely' : 'Rain on the way'}</strong> from about {hourOfDay(wetHours[0].time, r.data.timezone)}
+        {total}
+        {floodNote}
       </p>
     )
   return (
     <p className="now-summary green" role="status">
-      ✓ <strong>All clear for now.</strong> No rain expected in the next 24 h{floodNote}
+      ✓ <strong>All clear for now.</strong> No rain now and none expected in the next 24 h{floodNote}
     </p>
   )
+}
+
+/** "3 PM" for a moment in an IANA zone (the device's zone if the name is unknown). */
+function hourOfDay(ms: number, timeZone: string): string {
+  try {
+    return new Intl.DateTimeFormat([], { hour: 'numeric', timeZone }).format(new Date(ms))
+  } catch {
+    return new Date(ms).toLocaleTimeString([], { hour: 'numeric' })
+  }
 }
 
 /** Local calendar date (YYYY-MM-DD) of a moment in an IANA zone. */

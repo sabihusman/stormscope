@@ -1703,9 +1703,11 @@ small {
 .app.narrow .now-card.conditions[aria-busy='true'] {
   min-height: 172px;
 }
-/* The summary line's slot while the forecast loads (41 px + its 12 px margin), so the cards below stay put. */
-.app.narrow .now-summary.placeholder {
-  min-height: 41px;
+/* The summary line keeps a two-line slot on phones, loading or loaded (its sentence wraps to one or two lines),
+   so the cards below never move when it appears or changes. */
+.app.narrow .now-summary {
+  min-height: 60px;
+  box-sizing: border-box;
 }
 .app.narrow .now-card.hourly[aria-busy='true'] {
   min-height: 208px;

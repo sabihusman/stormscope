@@ -77,6 +77,7 @@ const SUITES = [
   { name: 'loadtime', script: 'loadtime-check.mjs' },
   { name: 'desktop', script: 'desktop-check.mjs' },
   { name: 'horizon', script: 'horizon-check.mjs' },
+  { name: 'summary', script: 'summary-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'nowmap', script: 'nowmap-check.mjs' },
   { name: 'polish', script: 'polish-check.mjs' },
