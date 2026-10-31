@@ -32,17 +32,9 @@ async function run(name, edit) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
   const page = await ctx.newPage()
   const done = trackTraffic(page, `summary-check.mjs ${name} (mock)`)
-  await installMocks(ctx, {})
-  // Registered after the mocks, so it runs first: fetch the mock's answer, rewrite it, return it.
-  await ctx.route(/api\.open-meteo\.com\/v1\/forecast/, async (route) => {
-    const url = route.request().url()
-    const single = !/latitude=[^&]*,/.test(decodeURIComponent(url)) && /current=/.test(url)
-    if (!single) return route.fallback()
-    const res = await route.fetch()
-    const j = await res.json()
-    edit(j)
-    return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(j) })
-  })
+  // The mock's own forecast answer for the place (one location, with `current`) is rewritten in place — no network fetch.
+  // (The first version fetched the real Open-Meteo via route.fetch, a live call the traffic guard could not see.)
+  await installMocks(ctx, { editForecast: (j, url) => { if (!/latitude=[^&]*,/.test(decodeURIComponent(url)) && /current=/.test(url) && j.current) edit(j) } })
   await page.goto(BASE, { waitUntil: 'load' })
   await allowLocation(page)
   const t0 = Date.now()

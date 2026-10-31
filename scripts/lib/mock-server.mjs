@@ -509,7 +509,7 @@ function terrainTile() {
  * Install the mocks on a Playwright context. `focus` is the geolocation the session uses.
  * Returns { live: string[] } — URLs that fell through to the network (should stay empty in replay).
  */
-export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], failStatus = 429, alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false, noMonitors = false, now = null, clockTest = false } = {}) {
+export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], failStatus = 429, alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false, noMonitors = false, now = null, clockTest = false, editForecast = null } = {}) {
   const live = []
   // timezone: the IANA zone the mock's Open-Meteo answers resolve for `timezone=auto` (daily days roll over at
   // that zone's midnight); omitDaily: answer without the daily block (the 7-day tile's own error state);
@@ -537,7 +537,12 @@ export async function installMocks(context, { har = null, record = false, focus 
     globalThis.__qaMockedRequest?.(url)
     if (delayHosts[host]) await new Promise((r) => setTimeout(r, delayHosts[host]))
     try {
-      if (/open-meteo\.com\/v1\/(forecast|era5)/.test(url)) return route.fulfill(json(openMeteo(url)))
+      // editForecast(body, url): a suite rewrites the mock's own forecast answer in place — never a network fetch.
+      if (/open-meteo\.com\/v1\/(forecast|era5)/.test(url)) {
+        const body = openMeteo(url)
+        if (editForecast) editForecast(body, url)
+        return route.fulfill(json(body))
+      }
       if (host === 'archive-api.open-meteo.com' || host === 'historical-forecast-api.open-meteo.com') return route.fulfill(json(openMeteo(url)))
       if (host === 'monitors.stormscope.test') return route.fulfill(json(monitorSites(url, focus)))
       if (host === 'geocoding-api.open-meteo.com') return route.fulfill(json({ results: geocode(new URL(url).searchParams.get('name') ?? '') }))

@@ -13,7 +13,16 @@
 // e2e-shots/.prod-runs.json with each suite's pass count. --mock passes --mock to every suite
 // (APIs answered locally, zero live calls, nothing charged to the ledger); logs go under e2e-shots/mock/.
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+
+// route.fetch() sends the request to the real host from Playwright's own network stack, where the traffic guard
+// (which counts the page's requests) cannot see it: a mocked suite must never call it (Oct 31: summary-check did).
+const usesRouteFetch = (text) => text.split(/\r?\n/).some((l) => !l.trim().startsWith('//') && /route\.fetch\s*\(/.test(l))
+const fetchers = readdirSync('scripts').filter((f) => f.endsWith('.mjs') && f !== 'prod-suite.mjs').filter((f) => usesRouteFetch(readFileSync(`scripts/${f}`, 'utf8')))
+if (fetchers.length) {
+  console.log(`FAIL  route.fetch() in ${fetchers.join(', ')} — it makes live calls the traffic guard cannot see; rewrite the mock's answer instead (installMocks editForecast)`)
+  process.exit(1)
+}
 import { loadLedger, QA_DAILY_CAP } from './lib/qa-budget.mjs'
 
 const args = process.argv.slice(2)
