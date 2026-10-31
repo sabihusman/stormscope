@@ -1,5 +1,9 @@
 # Build log
 
+## Oct 31 — DjJbrY6r promoted to production
+
+On the user's explicit word ("Promote d383nfb6j"). `vercel promote` of preview d383nfb6j built a production copy, `dpl_6vtcLbpfazXkmFHSTgyEXS2pU4NJ` (stormscope-7xxkzpiq0); stormscope-two.vercel.app serves `index-DjJbrY6r.js` (commit 3d2c056). Rollback target `dpl_6sQJK4VFb1uHpYgSXzGtKd85ML6H` (BdpcQM6R) in ROLLBACK.md. Carries: audit round 2, the re-audit fixes, redesign prompts 1–12, mockup polish A and the desktop three-column layout B, the zoomed-out playback horizon, the rain summary. The preview's last mocked dry run was red on timing checks only (42/43 suites; the Now-map redraw check, a throttled headed walkthrough), stated before the go-ahead. Production smoke, mocked, against the alias: departure 11/11, gauges 12/12, firstrun 32/32, playlabel 9/9, observed 9/9, search 9/9, desktop 42/42, horizon 5/5, summary 3/3, mapchrome 29/29 — 10/10 suites. Also today: summary-check had made ~20–25 live Open-Meteo calls through route.fetch() (fixed; prod-suite now refuses route.fetch).
+
 ## Oct 30 — UI/UX redesign, prompts 1–12 (phone and desktop), one commit each
 
 From "StormScope Redesign Implementation Prompts.md". Where a prompt contradicted an earlier decision the user chose first: units stay region-based with a one-tap chip (not Celsius for all); playback uses clock times with a labelled Now boundary (replacing the Oct 22 "+10 h" / "25 min ago"); the gauge headline stays NOAA-only with a "+N USGS on the Rivers page" note (the middle path, no extra requests); the desktop breakpoint stays at 768 px. Every prompt verified on a 390 px phone (prompts 1–10) or at 1280 / 1600 (11–12) with a mocked check that fails on the build before it.

@@ -7,7 +7,7 @@ Recorded 2026-10-31, before promoting preview d383nfb6j (bundle `index-DjJbrY6r.
 | Rollback target (current production) | `dpl_6sQJK4VFb1uHpYgSXzGtKd85ML6H` |
 | URL | https://stormscope-qdnv9ijn6-sabihusman-4178s-projects.vercel.app |
 | Bundle | `index-BdpcQM6R.js` (commit baa17b5, promoted 2026-10-19 06:09 UTC) |
-| Promoted over it | `dpl_5TDdcrbkgibYk9huacqVn9fSi46j` (stormscope-d383nfb6j), bundle `index-DjJbrY6r.js` — its last mocked dry run was red on timing checks only (42/43 suites; the Now-map redraw check and a throttled walkthrough), stated to the user before the go-ahead |
+| Promoted over it (2026-10-31) | production build `dpl_6vtcLbpfazXkmFHSTgyEXS2pU4NJ` (stormscope-7xxkzpiq0) of preview `dpl_5TDdcrbkgibYk9huacqVn9fSi46j` (stormscope-d383nfb6j), bundle `index-DjJbrY6r.js` — its last mocked dry run was red on timing checks only (42/43 suites; the Now-map redraw check and a throttled walkthrough), stated to the user before the go-ahead |
 
 One-line rollback (points the production alias stormscope-two.vercel.app back at BdpcQM6R):
 
