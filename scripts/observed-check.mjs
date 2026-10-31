@@ -37,7 +37,7 @@ await until(() => window.__store?.get().conditions.state === 'ready' && window._
 const line = () => page.locator('.cond-observed').innerText().catch(() => '')
 const ageMin = () => page.evaluate(() => Math.round((Date.now() - window.__store.get().station.data.observedAt) / 60000))
 /** The card's text and geometry apart from the observed line. */
-const rest = () => page.evaluate(() => { const card = document.querySelector('.card.conditions'); const r = card.getBoundingClientRect(); const main = card.querySelector('.cond-main').getBoundingClientRect(); return { text: [...card.children].filter((c) => !c.classList.contains('cond-observed')).map((c) => c.innerText.replace(/updated .*$/, 'updated …')).join(' | '), top: Math.round(r.top), width: Math.round(r.width), mainH: Math.round(main.height) } })
+const rest = () => page.evaluate(() => { const card = document.querySelector('.card.conditions'); const r = card.getBoundingClientRect(); const main = card.querySelector('.cond-main').getBoundingClientRect(); return { text: [...card.children].filter((c) => !c.classList.contains('cond-observed') && !c.classList.contains('cond-stamp')).map((c) => c.innerText.replace(/updated .*$/, 'updated …')).join(' | '), top: Math.round(r.top), width: Math.round(r.width), mainH: Math.round(main.height) } })
 /** The station poller answers with a reading of this age (as the live NWS feed would), by the same store write it makes. */
 const setReadingAge = (min) => page.evaluate((m) => { const s = window.__store.get(); window.__store.set({ station: { ...s.station, data: { ...s.station.data, observedAt: Date.now() - m * 60000 } } }) }, min)
 // A reading 12 min old at load (the mock's); the page clock then moves on.
@@ -52,7 +52,7 @@ await page.clock.runFor(16_000)
 await page.waitForTimeout(300)
 check('At 61 minutes the observed line is hidden', (await line()) === '', `${await ageMin()} min old: "${await line()}"`)
 const hidden = await rest()
-check('Nothing else on the conditions card changed when the line went (same text apart from the ticking "updated" age, same top and width, same headline height)', JSON.stringify(hidden) === JSON.stringify(before), `${JSON.stringify(hidden)} vs ${JSON.stringify(before)}`)
+check('Nothing else on the conditions card changed when the line went (same text apart from the ticking "updated" age and the clock stamp, same top and width, same headline height)', JSON.stringify(hidden) === JSON.stringify(before), `${JSON.stringify(hidden)} vs ${JSON.stringify(before)}`)
 await page.screenshot({ path: `${OUT}/hidden.png` })
 // A newer reading arrives (the 10-minute poll): the line comes back.
 await setReadingAge(8)
@@ -71,7 +71,8 @@ const headline = await page.locator('.obs-headline').innerText().catch(() => '')
 const fetched = await page.locator('.obs-fetched').innerText().catch(() => '')
 const obsAge = await page.evaluate(() => Math.round((Date.now() - window.__store.get().station.data.observedAt) / 60000))
 const sizes = await page.evaluate(() => ({ head: parseFloat(getComputedStyle(document.querySelector('.obs-headline')).fontSize), fetched: parseFloat(getComputedStyle(document.querySelector('.obs-fetched')).fontSize) }))
-check(`The station headline is the observation age with the station id ("Observed ${obsAge} min ago at …"), matching the reading's actual time`, new RegExp(`^Observed ${obsAge} min ago at [A-Z0-9]{3,5}$`).test(headline.trim()), `"${headline}"`)
+const obsClock = await page.evaluate(() => new Date(window.__store.get().station.data.observedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))
+check(`The station headline is the observation age and clock time with the station id ("Observed ${obsAge} min ago (${obsClock}) at …"), matching the reading's actual time`, new RegExp(`^Observed ${obsAge} min ago \\(${obsClock.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\) at [A-Z0-9]{3,5}$`).test(headline.trim()), `"${headline}"`)
 check('The fetch time is a visibly smaller secondary line ("Data fetched …")', /^Data fetched (just now|\d+s ago|\d+ min ago)/.test(fetched) && sizes.fetched < sizes.head, `"${fetched}" ${sizes.fetched}px vs headline ${sizes.head}px`)
 await page.getByRole('button', { name: /^Now/ }).click()
 await page.waitForTimeout(400)

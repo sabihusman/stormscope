@@ -265,6 +265,11 @@ for (const [locale, want] of [['en-US', { sym: '°F', units: 'imperial' }], ['en
   await page.waitForTimeout(400)
   const settingsBtn = page.getByRole('button', { name: 'Forget my location and recent places' })
   check('[privacy] Settings offers "Forget my location and recent places"', (await settingsBtn.count()) === 1)
+  // Mockup A7: Settings groups it all in a "Location & privacy" card — current place, the Remember toggle, Forget, the recents with Remove × and Clear all — and keys fetched vs observed on the sources list.
+  const card = page.locator('.privacy-card')
+  const cardText = (await card.innerText().catch(() => '')).replace(/\n/g, ' | ')
+  check('[privacy] the "Location & privacy" card holds the current place, the Remember toggle, Forget, the recent places with Remove × and Clear all', /Location & privacy/.test(cardText) && /Current place: Ames/.test(cardText) && (await card.getByRole('checkbox', { name: /Remember this place/ }).count()) === 1 && (await card.getByRole('button', { name: 'Forget my location and recent places' }).count()) === 1 && (await card.getByRole('button', { name: /^Remove / }).count()) >= 1 && (await card.getByRole('button', { name: 'Clear all recent places' }).count()) === 1, cardText.slice(0, 200))
+  check('[privacy] the sources list says what "fetched" and "observed" mean', /“Fetched” is when the app asked; “observed” or “reading” is when the measurement itself was taken/.test(await page.locator('.page-body').innerText()))
   await settingsBtn.click()
   await page.waitForTimeout(200)
   await page.getByRole('button', { name: 'Forget', exact: true }).click()

@@ -3,7 +3,7 @@ import { FLOOD_CATEGORY_COLORS, FLOOD_CATEGORY_LABELS, FLOOD_STOPS } from '../li
 import { floodHere, floodKeyFor, riskLabel, riskWord } from '../lib/floodHere'
 import type { RainHorizon } from '../types'
 import { haversine } from '../lib/geo'
-import { timeAgo } from '../lib/time'
+import { clock, timeAgo } from '../lib/time'
 import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
@@ -94,7 +94,7 @@ export function StationPanel() {
       {/* The observation's age is the headline; when the app fetched it is the smaller line below. */}
       <div className="panel-title obs-head">
         <strong className="obs-headline">
-          Observed {timeAgo(o.observedAt, now)}
+          Observed {timeAgo(o.observedAt, now)} ({clock(o.observedAt)})
           {o.provider === 'weather.gov' ? ` at ${o.stationId}` : ' (model analysis)'}
         </strong>
         <small className="muted obs-station">

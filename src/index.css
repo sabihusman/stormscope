@@ -2975,3 +2975,57 @@ small {
   background: rgba(34, 197, 94, 0.18);
   color: #15803d;
 }
+
+/* ---- Flood why-rows, the privacy card, the fetched/observed key, the trip's leave line ---- */
+.flood-why-rows {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.flood-why-rows div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+.flood-why-rows dt {
+  font-weight: 700;
+}
+.flood-why-rows dd {
+  margin: 0;
+  text-align: right;
+  color: var(--muted);
+}
+.privacy-card {
+  margin: 10px 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.recent-settings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.recent-settings li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.fresh-key {
+  display: block;
+  margin: 4px 0 6px;
+  font-size: 12px;
+}
+.leave-line {
+  display: block;
+  margin: 6px 0 2px;
+  font-size: 13px;
+}

@@ -73,6 +73,9 @@ check(`+1 h picked: the first stop reads the departure time (${clockOf(dep1)}) a
 await until(() => window.__store.get().journey.weather.state === 'ready' && window.__store.get().journey.weather.data?.departureMs === window.__store.get().journey.departure, 40000)
 await page.waitForTimeout(400)
 const t2 = await stripTimes()
+// Mockup A8: the resolved departure is written out beside the chips.
+const leave = await page.locator('.leave-line').innerText()
+check('The trip states its departure: "Leave · +1 h · <day clock>"', /^Leave · \+1 h · /.test(leave) && leave.includes(new Date(dep1).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })), `"${leave}"`)
 check('Once the refreshed forecast lands the timeline still runs departure → arrival and the note is gone', t2.strip[0] === clockOf(dep1) && t2.arrival.endsWith(t2.strip[t2.strip.length - 1]) && t2.note === '', `strip ${t2.strip[0]} … ${t2.strip.at(-1)}, card "${t2.arrival}"`)
 const foot = await page.locator('.trip-foot').innerText()
 const counts = await page.evaluate(() => ({ samples: window.__store.get().journey.weather.data.samples.length, shown: document.querySelectorAll('.journey-strip li').length }))
