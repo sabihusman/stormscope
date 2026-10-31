@@ -125,6 +125,9 @@ export function JourneyPanel() {
           Pick…
         </button>
       </div>
+      <small className="muted leave-line">
+        Leave · {j.departure == null ? 'now' : activeChip > 0 && !custom ? chips[activeChip].label : 'picked'} · <strong>{dayClock(departure)}</strong>
+      </small>
       {custom && (
         <label className="datetime-row">
           <small className="muted">Departure (local time)</small>
