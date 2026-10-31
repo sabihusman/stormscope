@@ -19,6 +19,7 @@ import { describeError, limitTier } from '../lib/fetch'
 import { bboxAround, haversine, inBBox, type LngLat } from '../lib/geo'
 import { MIN } from '../lib/time'
 import { blockCenter, blockGridSpec, FLOOD_N, NOWCAST_N, TERRAIN_Z } from '../lib/blocks'
+import { floodKeyFor } from '../lib/floodHere'
 import { usePolling } from '../hooks/usePolling'
 import { useWide } from '../hooks/useMisc'
 import { geoWorker } from '../workers/client'
@@ -484,7 +485,11 @@ export function DataController() {
     const need = overlayOn || !!s.floodFor
     // The Flood page's block for the place is computed whatever the map shows. With no overlay on, that
     // block is the ONLY one fetched (the visible blocks would cost 49 locations each for nothing).
-    const want = !overlayOn ? (s.floodFor ? [s.floodFor] : []) : s.floodFor && !s.visibleBlocks.includes(s.floodFor) ? [...s.visibleBlocks, s.floodFor] : s.visibleBlocks
+    const base = !overlayOn ? (s.floodFor ? [s.floodFor] : []) : s.floodFor && !s.visibleBlocks.includes(s.floodFor) ? [...s.visibleBlocks, s.floodFor] : s.visibleBlocks
+    // With the rain overlay on, the place's own block is always loaded (one 49-location request), so the playback
+    // forecast reaches its full horizon at any zoom — zoomed out, the map shows no forecast blocks of its own.
+    const placeBlock = s.layers.rainfall && s.place ? floodKeyFor(s.place.lngLat) : null
+    const want = placeBlock && !base.includes(placeBlock) ? [...base, placeBlock] : base
     // Nothing is fetched while the tab is hidden: the 30-min refresh only counts visible time.
     if (!need || !want.length || document.hidden) return
     if (Date.now() < quotaBackoffUntil.current) return
@@ -523,7 +528,7 @@ export function DataController() {
   reconcileRef.current = reconcile
   useEffect(() => {
     void reconcileRef.current()
-  }, [visibleBlocks, layers.rainfall, layers.flood, layers.nowcast, rainHorizon, nonce, floodFor])
+  }, [visibleBlocks, layers.rainfall, layers.flood, layers.nowcast, rainHorizon, nonce, floodFor, placeKey])
   // Periodic freshness pass (also fires when the tab returns to the foreground).
   useEffect(() => {
     const t = setInterval(() => void reconcileRef.current(), 60_000)

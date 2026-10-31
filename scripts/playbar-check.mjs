@@ -136,13 +136,13 @@ for (const [name, vp] of Object.entries(VIEWPORTS)) {
   await page.evaluate(() => window.__map.jumpTo({ center: [-93.6, 41.6], zoom: 4 }))
   await page.waitForTimeout(900)
   const note = await page.locator('.playbar-note').innerText().catch(() => '')
-  check(`[${name}] below forecast zoom over the place: "Zoom in to see the forecast", no jargon, no zoom-to-place button (the place is in view)`, /Zoom in to see the forecast/.test(note) && !/5\.5|blocks/.test(note) && (await page.getByRole('button', { name: /^Zoom to / }).count()) === 0, note.replace(/\n/g, ' | '))
+  check(`[${name}] below forecast zoom over the place: "Forecast playback is for <place> only — zoom in to see it across the map", no jargon, no zoom-to-place button (the place is in view)`, /Forecast playback is for .+ only — zoom in to see it across the map/.test(note) && !/5\.5|blocks/.test(note) && (await page.getByRole('button', { name: /^Zoom to / }).count()) === 0, note.replace(/\n/g, ' | '))
   check(`[${name}] colour scale follows the scrubbed layer (rain scale with the rain overlay on)`, /Rain/.test(await page.locator('.playbar-scale').innerText().catch(() => '')))
   // Moved away from the place (still below forecast zoom): the note keeps its words and the zoom-to-place button appears.
   await page.evaluate(() => window.__map.jumpTo({ center: [-20, 35], zoom: 4 }))
   await page.waitForTimeout(900)
   const away = await page.locator('.playbar-note').innerText().catch(() => '')
-  check(`[${name}] moved away from the place: the note plus the zoom-to-place button`, /Zoom in to see the forecast/.test(away) && (await page.getByRole('button', { name: /^Zoom to / }).count()) === 1, away.replace(/\n/g, ' | '))
+  check(`[${name}] moved away from the place: the note plus the zoom-to-place button`, /Forecast playback is for .+ only — zoom in to see it across the map/.test(away) && (await page.getByRole('button', { name: /^Zoom to / }).count()) === 1, away.replace(/\n/g, ' | '))
   if (name === 'phone') {
     await page.getByRole('button', { name: /^Zoom to / }).click()
     await page.waitForTimeout(1200)

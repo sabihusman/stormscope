@@ -3117,3 +3117,8 @@ small {
 .app.desk.col-collapsed.screen-map .topbar {
   left: calc(var(--rail-w) + 10px);
 }
+
+/* ---- Playback: hour buttons wait for the forecast ---- */
+.playbar .horizon button.pending {
+  opacity: 0.45;
+}

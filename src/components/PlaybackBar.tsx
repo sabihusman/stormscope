@@ -3,6 +3,7 @@ import { useNow, useOnline, useReducedMotion, useWide } from '../hooks/useMisc'
 import { haversine } from '../lib/geo'
 import { clock, HOUR, MIN, timeAgo } from '../lib/time'
 import { aggregate, nearestFrame, setLayer, store, useApp, useVisibleBlocks, type AnimLayer } from '../state/store'
+import { floodKeyFor } from '../lib/floodHere'
 import { NOWCAST_FRAME_MIN, NOWCAST_FRAMES } from '../workers/client'
 import type { RainHorizon } from '../types'
 import { PlaybackScale } from './Legend'
@@ -39,9 +40,14 @@ export function PlaybackBar() {
 
   const overlay: AnimLayer | null = layers.rainfall ? 'rainfall' : layers.nowcast ? 'nowcast' : null
   const imagery: AnimLayer | null = layers.radar ? 'radar' : layers.satellite ? 'satellite' : null
-  const overlayAgg = aggregate(blocks, (b) => (overlay === 'rainfall' ? b.rainCells : b.nowcast))
+  // The rain forecast also counts the place's own block (loaded at any zoom while the rain overlay is on).
+  const placeBlock = useApp((s) => (s.layers.rainfall && s.place ? s.blocks[floodKeyFor(s.place.lngLat)] : undefined))
+  const forecastBlocks = overlay === 'rainfall' && placeBlock && !blocks.includes(placeBlock) ? [...blocks, placeBlock] : blocks
+  const overlayAgg = aggregate(forecastBlocks, (b) => (overlay === 'rainfall' ? b.rainCells : b.nowcast))
   const overlayReady = !!overlay && overlayAgg.ready > 0
   const noBlocks = !!overlay && blocks.length === 0
+  // Zoomed out with the rain overlay: the slider plays your place's forecast; the map shows none until you zoom in.
+  const placeOnly = overlay === 'rainfall' && noBlocks && overlayReady
   const nothingOn = !imagery && !overlay
   const expanded = wide || expandedPref
 
@@ -197,7 +203,15 @@ export function PlaybackBar() {
         />
         <div className="segmented small horizon" role="radiogroup" aria-label="How far ahead">
           {([6, 12, 24, 48] as RainHorizon[]).map((h) => (
-            <button key={h} role="radio" aria-checked={layers.rainfall && horizon === h} className={layers.rainfall && horizon === h ? 'on' : ''} onClick={() => pickHorizon(h)}>
+            <button
+              key={h}
+              role="radio"
+              aria-checked={layers.rainfall && horizon === h}
+              className={`${layers.rainfall && horizon === h ? 'on' : ''} ${layers.rainfall && !overlayReady ? 'pending' : ''}`}
+              aria-disabled={layers.rainfall && !overlayReady ? true : undefined}
+              title={layers.rainfall && !overlayReady ? 'The forecast is still loading — the slider covers radar only until it arrives' : undefined}
+              onClick={() => pickHorizon(h)}
+            >
               {h} h
             </button>
           ))}
@@ -211,9 +225,11 @@ export function PlaybackBar() {
       {boundary}
       <PlaybackScale layer={scaleLayer} />
       {/* "Zoom to <place>" only once the map has actually been moved away from the place (never while it lands on it after a reload). */}
-      {(noBlocks || (place && !placeInView)) && (
+      {(noBlocks || (layers.rainfall && !overlayReady) || (place && !placeInView)) && (
         <div className="playbar-note" role="status">
-          {noBlocks && <span>Zoom in to see the forecast</span>}
+          {layers.rainfall && !overlayReady && <span>Loading the rain forecast — the slider covers recorded radar only until it arrives</span>}
+          {placeOnly && <span>Forecast playback is for {name} only — zoom in to see it across the map</span>}
+          {noBlocks && !layers.rainfall && <span>Zoom in to see the forecast</span>}
           {place && !placeInView && (
             <button className="btn small" onClick={zoomToPlace}>
               Zoom to {name}
