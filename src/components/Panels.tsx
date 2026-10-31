@@ -72,7 +72,7 @@ export function SavePlaceToggle() {
   return (
     <label className="toggle-row">
       <input type="checkbox" checked={on} onChange={(e) => setSavePlacePref(e.target.checked)} />
-      <span>Save this place on this device{on ? '' : ' (off: the place is forgotten when you close the app)'}</span>
+      <span>Remember this place on this device{on ? '' : ' (off: the place is forgotten when you close the app)'}</span>
     </label>
   )
 }

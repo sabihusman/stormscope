@@ -67,8 +67,8 @@ const untilReady = async (page) => { const t0 = Date.now(); while (Date.now() - 
   await page.waitForTimeout(1200)
   const dlg = page.getByRole('dialog')
   const dlgText = await dlg.innerText()
-  const toggle = dlg.getByRole('checkbox', { name: /Save this place/ })
-  check('[first-run] the choice screen offers the three ways in, says nothing is saved unless opted in, and its Save toggle is off', /Use my location/.test(dlgText) && /Search for a place/.test(dlgText) && /Pick a point on the map/.test(dlgText) && /Nothing is saved on this device unless you turn this on/.test(dlgText) && (await toggle.count()) === 1 && !(await toggle.isChecked()), dlgText.replace(/\n/g, ' | ').slice(0, 200))
+  const toggle = dlg.getByRole('checkbox', { name: /Remember this place/ })
+  check('[first-run] the choice screen offers the three ways in, says nothing is saved unless opted in, and its Save toggle is off', /Use my location/.test(dlgText) && /Search for a place/.test(dlgText) && /Pick a point on the map/.test(dlgText) && /Nothing is saved on this device unless you turn this on/.test(dlgText) && /No location access needed/.test(dlgText) && /Drop a pin anywhere/.test(dlgText) && (await toggle.count()) === 1 && !(await toggle.isChecked()), dlgText.replace(/\n/g, ' | ').slice(0, 200))
   await page.screenshot({ path: `${OUT}/first-run-choice.png` })
   // Close without choosing: the empty state with the same three options, no place, nothing stored.
   await dlg.getByRole('button', { name: 'Close' }).click()
@@ -92,7 +92,7 @@ const untilReady = async (page) => { const t0 = Date.now(); while (Date.now() - 
   await page.waitForTimeout(1200)
   check('[first-run] after a reload with Save off the app asks again (the choice screen), no remembered place', (await prompts(page)).length === 1 && (await page.evaluate(() => window.__store.get().place)) === null, `prompts ${JSON.stringify(await prompts(page))}`)
   // Turn Save on, choose again: stored, and back after a reload.
-  await page.getByRole('dialog').getByRole('checkbox', { name: /Save this place/ }).check()
+  await page.getByRole('dialog').getByRole('checkbox', { name: /Remember this place/ }).check()
   await page.getByRole('dialog').getByRole('button', { name: 'Search for a place' }).click()
   await page.getByRole('dialog').getByRole('searchbox').fill('Ames')
   await page.waitForTimeout(800)
@@ -119,6 +119,10 @@ for (const [locale, want] of [['en-US', { sym: '°F', units: 'imperial' }], ['en
   const units = await page.evaluate(() => window.__store.get().units)
   check(`[${locale}] fresh profile: the temperature reads in ${want.sym} (${want.units})`, temp.includes(want.sym) && units === want.units, `"${temp}", units ${units}, navigator.language ${await page.evaluate(() => navigator.language)}`)
   if (locale === 'en-US') {
+    // Mockup A1: the Now hero — a date stamp in the place's zone, a large temperature, and one summary line that follows the data.
+    const hero = await page.evaluate(() => ({ stamp: document.querySelector('.cond-stamp')?.textContent ?? '', tempPx: parseFloat(getComputedStyle(document.querySelector('.cond-temp')).fontSize), summary: document.querySelector('.now-summary')?.textContent ?? '', cls: document.querySelector('.now-summary')?.className ?? '', rain24: window.__store.get().conditions.data.hourly.slice(0, 24).reduce((a, x) => a + (x.precipMm ?? 0), 0), alerts: window.__store.get().alerts.data?.alerts.length ?? 0 }))
+    const expectAmber = hero.alerts > 0 || hero.rain24 >= 1
+    check('[en-US] Now hero: "Now · <day, date, time>" stamp, the temperature at 56 px, and a summary line (alerts, else rain next 24 h, else all clear) matching the forecast', /^Now · \w{3},? /.test(hero.stamp) && hero.tempPx >= 56 && (expectAmber ? /amber/.test(hero.cls) && (hero.alerts > 0 ? /active NWS alert/.test(hero.summary) : /Rain coming/.test(hero.summary)) : /green/.test(hero.cls) && /All clear for now/.test(hero.summary)), `${hero.stamp} | ${hero.tempPx}px | "${hero.summary}" (rain24 ${hero.rain24.toFixed(1)} mm, alerts ${hero.alerts})`)
     // Redesign 10: clearly labelled entry points on Now (no generic "More"), and "Map layers" opens the Map with the panel open.
     const tileLabels = await page.evaluate(() => [...document.querySelectorAll('.tiles .tile > small:first-child')].map((el) => el.textContent.trim()))
     check('[en-US] the Now screen names its entry points: River gauges, Flood risk, Station observations, Map layers, Settings & data sources', tileLabels.join(' | ') === '📈 River gauges | 🌊 Flood risk | 🌡 Station observations | 🗺 Map layers | ⚙ Settings & data sources', tileLabels.join(' | '))

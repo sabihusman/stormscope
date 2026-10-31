@@ -1538,7 +1538,7 @@ small {
   gap: 14px;
 }
 .cond-temp {
-  font-size: 40px;
+  font-size: 56px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -1698,10 +1698,14 @@ small {
   to { transform: scale(1.5); opacity: 0; }
 }
 /* Now cards while loading: placeholders as tall as the loaded card (measured on a 390 px phone, Oct 18:
-   conditions 151, next hours 208 (with the span switch; the same for 12 / 24 / 48 h), 7 days 293, air quality 247 (Oct 30: the fetched / observed footer wraps to three lines), tiles 167), so nothing below them moves when
+   conditions 172 (Oct 31: the stamp and the 56 px temperature), the summary line 41, next hours 208 (with the span switch; the same for 12 / 24 / 48 h), 7 days 293, air quality 247 (Oct 30: the fetched / observed footer wraps to three lines), tiles 167), so nothing below them moves when
    the data lands. min-height only: a taller card still grows. */
 .app.narrow .now-card.conditions[aria-busy='true'] {
-  min-height: 151px;
+  min-height: 172px;
+}
+/* The summary line's slot while the forecast loads (41 px + its 12 px margin), so the cards below stay put. */
+.app.narrow .now-summary.placeholder {
+  min-height: 41px;
 }
 .app.narrow .now-card.hourly[aria-busy='true'] {
   min-height: 208px;
@@ -2893,4 +2897,44 @@ small {
   .app.wide .col-toggle {
     transition: none;
   }
+}
+
+/* ---- First-run options: a one-line explanation under each ---- */
+.prompt-actions .btn.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  min-height: 56px;
+}
+.prompt-actions .btn.choice small {
+  font-weight: 400;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* ---- Now: the date stamp over the hero and the one-line summary under it ---- */
+.cond-stamp {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.now-summary {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  border: 1px solid;
+}
+.now-summary.green {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+.now-summary.amber {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.5);
 }

@@ -33,7 +33,10 @@ export function LocationPrompt({ status, message, onAllow, onSearch, onPickOnMap
         <p className="muted prompt-privacy">Nothing is saved on this device unless you turn this on.</p>
         <label className="toggle-row">
           <input type="checkbox" checked={savePref} onChange={(e) => setSavePlacePref(e.target.checked)} />
-          <span>Save this place on this device</span>
+          <span>
+            Remember this place on this device
+            <small className="muted"> · off by default; removable any time in Settings → Forget my location</small>
+          </span>
         </label>
         <div className="prompt-actions">
           {failed ? (
@@ -50,14 +53,17 @@ export function LocationPrompt({ status, message, onAllow, onSearch, onPickOnMap
             </>
           ) : (
             <>
-              <button className="btn primary" onClick={onAllow} disabled={status === 'locating'}>
-                {status === 'locating' ? 'Locating…' : 'Use my location'}
+              <button className="btn primary choice" onClick={onAllow} disabled={status === 'locating'}>
+                <span>{status === 'locating' ? 'Locating…' : 'Use my location'}</span>
+                <small>One-time check. Nothing is saved unless you turn saving on below.</small>
               </button>
-              <button className="btn" onClick={onSearch}>
-                Search for a place
+              <button className="btn choice" onClick={onSearch}>
+                <span>Search for a place</span>
+                <small>City, postcode or place name. No location access needed.</small>
               </button>
-              <button className="btn ghost" onClick={onPickOnMap}>
-                Pick a point on the map
+              <button className="btn ghost choice" onClick={onPickOnMap}>
+                <span>Pick a point on the map</span>
+                <small>Drop a pin anywhere.</small>
               </button>
             </>
           )}
