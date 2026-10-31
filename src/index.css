@@ -2600,7 +2600,7 @@ small {
   bottom: 3px;
   height: 2px;
   border-radius: 1px;
-  background: linear-gradient(90deg, var(--accent) var(--now-pct, 50%), rgba(148, 163, 184, 0.45) var(--now-pct, 50%));
+  background: linear-gradient(90deg, var(--accent) var(--now-pct, 50%), #f59e0b var(--now-pct, 50%));
 }
 .pill-progress .pill-now {
   position: absolute;
@@ -2824,7 +2824,8 @@ small {
   line-height: 1;
 }
 .playbar .scrubber {
-  background: linear-gradient(90deg, var(--accent) var(--now-pct, 50%), rgba(148, 163, 184, 0.45) var(--now-pct, 50%));
+  /* Recorded radar in the accent up to Now, forecast in amber after it. */
+  background: linear-gradient(90deg, var(--accent) var(--now-pct, 50%), #f59e0b var(--now-pct, 50%));
   background-size: 100% 2px;
   background-repeat: no-repeat;
   background-position: center;
@@ -2937,4 +2938,40 @@ small {
 .now-summary.amber {
   background: rgba(245, 158, 11, 0.14);
   border-color: rgba(245, 158, 11, 0.5);
+}
+
+/* ---- Playback: the three-part track labels; search: the best-match tag and the results header ---- */
+.playbar-boundary {
+  justify-content: space-between;
+}
+.playbar-boundary .track-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--text);
+}
+.playbar-boundary .track-future {
+  color: #f59e0b;
+}
+.playbar-boundary .track-past {
+  color: var(--accent);
+}
+.search-results .results-head {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tag.best {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(34, 197, 94, 0.18);
+  color: #15803d;
 }

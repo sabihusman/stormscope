@@ -37,7 +37,7 @@ export function PlaceSearch({ placeholder = 'City, postcode or place', autoFocus
     searchPlaces(dq, ctrl.signal)
       .then((r) => {
         setResults(r)
-        if (!r.length) setErr('No places found')
+        if (!r.length) setErr(`No exact match for “${dq.trim()}”. Try a city or town name — this list is never filled with unrelated places.`)
       })
       .catch(() => setErr('Search failed — check your connection'))
       .finally(() => setBusy(false))
@@ -49,6 +49,8 @@ export function PlaceSearch({ placeholder = 'City, postcode or place', autoFocus
     onPick(r)
   }
   const showRecents = recents && q.trim().length < 2 && recent.length > 0
+  const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  const exactFirst = results.length > 0 && fold(results[0].name) === fold(dq)
 
   return (
     <form
@@ -63,10 +65,14 @@ export function PlaceSearch({ placeholder = 'City, postcode or place', autoFocus
         <ul className="search-results inline" role="listbox" aria-label="Search results">
           {busy && <li className="muted">Searching…</li>}
           {!busy && err && <li className="muted">{err}</li>}
+          {results.length > 0 && <li className="muted results-head">{exactFirst ? `Exact matches for “${dq.trim()}” first` : 'Closest names first'}</li>}
           {results.map((r, i) => (
             <li key={i} role="option" aria-selected={false}>
               <button type="button" onClick={() => pick({ name: [r.name, r.detail].filter(Boolean).join(', '), lngLat: r.lngLat })}>
-                <span>{r.name}</span>
+                <span>
+                  {r.name}
+                  {i === 0 && exactFirst && <em className="tag best">Best match</em>}
+                </span>
                 <small>{r.detail}</small>
               </button>
             </li>

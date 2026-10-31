@@ -64,7 +64,11 @@ check('"Des Moines": the exact match first, West Des Moines after it, every row 
 check('"Des Monies": no hotel, business or street address among the results', des.options.length > 0 && !des.options.some((o) => /Hotel|Suites|Drive|Street|Road|\d{3,}/i.test(o)), des.options.join(' | '))
 await page.screenshot({ path: `${OUT}/des-monies.png` })
 const none = await search('xqzv plork')
-check('A nonsense string says "No places found"', none.options.length === 0 && /No places found/.test(none.msg), none.msg || none.options.join(' | '))
+check('A nonsense string gets an honest empty state ("No exact match for “…”. Try a city or town name — this list is never filled with unrelated places.")', none.options.length === 0 && /^No exact match for “xqzv plork”\. Try a city or town name/.test(none.msg), none.msg || none.options.join(' | '))
+// Mockup A3: the exact first match carries a "Best match" tag and the list says exact matches come first.
+const tagged = await search('Chicago')
+const tagInfo = await page.evaluate(() => ({ tags: [...document.querySelectorAll('[role=dialog] [role=listbox][aria-label="Search results"] .tag.best')].map((t) => t.closest('[role=option]').innerText.split('\n')[0]), head: document.querySelector('[role=dialog] .results-head')?.textContent ?? ''}))
+check('"Chicago": the first result carries a "Best match" tag and only it; the list is headed "Exact matches for “Chicago” first"', tagInfo.tags.length === 1 && /^Chicago/.test(tagInfo.tags[0]) && /^Exact matches for “Chicago” first$/.test(tagInfo.head) && tagged.options.length > 1, `tags ${JSON.stringify(tagInfo.tags)}, head "${tagInfo.head}"`)
 done()
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)
