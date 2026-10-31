@@ -33,12 +33,22 @@ await page.waitForTimeout(5000)
 await openMap(page)
 await setLayers(page, { rainfall: true, flood: true })
 
+// Settled: the camera has stopped (the fly to the place is over), the visible set has not changed for 1.5 s,
+// and every visible block is loaded and screened — so a pan starts from a still map with nothing in flight.
 const settle = async (ms = 45000) => {
   const t0 = Date.now()
+  let lastKeys = ''
+  let stableSince = Date.now()
   while (Date.now() - t0 < ms) {
     const s = await state()
-    if (s.visible > 0 && s.loaded === s.visible && s.flood === s.visible) return s
-    await page.waitForTimeout(500)
+    const moving = await page.evaluate(() => window.__map.isMoving())
+    const keys = s.keys.join()
+    if (keys !== lastKeys || moving) {
+      lastKeys = keys
+      stableSince = Date.now()
+    }
+    if (!moving && Date.now() - stableSince >= 1500 && s.visible > 0 && s.loaded === s.visible && s.flood === s.visible && !(await page.evaluate(() => Object.values(window.__store.get().blocks).some((b) => b.grid.state === 'loading')))) return s
+    await page.waitForTimeout(250)
   }
   return state()
 }
@@ -61,7 +71,10 @@ await page.screenshot({ path: `${OUT}/blocks-initial.png` })
 await page.evaluate(() => window.__map.panBy([120, 60], { duration: 0 }))
 await page.waitForTimeout(2500)
 const st1 = await state()
-check('Small pan keeps the same blocks and fetches nothing', st1.keys.join() === st.keys.join() && omRequests.length === n0, `${omRequests.length - n0} new requests`)
+// Whether 120 px crosses a block edge depends on where the padded view edge sits (sub-pixel camera position), so the
+// invariant is checked directly: every block still in view is kept, and the only requests are for newly visible blocks.
+const added1 = st1.keys.filter((k) => !st.keys.includes(k)).length
+check('Small pan keeps every block still in view and fetches only newly visible ones (none refetched)', st.keys.filter((k) => st1.keys.includes(k)).length >= 1 && omRequests.length - n0 === added1, `${omRequests.length - n0} new requests for ${added1} newly visible block(s)`)
 
 // Larger pan: some blocks stay, only new neighbours are fetched.
 const before = new Set(st1.keys)
@@ -70,7 +83,7 @@ await page.waitForTimeout(800)
 const st2 = await settle()
 const kept = st2.keys.filter((k) => before.has(k)).length
 const added = st2.keys.filter((k) => !before.has(k)).length
-check('Pan east: overlapping blocks kept, only new ones fetched', kept >= 1 && added >= 1 && omRequests.length - n0 === added, `kept ${kept}, added ${added}, fetched ${omRequests.length - n0}`)
+check('Pan east: overlapping blocks kept, only new ones fetched', kept >= 1 && added >= 1 && omRequests.length - n0 - added1 === added, `kept ${kept}, added ${added}, fetched ${omRequests.length - n0 - added1} (after the small pan's ${added1})`)
 check('Previously loaded blocks still cached after panning', st2.cached >= st2.visible + 1, `cache ${st2.cached}`)
 await page.screenshot({ path: `${OUT}/blocks-panned.png` })
 
