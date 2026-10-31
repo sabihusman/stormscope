@@ -71,7 +71,10 @@ const wrongClock = frames.filter((f) => f.label.split('\n')[0] !== expected(f))
 check('Each label is the clock time of that frame', wrongClock.length === 0, wrongClock.map((f) => `${f.label} vs ${expected(f)}`).join(' · ') || 'all match')
 check('Forecast frames say "forecast" under their time; past frames say "radar" (one line always, so the bar keeps its height)', future.every((f) => /\nforecast$/.test(f.label)) && past.every((f) => /\nradar$/.test(f.label)), `future ${future.length}, past ${past.length}`)
 const boundaryText = await page.locator('.playbar-boundary').innerText().catch(() => '')
-check('The Now boundary is marked and labelled ("Now 7:52 PM · radar up to now, forecast after")', /^Now \d{1,2}:\d{2}( ?[AP]M)? · radar up to now, forecast after$/.test(boundaryText.trim()) && (await page.locator('.playbar-boundary .boundary-mark').count()) === 1, `"${boundaryText}"`)
+check('The Now boundary row reads "← Past radar · Now 7:52 PM · Forecast →" with the marker', /Past radar[\s\S]*Now \d{1,2}:\d{2}( ?[AP]M)?[\s\S]*Forecast →/.test(boundaryText) && (await page.locator('.playbar-boundary .boundary-mark').count()) === 1, `"${boundaryText.replace(/\n/g, ' ')}"`)
+// Mockup A4: the track is two colours — the accent up to Now, amber after it (the pill's progress line too).
+const trackBg = await page.evaluate(() => getComputedStyle(document.querySelector('.playbar .scrubber')).backgroundImage)
+check('The playback track is two colours: recorded radar up to Now, amber (rgb(245, 158, 11)) for the forecast', /linear-gradient/.test(trackBg) && /rgb\(245, 158, 11\)/.test(trackBg), trackBg.slice(0, 120))
 await page.screenshot({ path: `${OUT}/bar-last-frame.png` })
 
 // ---- Past frames and the buttons (audit r2 #9) ----

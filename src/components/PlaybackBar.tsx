@@ -131,7 +131,11 @@ export function PlaybackBar() {
   const isFuture = ticks.length ? ticks[idx] - now > 5 * MIN : false
   const boundary = (
     <small className="playbar-boundary" aria-label={`Now ${clock(now)}: radar up to now, forecast after`}>
-      <i className="boundary-mark" aria-hidden="true" /> Now {clock(now)} · radar up to now, forecast after
+      <span className="track-past">← Past radar</span>
+      <span className="track-now">
+        <i className="boundary-mark" aria-hidden="true" /> Now {clock(now)}
+      </span>
+      <span className="track-future">Forecast →</span>
     </small>
   )
   const name = (label ?? place?.name ?? 'my place').split(',')[0]
