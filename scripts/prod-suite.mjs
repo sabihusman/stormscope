@@ -89,6 +89,7 @@ const SUITES = [
   { name: 'summary', script: 'summary-check.mjs' },
   { name: 'trust', script: 'trust-check.mjs' },
   { name: 'paths', script: 'paths-check.mjs' },
+  { name: 'layout', script: 'layout-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'nowmap', script: 'nowmap-check.mjs' },
   { name: 'polish', script: 'polish-check.mjs' },
