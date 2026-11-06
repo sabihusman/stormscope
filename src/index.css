@@ -3158,3 +3158,54 @@ small {
   border-color: var(--accent);
 }
 
+/* "Use my location" feedback (Nov 6 audit: the buttons changed nothing visible). */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: geo-spin 0.8s linear infinite;
+}
+@keyframes geo-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2.4s; }
+}
+.geo-notice {
+  position: fixed;
+  z-index: 40;
+  top: calc(var(--sat) + 64px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, calc(100vw - 32px));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--panel-solid);
+  color: var(--text);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+}
+.geo-notice.err {
+  border-color: #f59e0b;
+}
+.geo-notice .geo-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.geo-error {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #fbbf24;
+}
