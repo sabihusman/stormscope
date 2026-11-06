@@ -530,6 +530,8 @@ function terrainTile() {
  */
 export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], failStatus = 429, alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false, noMonitors = false, now = null, clockTest = false, editForecast = null, trustFixtures = false } = {}) {
   TRUST.on = trustFixtures
+  // Marks the context as mocked: trackTraffic() refuses to start after this (see qa-budget.mjs).
+  ;(globalThis.__qaMockedContexts ??= new WeakSet()).add(context)
   const live = []
   // timezone: the IANA zone the mock's Open-Meteo answers resolve for `timezone=auto` (daily days roll over at
   // that zone's midnight); omitDaily: answer without the daily block (the 7-day tile's own error state);

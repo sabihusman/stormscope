@@ -127,6 +127,10 @@ export function assertBudget(scriptName, { openMeteo = true } = {}) {
  */
 const isOpenMeteoData = (url) => /open-meteo\.com\/v1\/(forecast|archive|era5|air-quality)/.test(url)
 export function trackTraffic(page, scriptName) {
+  // The guard must be registered before installMocks: Playwright runs the handler registered last first, so a guard
+  // added after the mocks sees every request first and sends it live (Nov 6, 2026: perf-paths sent ~95 that way).
+  if (globalThis.__qaMockedContexts?.has(page.context()))
+    throw new Error(`${scriptName}: trackTraffic() was called after installMocks() on this context — call it first, or every mocked request goes live`)
   const start = loadLedger()
   const hosts = {}
   const blocked = {}
