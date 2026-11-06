@@ -81,7 +81,7 @@ check(`The result explains "surroundings" (the average elevation of the 10 mi ar
 // Mockup A6: three plain rows above the explainer — rain, ground height, nearest mapped stream.
 const rows = await page.evaluate(() => [...document.querySelectorAll('.flood-why-rows div')].map((d) => `${d.querySelector('dt').textContent}: ${d.querySelector('dd').textContent}`))
 check('The flood card lists Rain, Ground height and Nearest mapped stream as three plain rows', rows.length === 3 && /^Rain: .* in the next \d+ h$/.test(rows[0]) && /^Ground height: (level with nearby ground|about .* (lower|higher) than the average nearby ground)$/.test(rows[1]) && /^Nearest mapped stream: /.test(rows[2]), rows.join(' | '))
-check('The rain horizon options (6 / 12 / 24 / 48 h), the cell counts and "Show on the map" are still there', (await page.getByRole('radio', { name: /^next (6|12|24|48) h$/ }).count()) === 4 && (await page.locator('.flood-page .stat-grid .stat').count()) >= 3 && (await page.getByRole('button', { name: 'Show on the map' }).count()) === 1)
+check('The rain horizon options (6 / 12 / 24 / 48 h), the cell counts and the flood-layer map switch are still there', (await page.getByRole('radio', { name: /^next (6|12|24|48) h$/ }).count()) === 4 && (await page.locator('.flood-page .stat-grid .stat').count()) >= 3 && (await page.getByRole('button', { name: /^Flood layer on map: (On|Off)$/ }).count()) === 1)
 done()
 await browser.close()
 console.log(`${results.filter(Boolean).length}/${results.length} passed`)
