@@ -25,6 +25,7 @@ import { LocationPrompt } from './components/LocationPrompt'
 import { SearchBar } from './components/SearchBar'
 import { LayerFab } from './components/LayerFab'
 import { BottomSheet } from './components/BottomSheet'
+import { GeoNotice } from './components/GeoNotice'
 import { PlaybackBar } from './components/PlaybackBar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Nav } from './components/Nav'
@@ -51,7 +52,7 @@ export default function App() {
   const hasSelection = useApp((s) => !!s.selection)
   const fabCorner = useApp((s) => s.fabCorner)
   const fabCornerWide = useApp((s) => s.fabCornerWide)
-  const journeyTo = useApp((s) => !!s.journey.to)
+  const journeyTo = useApp((s) => !!s.journey.to && s.routeOnMap)
   const screen = useApp((s) => s.screen)
   const pickMode = useApp((s) => s.pickMode)
   const pickerOpen = useApp((s) => s.pickerOpen)
@@ -206,7 +207,8 @@ export default function App() {
           {columnCollapsed ? '›' : '‹'}
         </button>
       )}
-      <PlacePicker onLocate={geo.request} locating={geo.status === 'locating'} />
+      <PlacePicker onLocate={geo.request} locating={geo.status === 'locating'} geo={geo} />
+      {place && !showPrompt && !pickerOpen && <GeoNotice status={geo.status} message={geo.message} attempt={geo.attempt} onRetry={geo.request} />}
 
       {showPrompt && (
         <LocationPrompt

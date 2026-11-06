@@ -1,21 +1,40 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { GeoState } from '../hooks/useGeolocation'
 import { forgetPlaces, removeRecent, setPlace, startPickOnMap, store, useApp } from '../state/store'
 import { PlaceSearch } from './PlaceSearch'
 
 interface Props {
   onLocate: () => void
   locating: boolean
+  geo?: Pick<GeoState, 'status' | 'message' | 'attempt'>
 }
 
 /**
  * The one place picker, behind every "Change" and every empty state:
  * use my location · search (with recents) · pick a point on the map.
  */
-export function PlacePicker({ onLocate, locating }: Props) {
+export function PlacePicker({ onLocate, locating, geo }: Props) {
   const open = useApp((s) => s.pickerOpen)
   const mode = useApp((s) => s.pickerMode)
   const [searchingLocal, setSearching] = useState(false)
   const searching = searchingLocal || mode === 'search'
+  // "Use my location" keeps the picker open with "Locating…" until the browser answers: it closes on a fix and
+  // says why on a failure (it used to close at once, so a denial or a timeout looked like nothing happened).
+  const waitingFor = useRef(0)
+  const [geoError, setGeoError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!geo || !waitingFor.current || geo.attempt < waitingFor.current) return
+    if (geo.status === 'granted') {
+      waitingFor.current = 0
+      store.set({ pickerOpen: false, pickerMode: 'menu' })
+    } else if (geo.status === 'denied' || geo.status === 'timeout' || geo.status === 'unavailable') {
+      waitingFor.current = 0
+      setGeoError(geo.message ?? 'Your location is unavailable right now.')
+    }
+  }, [geo?.status, geo?.attempt]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!open) setGeoError(null)
+  }, [open])
   if (!open) return null
   const close = () => {
     setSearching(false)
@@ -42,13 +61,27 @@ export function PlacePicker({ onLocate, locating }: Props) {
             <button
               className="btn primary"
               disabled={locating}
+              aria-busy={locating}
               onClick={() => {
+                setGeoError(null)
+                waitingFor.current = (geo?.attempt ?? 0) + 1
                 onLocate()
-                close()
+                if (!geo) close()
               }}
             >
-              {locating ? 'Locating…' : '◎ Use my location'}
+              {locating ? (
+                <>
+                  <span className="spinner" aria-hidden="true" /> Locating…
+                </>
+              ) : (
+                '◎ Use my location'
+              )}
             </button>
+            {geoError && (
+              <p className="geo-error" role="alert">
+                {geoError}
+              </p>
+            )}
             <button className="btn" onClick={() => setSearching(true)}>
               🔍 Search for a place
             </button>

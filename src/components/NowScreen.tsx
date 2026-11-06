@@ -405,6 +405,11 @@ function HourlyCard() {
   const cards = inSpan.filter((x) => x.tempC != null || x.code != null)
   const stripRef = useRef<HTMLOListElement>(null)
   useHorizontalScroll(stripRef, cards.length > 0)
+  // Every span starts at "Now": switching 12 / 24 / 48 h scrolls the strip back to its first card (it kept the old
+  // scroll position, so 24 h could open on 10 AM with "Now" off-screen).
+  useEffect(() => {
+    if (stripRef.current) stripRef.current.scrollLeft = 0
+  }, [span])
   const rain = inSpan.reduce((a, x) => a + (x.precipMm ?? 0), 0)
   // Card clocks and days in the place's time zone (the one the forecast resolved), like the 7-day list.
   const tz = r.data?.timezone || 'UTC'
@@ -419,7 +424,8 @@ function HourlyCard() {
   const weekdayOf = (t: number) => fmt(t, { weekday: 'short' })
   const firstDay = cards.length ? localDate(cards[0].time, tz) : ''
   const wide = useWide()
-  // Opens the Map with the playback bar running over the same span (on wide layouts the map is already beside this card).
+  // Plays the rain over the same span on the Map's playback bar (the hour-by-hour timeline lives there; on wide
+  // layouts the map is already beside this card). The row says so: it used to read "timeline ›", and no timeline opened here.
   const openTimeline = () => {
     if (!store.get().layers.rainfall) setLayer('rainfall', true)
     store.set({ rainHorizon: span, playing: true, playTime: null })
@@ -462,7 +468,7 @@ function HourlyCard() {
       )}
       {h.length > 0 && (
         <button className="link-row" onClick={openTimeline} data-rain-span={span}>
-          Rain next {span} h: <strong>{U.precip(rain, units)}</strong> · timeline ›
+          Rain next {span} h: <strong>{U.precip(rain, units)}</strong> · play on map ›
         </button>
       )}
     </div>

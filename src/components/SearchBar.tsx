@@ -35,8 +35,8 @@ export function SearchBar({ onLocate, locating }: Props) {
           </span>
           <span className="chip-text">{place ? (label ?? place.name) : 'Pick a place'}</span>
         </button>
-        <button className="icon-btn round" onClick={onLocate} disabled={locating} aria-label="Use my location">
-          {locating ? '…' : '◎'}
+        <button className={`icon-btn round ${locating ? 'busy' : ''}`} onClick={onLocate} disabled={locating} aria-busy={locating} aria-label={locating ? 'Finding your location' : 'Use my location'}>
+          {locating ? <span className="spinner" aria-hidden="true" /> : '◎'}
         </button>
       </div>
     </div>

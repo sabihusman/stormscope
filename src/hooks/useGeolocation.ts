@@ -8,6 +8,8 @@ export interface GeoState {
   position: LngLat | null
   accuracyM: number | null
   message: string | null
+  /** Counts "Use my location" requests, so the UI can tell this attempt's result from an earlier one's. */
+  attempt: number
 }
 
 const LS_KEY = 'stormscope.geo.asked'
@@ -18,11 +20,12 @@ export function useGeolocation() {
     position: null,
     accuracyM: null,
     message: null,
+    attempt: 0,
   }))
 
   const request = useCallback(() => {
     if (!('geolocation' in navigator)) {
-      setState((s) => ({ ...s, status: 'unavailable', message: 'This browser has no geolocation support.' }))
+      setState((s) => ({ ...s, status: 'unavailable', message: 'This browser has no geolocation support.', attempt: s.attempt + 1 }))
       return
     }
     try {
@@ -30,15 +33,16 @@ export function useGeolocation() {
     } catch {
       /* private mode */
     }
-    setState((s) => ({ ...s, status: 'locating', message: null }))
+    setState((s) => ({ ...s, status: 'locating', message: null, attempt: s.attempt + 1 }))
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setState({
+        setState((s) => ({
           status: 'granted',
           position: { lng: pos.coords.longitude, lat: pos.coords.latitude },
           accuracyM: pos.coords.accuracy,
           message: null,
-        })
+          attempt: s.attempt,
+        }))
       },
       (err) => {
         const status: GeoStatus =

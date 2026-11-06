@@ -4,7 +4,7 @@ import type { MapLayerMouseEvent } from 'maplibre-gl'
 import { FLOOD_CATEGORY_LABELS } from '../lib/colors'
 import { timeAgo } from '../lib/time'
 import { U, type Units } from '../lib/units'
-import { store, useApp } from '../state/store'
+import { setLayer, store, useApp } from '../state/store'
 import { useMap } from './MapView'
 import type { RiverGauge } from '../types'
 
@@ -29,6 +29,22 @@ export function gaugeSelection(g: RiverGauge, units: Units, fetchedAt?: number) 
     source: g.sources.join(' + '),
     updated: fetchedAt,
   }
+}
+/**
+ * Open a gauge's detail: the Map screen, the gauge layer on, and the bottom sheet at half for that gauge — from its
+ * marker or from a list row (Home tile, Rivers page), with no chip or toast in between. From a list the map also
+ * centres the gauge above the sheet.
+ */
+export function openGauge(g: RiverGauge, fromList: boolean) {
+  const s = store.get()
+  if (!s.layers.rivers) setLayer('rivers', true)
+  store.set({
+    screen: 'map',
+    pickerOpen: false,
+    selection: gaugeSelection(g, s.units, s.rivers.freshness?.fetchedAt),
+    sheet: 'half',
+    ...(fromList ? { selectionFlyNonce: s.selectionFlyNonce + 1 } : {}),
+  })
 }
 export const gaugeLines = (g: RiverGauge, units: Units) => [`${FLOOD_CATEGORY_LABELS[g.floodCategory] ?? g.floodCategory} · risk: ${g.riskLevel}`, ...describeGauge(g, units)]
 
@@ -93,8 +109,7 @@ export function RiversLayer() {
       e.preventDefault()
       const g = gauges.find((x) => x.id === f.properties?.id)
       if (!g) return
-      const s = store.get()
-      store.set({ selection: gaugeSelection(g, s.units, s.rivers.freshness?.fetchedAt) })
+      openGauge(g, false)
     }
     const enter = () => (map.getCanvas().style.cursor = 'pointer')
     const leave = () => (map.getCanvas().style.cursor = '')

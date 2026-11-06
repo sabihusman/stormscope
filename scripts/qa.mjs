@@ -204,13 +204,12 @@ const g = await page.evaluate(() => {
   return null
 })
 if (g) {
+  // Nov 6, 2026: a gauge tap opens its sheet at half directly (no chip, no Details tap).
   await page.mouse.click(g.x, g.y)
-  await settle(page, 500)
-  const t = await page.locator('.point-chip').innerText().catch(() => '')
-  await page.getByRole('button', { name: 'Details' }).click()
-  await settle(page, 500)
-  const d = await sheetText(page)
-  check('Gauge chip: category + risk; details: stage, source, freshness', /risk:/.test(t) && /Stage|Flow/.test(d) && /Source:/.test(d) && /updated/.test(d), t.split('\n')[0])
+  await settle(page, 700)
+  const chip = await page.locator('.point-chip').isVisible().catch(() => false)
+  const d = await sheetText(page).catch(() => '')
+  check('Gauge tap: the sheet opens directly (no chip) with category + risk, stage, source, freshness', !chip && /risk:/.test(d) && /Stage|Flow/.test(d) && /Source:/.test(d) && /updated/.test(d), d.split('\n').slice(0, 3).join(' | '))
   await page.screenshot({ path: `${OUT}/gauge-details.png` })
   await page.evaluate(() => window.__store.set({ selection: null, sheet: 'peek' }))
 } else check('Gauge chip: a gauge was tappable', false, 'no gauge in the tappable area')
