@@ -210,6 +210,30 @@ export function PointDetails() {
           {rel ? ` · ${rel}` : ''}
         </small>
       </div>
+      {/* The actions first, under the title: at half height they were below the fold, behind the nav (Nov 6 audit). */}
+      <div className="popup-actions">
+        <button className="btn small" onClick={() => setPlace({ name: 'Map point', lngLat: sel.lngLat, source: 'map' })}>
+          Use as my place
+        </button>
+        <button className="btn small" onClick={() => setJourneyTo({ name: `Map point ${sel.lngLat.lat.toFixed(3)}, ${sel.lngLat.lng.toFixed(3)}`, lngLat: sel.lngLat, source: 'map' })}>
+          Trip here
+        </button>
+        {sel.kind === 'gauge' && (
+          <button className="btn small" onClick={() => go('more', 'rivers')}>
+            All gauges
+          </button>
+        )}
+        {sel.kind === 'station' && (
+          <button className="btn small" onClick={() => go('more', 'station')}>
+            Full observation
+          </button>
+        )}
+        {(sel.kind === 'flood' || isPoint) && (
+          <button className="btn small" onClick={() => go('more', 'flood')}>
+            Flood risk
+          </button>
+        )}
+      </div>
       {!isPoint && !sel.readings?.length && (
         <ul className="popup-lines">
           {sel.lines.map((l, i) => (
@@ -276,29 +300,6 @@ export function PointDetails() {
           {sel.updated ? ` · updated ${timeAgo(sel.updated, now)}` : ''}
         </small>
       )}
-      <div className="popup-actions">
-        <button className="btn small" onClick={() => setPlace({ name: 'Map point', lngLat: sel.lngLat, source: 'map' })}>
-          Use as my place
-        </button>
-        <button className="btn small" onClick={() => setJourneyTo({ name: `Map point ${sel.lngLat.lat.toFixed(3)}, ${sel.lngLat.lng.toFixed(3)}`, lngLat: sel.lngLat, source: 'map' })}>
-          Trip here
-        </button>
-        {sel.kind === 'gauge' && (
-          <button className="btn small" onClick={() => go('more', 'rivers')}>
-            All gauges
-          </button>
-        )}
-        {sel.kind === 'station' && (
-          <button className="btn small" onClick={() => go('more', 'station')}>
-            Full observation
-          </button>
-        )}
-        {(sel.kind === 'flood' || isPoint) && (
-          <button className="btn small" onClick={() => go('more', 'flood')}>
-            Flood risk
-          </button>
-        )}
-      </div>
     </div>
   )
 }
