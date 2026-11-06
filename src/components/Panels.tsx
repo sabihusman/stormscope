@@ -258,6 +258,14 @@ export function RiversPanel() {
   )
 }
 
+/** The note after "computed …": still refining, drainage missing here, or the drainage request failed (said as such). */
+function floodNote(d: { preliminary?: boolean; drainageAvailable: boolean }, flowlinesError: string | null | undefined): string {
+  if (d.preliminary) return ' · refining… (rain only while the terrain and drainage data load)'
+  if (d.drainageAvailable) return ''
+  if (flowlinesError && !flowlinesError.includes('only available in the US')) return ` · stream data unavailable right now (${flowlinesError}) — this score is terrain + rain only`
+  return ' · drainage not available here — terrain + rain only'
+}
+
 export function FloodPanel() {
   const place = useApp((s) => s.place)
   const label = useApp((s) => s.placeLabel)
@@ -339,13 +347,7 @@ export function FloodPanel() {
             </p>
             <small className="muted cond-foot">
               Indicative screening, not an official flood warning · computed {timeAgo(d!.computedAt, now)}
-              {d!.preliminary
-                ? ' · refining… (rain only while the terrain and drainage data load)'
-                : d!.drainageAvailable
-                  ? ''
-                  : block?.flowlines.error && !/only available in the US/.test(block.flowlines.error)
-                    ? ` · stream data unavailable right now (${block.flowlines.error}) — this score is terrain + rain only`
-                    : ' · drainage not available here — terrain + rain only'}
+              {floodNote(d!, block?.flowlines.error)}
             </small>
           </div>
           <div className="segmented small" role="radiogroup" aria-label="Rain horizon">
