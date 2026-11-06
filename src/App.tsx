@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { MapView } from './map/MapView'
 import { RadarLayer } from './map/RadarLayer'
@@ -47,6 +47,25 @@ function LayerGuard({ name, layer, children }: { name: string; layer: LayerId; c
 export default function App() {
   const geo = useGeolocation()
   const t = useApp((s) => s.toast)
+  // While a toast shows on a phone's content screen, the screen's scroll area starts below it (its height in
+  // --toast-h), so the toast never sits on top of the 7-day list or anything else (Nov 6 audit).
+  const toastRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = toastRef.current
+    const app = document.querySelector<HTMLElement>('.app')
+    if (!el || !app) {
+      app?.style.setProperty('--toast-h', '0px')
+      return
+    }
+    const set = () => app.style.setProperty('--toast-h', `${Math.ceil(el.getBoundingClientRect().height)}px`)
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      app.style.setProperty('--toast-h', '0px')
+    }
+  }, [t])
   const place = useApp((s) => s.place)
   const sheet = useApp((s) => s.sheet)
   const hasSelection = useApp((s) => !!s.selection)
@@ -130,7 +149,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} fabw-${fabCornerWide} ${wide ? 'wide' : 'narrow'} ${desk ? 'desk' : ''} ${dockOpen ? 'dock-open' : ''} ${pickMode ? 'picking' : ''} ${playbarExpanded ? 'playbar-open' : ''} ${wide && columnCollapsed && (desk || screen !== 'map') ? 'col-collapsed' : ''}`}>
+    <div className={`app ${t ? 'has-toast ' : ''}screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} fabw-${fabCornerWide} ${wide ? 'wide' : 'narrow'} ${desk ? 'desk' : ''} ${dockOpen ? 'dock-open' : ''} ${pickMode ? 'picking' : ''} ${playbarExpanded ? 'playbar-open' : ''} ${wide && columnCollapsed && (desk || screen !== 'map') ? 'col-collapsed' : ''}`}>
       <MapView>
         {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
         <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
@@ -244,7 +263,7 @@ export default function App() {
         </div>
       )}
       {t && (
-        <div className={`toast ${t.kind}`} role="status">
+        <div className={`toast ${t.kind}`} role="status" ref={toastRef}>
           <span>{t.text}</span>
           <button className="icon-btn" onClick={() => store.set({ toast: null })} aria-label="Dismiss">
             ×

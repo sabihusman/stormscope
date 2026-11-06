@@ -2245,10 +2245,15 @@ small {
   left: calc(var(--rail-w) + 12px);
 }
 
-/* Toasts never cover the primary actions at the bottom of a content screen: they drop in from the top there. */
+/* Toasts never cover the primary actions at the bottom of a content screen: they drop in from the top there,
+   into a strip of their own — the screen's scroll area starts below the toast while it shows (Nov 6 audit: the
+   toast sat on the 7-day list). It still goes by itself after 5 s, or with its ×. */
 .app.narrow:not(.screen-map) .toast {
-  top: calc(var(--sat) + 10px);
+  top: calc(var(--sat) + 8px);
   bottom: auto;
+}
+.app.narrow.has-toast:not(.screen-map) .screen {
+  top: calc(var(--toast-h, 0px) + 16px);
 }
 /* Desktop: the ☰ button lives in the map's top-right control column, directly under zoom / compass (same
    size and spacing as those buttons), whatever corner a phone drag saved — the stack is positioned in the
