@@ -10,7 +10,7 @@ import { clock, readingAge } from '../lib/time'
 import { U } from '../lib/units'
 import { setResource, store, useApp, type SelectionReading } from '../state/store'
 import { failed, loading, ready } from '../state/DataController'
-import { useMap } from './MapView'
+import { labelLayer, useMap } from './MapView'
 import { reducedMotion } from '../hooks/usePresence'
 
 const SRC = 'air-monitors'
@@ -129,7 +129,7 @@ export function MonitorSitesLayer() {
         'circle-stroke-color': ['case', ['==', ['get', 'style'], 'fresh'], '#0b1220', STALE_STROKE],
         'circle-stroke-width': ['case', ['==', ['get', 'style'], 'fresh'], 1.5, 2],
       },
-    })
+    }, labelLayer(map))
     let ctrl: AbortController | null = null
     let timer = 0
     const draw = (sites: MonitorSite[]) => {

@@ -3,7 +3,7 @@ import type { MapLayerMouseEvent } from 'maplibre-gl'
 import { U, type Units } from '../lib/units'
 import { timeAgo } from '../lib/time'
 import { store, useApp } from '../state/store'
-import { useMap } from './MapView'
+import { labelLayer, useMap } from './MapView'
 import { attachTooltip } from './tooltip'
 import type { StationObs } from '../types'
 
@@ -37,7 +37,7 @@ export function StationLayer() {
       type: 'circle',
       source: SRC,
       paint: { 'circle-radius': 7, 'circle-color': '#e2e8f0', 'circle-stroke-color': '#0ea5e9', 'circle-stroke-width': 3 },
-    })
+    }, labelLayer(map))
     const onClick = (e: MapLayerMouseEvent) => {
       e.preventDefault()
       const units = store.get().units

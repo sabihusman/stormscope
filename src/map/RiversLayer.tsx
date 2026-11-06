@@ -5,7 +5,7 @@ import { FLOOD_CATEGORY_LABELS } from '../lib/colors'
 import { timeAgo } from '../lib/time'
 import { U, type Units } from '../lib/units'
 import { setLayer, store, useApp } from '../state/store'
-import { useMap } from './MapView'
+import { labelLayer, useMap } from './MapView'
 import type { RiverGauge } from '../types'
 
 const SRC = 'river-gauges'
@@ -91,7 +91,7 @@ export function RiversLayer() {
       source: SRC,
       filter: ['==', ['get', 'alert'], 1],
       paint: { 'circle-radius': 14, 'circle-color': ['get', 'color'], 'circle-opacity': 0.25 },
-    })
+    }, labelLayer(map))
     map.addLayer({
       id: SRC,
       type: 'circle',
@@ -102,7 +102,7 @@ export function RiversLayer() {
         'circle-stroke-color': '#0b1220',
         'circle-stroke-width': 1.5,
       },
-    })
+    }, labelLayer(map))
     const onClick = (e: MapLayerMouseEvent) => {
       const f = e.features?.[0]
       if (!f) return
