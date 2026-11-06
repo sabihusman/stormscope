@@ -159,6 +159,8 @@ async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSumm
     gauges.forEach(classifyRisk)
     return { resource: ready(byDistance(gauges), 'NOAA NWPS', NWPS_URL), nwps }
   }
+  // USGS site names need only the box: asked for alongside everything else rather than after NOAA's details.
+  const namesP = fetchUsgsNames(bbox).catch(() => new Map<string, { name: string; type: string }>())
   const [nwpsRes, usgsRes] = await Promise.allSettled([nwpsList ? Promise.resolve(nwpsList) : fetchNwpsGauges(bbox), fetchUsgsLatest(bbox)])
   if (nwpsRes.status === 'rejected' && usgsRes.status === 'rejected') throw nwpsRes.reason
   const nwps = nwpsRes.status === 'fulfilled' ? nwpsRes.value : []
@@ -185,7 +187,7 @@ async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSumm
     if (rg.usgsId) usgsById.delete(rg.usgsId)
   }
   // USGS-only sites (no NOAA forecast point): nearest 25.
-  const names = await fetchUsgsNames(bbox).catch(() => new Map<string, { name: string; type: string }>())
+  const names = await namesP
   const usgsOnly = [...usgsById.values()]
     .filter((u) => u.flow || u.stage)
     .map((u) => ({ u, d: haversine(at, u.lngLat) }))
@@ -842,7 +844,15 @@ export function DataController() {
         return
       }
       try {
-        const { resource, nwps } = await loadRivers(at, need, fresh ? cached.nwps : undefined)
+        // The full list waits on NOAA's per-gauge details and USGS (12–15 s on a slow day, Nov 6 audit): with
+        // nothing to show yet, NOAA's gauges go up as soon as NOAA's list lands, then the full list replaces them.
+        let nwpsList = fresh ? cached.nwps : undefined
+        if (need === 'full' && !store.get().rivers.data?.length) {
+          const first = await loadRivers(at, 'summary', nwpsList)
+          nwpsList = first.nwps
+          if (store.get().place?.lngLat === at && !store.get().rivers.data?.length) store.set({ rivers: { ...first.resource, state: 'loading' }, riversTier: 'summary' })
+        }
+        const { resource, nwps } = await loadRivers(at, need, nwpsList)
         riversCache.current.set(placeKey, { tier: need, at: Date.now(), resource, nwps })
         if (store.get().place?.lngLat === at) store.set({ rivers: resource, riversTier: need })
       } catch (e) {
