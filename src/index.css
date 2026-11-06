@@ -3236,3 +3236,65 @@ small {
 .legend-line {
   display: block;
 }
+
+/* Phones: every control is a 44 × 44 px tap target (Nov 6 audit: Change 34 px, recents × 32 px, the 6 / 12 / 24 / 48
+   and 12 / 24 / 48 h pills 26–30 px, the zoom / rotate / credits column 36 px). Real size, not an invisible hit
+   area, so neighbouring targets never overlap. */
+.app.narrow {
+  --map-ctrl-btn: 44px;
+}
+.app.narrow .btn.small {
+  height: 44px;
+}
+.app.narrow .icon-btn,
+.app.narrow .recent-x {
+  width: 44px;
+  height: 44px;
+}
+.app.narrow .segmented.small button,
+.app.narrow .segmented.small.horizon button {
+  height: 44px;
+  min-width: 44px;
+}
+/* The playback bar on a phone is two rows, so nothing clips with 44 px targets: ▶ · time · scrubber · ✕, then the
+   6 / 12 / 24 / 48 h pills on a row of their own (one row needed ~400 px at 44 px, more than a 390 px phone has). */
+@media (max-width: 420px) {
+  .app.narrow .playbar-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .app.narrow .playbar .horizon {
+    order: 10;
+    flex: 1 0 100%;
+    display: flex;
+    padding: 2px;
+  }
+  .app.narrow .playbar .horizon button {
+    flex: 1;
+    height: 44px;
+    min-width: 44px;
+    font-size: 13px;
+  }
+  .app.narrow .playbar .play.big,
+  .app.narrow .playbar .playbar-close {
+    width: 44px;
+    height: 44px;
+  }
+}
+.app.narrow .chips button,
+.app.narrow .chip-x {
+  min-height: 44px;
+}
+.app.narrow .chip-x {
+  min-width: 44px;
+}
+.app.narrow .place-chip,
+.app.narrow .link-row {
+  min-height: 44px;
+}
+.app.narrow .chips button {
+  min-width: 44px;
+}
+.app.narrow .pill.follow {
+  min-height: 44px;
+}
