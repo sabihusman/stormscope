@@ -282,7 +282,26 @@ export function MapView({ children }: { children: ReactNode }) {
   return (
     <div className="map-root">
       <div ref={container} className="map-container" role="application" aria-label="Weather map" />
+      {!map && <MapLoading />}
       <MapCtx.Provider value={map}>{map ? children : null}</MapCtx.Provider>
+    </div>
+  )
+}
+
+/**
+ * Until the basemap's first full render (MapLibre's load event): a neutral land-coloured placeholder that says
+ * what it is waiting for, instead of a blank white screen (Nov 6 audit: ~15 s of white on the first map), and
+ * after 5 s which server is slow.
+ */
+function MapLoading() {
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    const t = window.setTimeout(() => setSlow(true), 5000)
+    return () => window.clearTimeout(t)
+  }, [])
+  return (
+    <div className="map-loading" role="status" aria-live="polite">
+      <span>{slow ? `Still loading the map — the map tile server (${new URL(BASEMAP_STYLE).host}) is slow right now…` : 'Loading the map…'}</span>
     </div>
   )
 }

@@ -17,6 +17,9 @@
       content="Live radar, rainfall forecast, flood-risk and river-gauge map with 3D terrain. Works offline as a PWA."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- The basemap and radar hosts are needed for the first map: connect while the app script loads. -->
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+    <link rel="preconnect" href="https://tilecache.rainviewer.com" crossorigin />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <title>StormScope</title>
   </head>
