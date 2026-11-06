@@ -36,6 +36,8 @@ export function LayerFab() {
   const satProduct = useApp((s) => s.satProduct)
   const aqPollutant = useApp((s) => s.aqPollutant)
   const rainHorizon = useApp((s) => s.rainHorizon)
+  const hasTrip = useApp((s) => !!s.journey.to)
+  const routeOnMap = useApp((s) => s.routeOnMap)
   // Desktop (1024 px and up): the panel is docked open unless the user collapsed it (remembered); tablets and phones start closed.
   const [open, setOpen] = useState(() => {
     try {
@@ -264,6 +266,12 @@ export function LayerFab() {
               </button>
             )
           })}
+          {hasTrip && (
+            <button className={`fab-item ${routeOnMap ? 'on' : ''}`} data-layer="route" onClick={() => store.set({ routeOnMap: !routeOnMap })} aria-pressed={routeOnMap}>
+              <span aria-hidden="true">🚗</span>
+              <span className="fab-label">Trip route</span>
+            </button>
+          )}
           <div className="fab-sep" />
           <button className={`fab-item ${is3D ? 'on' : ''}`} onClick={() => store.set({ is3D: !is3D })} aria-pressed={is3D}>
             <span aria-hidden="true">⛰</span>

@@ -3127,3 +3127,34 @@ small {
 .playbar .horizon button.pending {
   opacity: 0.45;
 }
+
+/* "Show on the map" is a switch (Nov 6 audit): the layer's state reads on the button itself. */
+.head-actions,
+.map-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.map-toggle-row {
+  margin: 10px 0 4px;
+}
+.btn.map-toggle::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  vertical-align: -1px;
+}
+.btn.map-toggle.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn.map-toggle.on::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+

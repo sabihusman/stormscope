@@ -5,10 +5,10 @@ import type { RainHorizon } from '../types'
 import { haversine } from '../lib/geo'
 import { clock, timeAgo } from '../lib/time'
 import { U, type Units } from '../lib/units'
-import { useNow, useReducedMotion } from '../hooks/useMisc'
+import { useNow, useReducedMotion, useWide } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
 import { describeGauge, openGauge, RISK_COLORS } from '../map/RiversLayer'
-import { aggregate, forgetPlaces, go, removeRecent, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
+import { aggregate, forgetPlaces, go, removeRecent, setLayer, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { splitGauges } from '../lib/rivers'
 import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/openMeteo'
@@ -271,6 +271,8 @@ export function FloodPanel() {
   const block = useApp((s) => (s.floodFor ? s.blocks[s.floodFor] : undefined))
   const horizon = useApp((s) => s.rainHorizon)
   const units = useApp((s) => s.units)
+  const floodOnMap = useApp((s) => s.layers.flood)
+  const wide = useWide()
   const now = useNow()
   // Ask the controller for the place's finest block while this page is open.
   const wantKey = place ? floodKeyFor(place.lngLat) : null
@@ -293,8 +295,13 @@ export function FloodPanel() {
   const here = floodHere(block?.flood, place.lngLat)
   const counts = FLOOD_STOPS.slice(1).map((s, i, arr) => ({ label: s.label, color: s.color, n: cells.filter((c) => c.risk >= s.value && (i + 1 >= arr.length || c.risk < arr[i + 1].value)).length }))
   const name = (label ?? place.name).split(',')[0]
-  const showOnMap = () => {
-    store.set((s) => ({ layers: { ...s.layers, flood: true, rainfall: false, nowcast: false } }))
+  // A switch, not a door: the flood layer goes on (one forecast overlay at a time) or off, the button says which,
+  // and the panel stays open. "Open the map" is its own button; the map's Layers menu has the same switch.
+  const toggleFloodLayer = () => {
+    if (floodOnMap) setLayer('flood', false)
+    else store.set((s) => ({ layers: { ...s.layers, flood: true, rainfall: false, nowcast: false } }))
+  }
+  const openMap = () => {
     go('map')
     const m = (window as unknown as { __map?: { easeTo: (o: object) => void } }).__map
     m?.easeTo({ center: [place.lngLat.lng, place.lngLat.lat], zoom: 11, duration: 600 })
@@ -367,9 +374,16 @@ export function FloodPanel() {
               </div>
             ))}
           </div>
-          <button className="btn small" onClick={showOnMap}>
-            Show on the map
-          </button>
+          <div className="map-toggle-row">
+            <button className={`btn small map-toggle ${floodOnMap ? 'on' : ''}`} aria-pressed={floodOnMap} data-toggle="flood" onClick={toggleFloodLayer}>
+              Flood layer on map: {floodOnMap ? 'On' : 'Off'}
+            </button>
+            {!wide && floodOnMap && (
+              <button className="btn small" onClick={openMap}>
+                Open the map ›
+              </button>
+            )}
+          </div>
           <details className="method">
             <summary>How this is scored</summary>
             <p className="muted">

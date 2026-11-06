@@ -132,6 +132,8 @@ export interface AppState {
   recenterNonce: number
   /** Bumped when a gauge is opened from a list: the map centres the selection above the sheet (on mount too). */
   selectionFlyNonce: number
+  /** The planned trip's route and its hazards on the map (Trip header and the map's Layers menu switch it). */
+  routeOnMap: boolean
   /** The selected place is inside the map's current view (false once the map has been moved away from it). */
   placeInView: boolean
   /** "Save this place on this device": off by default on a first visit; nothing about the place is stored until it is on. */
@@ -250,6 +252,7 @@ export const store = createStore<AppState>({
   focus: null,
   recenterNonce: 0,
   selectionFlyNonce: 0,
+  routeOnMap: true,
   placeInView: true,
   // Returning users who saved a place before the toggle existed keep saving (the saved place is the opt-in).
   savePlacePref: ((): boolean => {
