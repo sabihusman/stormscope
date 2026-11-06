@@ -18,10 +18,29 @@ export const RISK_COLORS: Record<RiverGauge['riskLevel'], string> = {
   unknown: '#94a3b8',
 }
 
+/** A gauge's selection: it carries the gauge id, so the chip and the sheet redraw from the current list (one source). */
+export function gaugeSelection(g: RiverGauge, units: Units, fetchedAt?: number) {
+  return {
+    kind: 'gauge' as const,
+    gaugeId: g.id,
+    lngLat: g.lngLat,
+    title: g.name,
+    lines: gaugeLines(g, units),
+    source: g.sources.join(' + '),
+    updated: fetchedAt,
+  }
+}
+export const gaugeLines = (g: RiverGauge, units: Units) => [`${FLOOD_CATEGORY_LABELS[g.floodCategory] ?? g.floodCategory} · risk: ${g.riskLevel}`, ...describeGauge(g, units)]
+
 export function describeGauge(g: RiverGauge, units: Units): string[] {
   const lines: string[] = []
-  if (g.stage) lines.push(`Stage ${U.stage(g.stage.value, g.stage.unit, units)} · ${timeAgo(g.stage.time)}`)
-  if (g.flow) lines.push(`Flow ${U.flow(g.flow.value, g.flow.unit, units)} · ${timeAgo(g.flow.time)}`)
+  if (g.stage)
+    lines.push(
+      g.stage.basis === 'elevation'
+        ? `Water level ${U.stage(g.stage.value, g.stage.unit, units)} above sea level · ${timeAgo(g.stage.time)} (elevation-based gauge — not comparable with river stages)`
+        : `Stage ${U.stage(g.stage.value, g.stage.unit, units)} · ${timeAgo(g.stage.time)}`,
+    )
+  if (g.flow) lines.push(`Flow ${U.flow(g.flow.value, g.flow.unit, units)} · ${timeAgo(g.flow.time)}${g.flow.source ? ` · ${g.flow.source}` : ''}`)
   if (g.categories?.minor) {
     const c = g.categories
     const t = (v?: number) => (v == null ? '—' : U.stageThreshold(v, c.unit, units))

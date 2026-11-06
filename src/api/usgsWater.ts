@@ -31,7 +31,7 @@ export interface UsgsLatest {
   usgsId: string
   lngLat: { lng: number; lat: number }
   stage?: { value: number; unit: string; time: number }
-  flow?: { value: number; unit: string; time: number }
+  flow?: { value: number; unit: string; time: number; source?: string }
 }
 
 /** Latest gage height (00065) and discharge (00060) for every site in bbox. */
@@ -53,8 +53,10 @@ export async function fetchUsgsLatest(bbox: BBox, signal?: AbortSignal): Promise
     const v = Number(p.value)
     if (!Number.isFinite(v)) continue
     const rec = { value: v, unit: p.unit_of_measure, time: Date.parse(p.time) }
-    if (p.parameter_code === '00065') s.stage = rec
-    else if (p.parameter_code === '00060') s.flow = rec
+    // The endpoint can return several records for one site and parameter (Nov 6, 2026: USGS-05484900 carried a
+    // 1996 gage height of 2.18 ft beside today's 10.33 ft); the newest wins, whatever order they arrive in.
+    if (p.parameter_code === '00065' && (!s.stage || rec.time > s.stage.time)) s.stage = rec
+    else if (p.parameter_code === '00060' && (!s.flow || rec.time > s.flow.time)) s.flow = { ...rec, source: 'USGS' }
   }
   return [...map.values()]
 }

@@ -72,8 +72,10 @@ export interface RiverGauge {
   lid?: string
   /** USGS monitoring location id (e.g. USGS-01473500). */
   usgsId?: string
-  stage?: { value: number; unit: string; time: number }
-  flow?: { value: number; unit: string; time: number }
+  /** `basis: 'elevation'`: the sensor reports the water surface above sea level (Iowa Flood Center gauges), not a stage above the gauge's own datum. */
+  stage?: { value: number; unit: string; time: number; basis?: 'stage' | 'elevation' }
+  /** One flow per gauge, from one named source: the newer of USGS's measurement and NOAA's reported flow. */
+  flow?: { value: number; unit: string; time: number; source?: string }
   floodCategory: string
   categories?: { action?: number; minor?: number; moderate?: number; major?: number; unit: string }
   forecast?: { value: number; unit: string; time: number; floodCategory: string }
