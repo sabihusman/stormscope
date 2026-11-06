@@ -226,11 +226,12 @@ function ConditionsCard() {
       </div>
       {observed && (
         <div className="cond-observed">
-          Observed {U.temp(observed.tempC, units)} at {observed.name}, {timeAgo(observed.observedAt, now)}
+          Measured {U.temp(observed.tempC, units)}
+          {observed.windSpeedMs != null ? `, wind ${observed.windDirDeg != null ? compass(observed.windDirDeg) + ' ' : ''}${U.speed(observed.windSpeedMs, units)}` : ''} at {observed.name} · {timeAgo(observed.observedAt, now)}
         </div>
       )}
       <small className="muted cond-foot">
-        Open-Meteo model · updated {timeAgo(r.freshness?.fetchedAt, now)}
+        Headline: Open-Meteo forecast model for this spot · updated {timeAgo(r.freshness?.fetchedAt, now)}
         {r.stale ? ' · stale' : ''}
         {r.error ? ` · last refresh failed: ${r.error}` : ''}
       </small>

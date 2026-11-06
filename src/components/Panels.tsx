@@ -153,7 +153,7 @@ export function StationPanel() {
           <strong>{o.humidityPct == null ? '—' : `${o.humidityPct.toFixed(0)} %`}</strong>
         </div>
         <div className="stat">
-          <small>Wind</small>
+          <small>Wind{o.provider === 'weather.gov' ? ' · measured' : ' · model'}</small>
           <strong>{windLabel(o, units)}</strong>
           {o.windDirDeg != null && o.windSpeedMs != null && o.windSpeedMs >= 0.3 && (
             <small className="muted">
@@ -162,8 +162,8 @@ export function StationPanel() {
           )}
         </div>
         <div className="stat">
-          <small>Temperature</small>
-          <strong>{U.temp(o.tempC, units, 1)}</strong>
+          <small>Temperature{o.provider === 'weather.gov' ? ' · measured' : ' · model'}</small>
+          <strong>{U.temp(o.tempC, units)}</strong>
         </div>
         <div className="stat wide">
           <small>Precipitation totals</small>
