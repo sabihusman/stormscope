@@ -339,7 +339,13 @@ export function FloodPanel() {
             </p>
             <small className="muted cond-foot">
               Indicative screening, not an official flood warning · computed {timeAgo(d!.computedAt, now)}
-              {d!.preliminary ? ' · refining… (rain only while the terrain and drainage data load)' : d!.drainageAvailable ? '' : ' · drainage not available here — terrain + rain only'}
+              {d!.preliminary
+                ? ' · refining… (rain only while the terrain and drainage data load)'
+                : d!.drainageAvailable
+                  ? ''
+                  : block?.flowlines.error && !/only available in the US/.test(block.flowlines.error)
+                    ? ` · stream data unavailable right now (${block.flowlines.error}) — this score is terrain + rain only`
+                    : ' · drainage not available here — terrain + rain only'}
             </small>
           </div>
           <div className="segmented small" role="radiogroup" aria-label="Rain horizon">
