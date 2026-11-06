@@ -1558,6 +1558,9 @@ small {
   margin-top: 8px;
   font-size: 13px;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cond-foot {
   display: block;
@@ -1698,10 +1701,10 @@ small {
   to { transform: scale(1.5); opacity: 0; }
 }
 /* Now cards while loading: placeholders as tall as the loaded card (measured on a 390 px phone, Oct 18:
-   conditions 172 (Oct 31: the stamp and the 56 px temperature), the summary line 41, next hours 208 (with the span switch; the same for 12 / 24 / 48 h), 7 days 293, air quality 247 (Oct 30: the fetched / observed footer wraps to three lines), tiles 167), so nothing below them moves when
+   conditions 154 (Nov 6: the measured line holds to one line; Oct 31: the stamp and the 56 px temperature), the summary line 41, next hours 208 (with the span switch; the same for 12 / 24 / 48 h), 7 days 293, air quality 247 (Oct 30: the fetched / observed footer wraps to three lines), tiles 167), so nothing below them moves when
    the data lands. min-height only: a taller card still grows. */
 .app.narrow .now-card.conditions[aria-busy='true'] {
-  min-height: 172px;
+  min-height: 154px;
 }
 /* The summary line keeps a two-line slot on phones, loading or loaded (its sentence wraps to one or two lines),
    so the cards below never move when it appears or changes. */

@@ -225,13 +225,14 @@ function ConditionsCard() {
         </div>
       </div>
       {observed && (
-        <div className="cond-observed">
+        <div className="cond-observed" title={`Measured at ${observed.name}`}>
+          {/* One line on a phone: the reading and its age first, the station name last (it is the part that may be cut). */}
           Measured {U.temp(observed.tempC, units)}
-          {observed.windSpeedMs != null ? `, wind ${observed.windDirDeg != null ? compass(observed.windDirDeg) + ' ' : ''}${U.speed(observed.windSpeedMs, units)}` : ''} at {observed.name} · {timeAgo(observed.observedAt, now)}
+          {observed.windSpeedMs != null ? `, wind ${observed.windDirDeg != null ? compass(observed.windDirDeg) + ' ' : ''}${U.speed(observed.windSpeedMs, units)}` : ''} · {timeAgo(observed.observedAt, now)} at {observed.name}
         </div>
       )}
       <small className="muted cond-foot">
-        Headline: Open-Meteo forecast model for this spot · updated {timeAgo(r.freshness?.fetchedAt, now)}
+        Headline: forecast model (Open-Meteo) · updated {timeAgo(r.freshness?.fetchedAt, now)}
         {r.stale ? ' · stale' : ''}
         {r.error ? ` · last refresh failed: ${r.error}` : ''}
       </small>
