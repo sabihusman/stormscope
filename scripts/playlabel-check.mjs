@@ -81,7 +81,8 @@ await page.screenshot({ path: `${OUT}/bar-last-frame.png` })
 const size = async (sel) => { const b = await page.locator(sel).boundingBox(); return b ? { w: Math.round(b.width), h: Math.round(b.height), right: Math.round(b.x + b.width) } : null }
 const play = await size('.playbar .play')
 const close = await size('.playbar .playbar-close')
-check('In the expanded bar on a phone ▶ renders at 40 × 40 px and ✕ at 32 × 32 px', play?.w === 40 && play?.h === 40 && close?.w === 32 && close?.h === 32, `▶ ${JSON.stringify(play)} ✕ ${JSON.stringify(close)}`)
+// Nov 6, 2026: every phone control is a 44 × 44 px tap target (it was ▶ 40 px and ✕ 32 px), and both stay on screen.
+check('In the expanded bar on a phone ▶ and ✕ render at 44 × 44 px, both inside the screen', play?.w === 44 && play?.h === 44 && close?.w === 44 && close?.h === 44 && close.right <= 390, `▶ ${JSON.stringify(play)} ✕ ${JSON.stringify(close)}`)
 // The longest label: satellite frames reach back over three hours ("4 h 10 min ago" in the mock).
 await page.evaluate(() => window.__store.set((s) => ({ layers: { ...s.layers, satellite: true, radar: false }, animLayer: 'satellite' })))
 await until(() => window.__store.get().satellite.data?.times.length > 10, 30000)
