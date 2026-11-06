@@ -366,6 +366,12 @@ function nwps(url, focus) {
 }
 /** Fixtures for the trust checks (installMocks trustFixtures): duplicate USGS records, an elevation-based gauge. */
 const TRUST = { on: false }
+/** Names for the special mock sites (the rest are "Stream at site N"). */
+const MOCK_SITE_NAMES = {
+  'USGS-05499999': 'Old Creek near Nowhere (mock, discontinued)',
+  'USGS-05481999': 'North Walnut Creek at Johnston (mock IFC)',
+  'USGS-05481998': 'Beaver Creek at Johnston (mock, duplicate records)',
+}
 function usgs(url, focus) {
   const u = new URL(url)
   const sites = saved.rivers.sites
@@ -381,10 +387,12 @@ function usgs(url, focus) {
       // As USGS answered on Nov 6, 2026: a USGS-only site (no NOAA forecast point, so nothing else supplies its stage)
       // with today's gage height and a second, 1996 one arriving AFTER it.
       const at = [focus.lng - 0.012, focus.lat - 0.009]
-      features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: { monitoring_location_id: 'USGS-05481998', parameter_code: '00065', time: now, value: '4.2', unit_of_measure: 'ft', approval_status: 'Provisional' } })
-      features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: { monitoring_location_id: 'USGS-05481998', parameter_code: '00065', time: '1996-09-30T04:45:00Z', value: '2.18', unit_of_measure: 'ft', approval_status: 'Approved' } })
+      features.push(
+        { type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: { monitoring_location_id: 'USGS-05481998', parameter_code: '00065', time: now, value: '4.2', unit_of_measure: 'ft', approval_status: 'Provisional' } },
+        { type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: { monitoring_location_id: 'USGS-05481998', parameter_code: '00065', time: '1996-09-30T04:45:00Z', value: '2.18', unit_of_measure: 'ft', approval_status: 'Approved' } },
       // An Iowa Flood Center sensor: the water surface above sea level, reported as gage height.
-      features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [focus.lng + 0.01, focus.lat + 0.008] }, properties: { monitoring_location_id: 'USGS-05481999', parameter_code: '00065', time: now, value: '826.01', unit_of_measure: 'ft', approval_status: 'Provisional' } })
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [focus.lng + 0.01, focus.lat + 0.008] }, properties: { monitoring_location_id: 'USGS-05481999', parameter_code: '00065', time: now, value: '826.01', unit_of_measure: 'ft', approval_status: 'Provisional' } },
+      )
     }
     // A discontinued series: USGS's latest-continuous still carries its last value, from 1996 (as around Des Moines).
     features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [pos(99).lng, pos(99).lat] }, properties: { monitoring_location_id: 'USGS-05499999', parameter_code: '00060', time: '1996-09-30T06:00:00Z', value: '17', unit_of_measure: 'ft^3/s', approval_status: 'Approved' } })
@@ -392,7 +400,7 @@ function usgs(url, focus) {
   }
   // The real OGC endpoint answers a site_type_code filter with an empty collection (checked live Oct 19, 2026).
   if (u.pathname.includes('/monitoring-locations/') && u.searchParams.get('site_type_code')) return { type: 'FeatureCollection', features: [] }
-  if (u.pathname.includes('/monitoring-locations/')) return { type: 'FeatureCollection', features: [...sites, 'USGS-05499999', ...(TRUST.on ? ['USGS-05481999', 'USGS-05481998'] : [])].map((id, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [pos(i).lng, pos(i).lat] }, properties: { monitoring_location_number: id.replace('USGS-', ''), monitoring_location_name: id === 'USGS-05499999' ? 'Old Creek near Nowhere (mock, discontinued)' : id === 'USGS-05481999' ? 'North Walnut Creek at Johnston (mock IFC)' : id === 'USGS-05481998' ? 'Beaver Creek at Johnston (mock, duplicate records)' : `Stream at site ${i + 1}`, site_type_code: 'ST' } })) }
+  if (u.pathname.includes('/monitoring-locations/')) return { type: 'FeatureCollection', features: [...sites, 'USGS-05499999', ...(TRUST.on ? ['USGS-05481999', 'USGS-05481998'] : [])].map((id, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [pos(i).lng, pos(i).lat] }, properties: { monitoring_location_number: id.replace('USGS-', ''), monitoring_location_name: MOCK_SITE_NAMES[id] ?? `Stream at site ${i + 1}`, site_type_code: 'ST' } })) }
   if (u.pathname.includes('/daily/')) {
     const features = []
     for (const id of sites) for (let d = 0; d < 10; d++) features.push({ type: 'Feature', geometry: null, properties: { monitoring_location_id: id, parameter_code: '00060', statistic_id: '00003', time: new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10), value: String(saved.rivers.medians[id]?.median ?? 500), approval_status: 'Provisional' } })
