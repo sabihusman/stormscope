@@ -247,6 +247,21 @@ export function MapView({ children }: { children: ReactNode }) {
     map.flyTo({ center: place.lngLat, zoom: Math.max(map.getZoom(), 9.5), duration: reducedMotion ? 0 : 1000, essential: true })
   }, [map, recenterNonce]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A gauge opened from a list: centre it in the map above the half sheet (the map may be mounting just now).
+  const selectionFlyNonce = useApp((s) => s.selectionFlyNonce)
+  useEffect(() => {
+    const sel = store.get().selection
+    if (!map || !sel || selectionFlyNonce === 0) return
+    const narrow = window.innerWidth < 768
+    map.easeTo({
+      center: [sel.lngLat.lng, sel.lngLat.lat],
+      zoom: Math.max(map.getZoom(), 10),
+      padding: { top: 0, left: 0, right: 0, bottom: narrow ? Math.round(window.innerHeight * 0.5) : 0 },
+      duration: reducedMotion ? 0 : 700,
+      essential: true,
+    })
+  }, [map, selectionFlyNonce]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Fly to the place + marker.
   useEffect(() => {
     if (!map || !place) return
@@ -259,6 +274,8 @@ export function MapView({ children }: { children: ReactNode }) {
     store.set({ placeInView: map.getBounds().contains([place.lngLat.lng, place.lngLat.lat]) })
     // A planned journey owns the camera (RouteLayer fits the route); don't fly to the start and undo it.
     if (store.get().journey.routes.data?.routes.length) return
+    // A gauge opened from a list owns the camera too (the effect above centres it).
+    if (store.get().selection?.kind === 'gauge' && store.get().selectionFlyNonce > 0) return
     map.flyTo({ center: place.lngLat, zoom: Math.max(map.getZoom(), 9.5), duration: reducedMotion ? 0 : 1400, essential: true })
   }, [map, place, reducedMotion])
 
