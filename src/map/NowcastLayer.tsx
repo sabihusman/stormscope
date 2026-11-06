@@ -353,7 +353,8 @@ export function WindParticles() {
     const area = container.clientWidth * container.clientHeight
     // Device class: low-end phones (≤ 4 cores or ≤ 4 GB) get half the particles — same look, half the per-frame work.
     const lowEnd = (navigator.hardwareConcurrency ?? 8) <= 4 || ((navigator as { deviceMemory?: number }).deviceMemory ?? 8) <= 4
-    const COUNT = Math.round(Math.min(1800, Math.max(400, area / 600)) * (lowEnd ? 0.5 : 1))
+    // Nov 6 audit: the streaks blanketed the basemap. About 40 % fewer (a 390 × 844 phone: 549 → 329) and fainter.
+    const COUNT = Math.round(Math.min(1100, Math.max(250, area / 1000)) * (lowEnd ? 0.5 : 1))
     const particles: Particle[] = []
     const spawn = (p?: Particle): Particle => {
       const q = p ?? ({} as Particle)
@@ -452,7 +453,7 @@ export function WindParticles() {
         p.py = s.y
       }
       for (let b = 0; b < BUCKETS; b++) {
-        ctx.strokeStyle = `rgba(15,23,42,${(0.25 + ((b + 0.5) / BUCKETS) * 0.65).toFixed(3)})`
+        ctx.strokeStyle = `rgba(15,23,42,${(0.15 + ((b + 0.5) / BUCKETS) * 0.45).toFixed(3)})`
         ctx.stroke(paths[b])
       }
       const cost = performance.now() - t0

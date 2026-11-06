@@ -7,7 +7,8 @@ import { store, useApp } from '../state/store'
 import { firstSymbolLayer, useMap } from './MapView'
 
 const SRC = 'aq-circles'
-const OPACITY = 0.45
+// 0.45 painted the whole map one solid wash at PM2.5 (Nov 6 audit); 0.3 keeps streets and labels readable.
+const OPACITY = 0.3
 const MAX_PX = 2048
 
 /** Web Mercator metres. */
