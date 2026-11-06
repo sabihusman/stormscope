@@ -7,7 +7,7 @@ import { aqiCategory } from '../lib/aqi'
 import { nearestMeasured } from '../lib/airnowHere'
 import { floodHere, floodKeyFor, riskWord } from '../lib/floodHere'
 import { clock, readingAge, timeAgo } from '../lib/time'
-import { U } from '../lib/units'
+import { U, type Units } from '../lib/units'
 import { currentUsgsOnly, reportingNoaa } from '../lib/rivers'
 import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
@@ -66,6 +66,13 @@ export function NowScreen({ onLocate, locating, promptOpen = false }: Props) {
 }
 
 /** One-tap °C / °F on the Now screen — the same setting as Sources & settings (client-side conversion only). */
+/** ", wind NW 10 mph" for the measured line (empty when the station sent no wind). */
+function measuredWind(o: { windSpeedMs?: number | null; windDirDeg?: number | null }, units: Units): string {
+  if (o.windSpeedMs == null) return ''
+  const dir = o.windDirDeg == null ? '' : `${compass(o.windDirDeg)} `
+  return `, wind ${dir}${U.speed(o.windSpeedMs, units)}`
+}
+
 function UnitsChip() {
   const units = useApp((s) => s.units)
   return (
@@ -225,12 +232,14 @@ function ConditionsCard() {
         </div>
       </div>
       {observed && (
-        <div className="cond-observed">
-          Observed {U.temp(observed.tempC, units)} at {observed.name}, {timeAgo(observed.observedAt, now)}
+        <div className="cond-observed" title={`Measured at ${observed.name}`}>
+          {/* One line on a phone: the reading and its age first, the station name last (it is the part that may be cut). */}
+          Measured {U.temp(observed.tempC, units)}
+          {measuredWind(observed, units)} · {timeAgo(observed.observedAt, now)} at {observed.name}
         </div>
       )}
       <small className="muted cond-foot">
-        Open-Meteo model · updated {timeAgo(r.freshness?.fetchedAt, now)}
+        Headline: forecast model (Open-Meteo) · updated {timeAgo(r.freshness?.fetchedAt, now)}
         {r.stale ? ' · stale' : ''}
         {r.error ? ` · last refresh failed: ${r.error}` : ''}
       </small>

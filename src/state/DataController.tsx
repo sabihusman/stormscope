@@ -93,8 +93,8 @@ function nwpsGauge(g: NwpsGaugeSummary, d: NwpsGaugeDetail | undefined, usgsById
     name: g.name,
     lngLat: { lng: g.longitude, lat: g.latitude },
     floodCategory: obs?.floodCategory ?? 'unknown',
-    stage: obs && nwpsValid(obs.primary) ? { value: obs.primary, unit: obs.primaryUnit, time: Date.parse(obs.validTime) } : u?.stage,
-    flow: u?.flow ?? (obs && nwpsValid(obs.secondary) ? { value: obs.secondary * 1000, unit: 'ft^3/s', time: Date.parse(obs.validTime) } : undefined),
+    stage: obs && nwpsValid(obs.primary) ? { value: obs.primary, unit: obs.primaryUnit, time: Date.parse(obs.validTime) } : markElevation(u?.stage),
+    flow: oneFlow(u?.flow, obs && nwpsValid(obs.secondary) ? nwpsFlow(obs.secondary, obs.secondaryUnit, Date.parse(obs.validTime)) : undefined),
     categories: cats
       ? {
           action: nwpsValid(cats.action?.stage) ? cats.action.stage : undefined,
@@ -112,6 +112,23 @@ function nwpsGauge(g: NwpsGaugeSummary, d: NwpsGaugeDetail | undefined, usgsById
     sources: ['NOAA NWPS', ...(u ? ['USGS'] : [])],
   }
 }
+/** NOAA's observed flow in ft³/s, by the unit NOAA states (kcfs × 1000, cfs as is); unknown units are not shown. */
+function nwpsFlow(v: number, unit: string | undefined, time: number): RiverGauge['flow'] {
+  const u = (unit ?? '').toLowerCase()
+  const cfs = u === 'kcfs' ? v * 1000 : u === 'cfs' || u === 'ft^3/s' ? v : null
+  return cfs == null ? undefined : { value: cfs, unit: 'ft^3/s', time, source: 'NOAA NWPS' }
+}
+/** One flow for a gauge: the newer reading of USGS's measurement and NOAA's, so the list, the map and the sheet agree. */
+function oneFlow(usgs: RiverGauge['flow'], noaa: RiverGauge['flow']): RiverGauge['flow'] {
+  if (usgs && noaa) return noaa.time > usgs.time ? noaa : usgs
+  return usgs ?? noaa
+}
+/** Iowa Flood Center sensors report the water surface above sea level (hundreds of feet); no stream stage there reaches 200 ft. */
+const ELEVATION_STAGE_FT = 200
+function markElevation(stage: RiverGauge['stage']): RiverGauge['stage'] {
+  return stage && /ft/i.test(stage.unit) && stage.value > ELEVATION_STAGE_FT ? { ...stage, basis: 'elevation' } : stage
+}
+
 function classifyRisk(g: RiverGauge) {
   const c = g.floodCategory
   if (c === 'major' || c === 'moderate' || c === 'minor') g.riskLevel = 'flooding'
@@ -182,7 +199,7 @@ async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSumm
       usgsId: u.usgsId,
       name: names.get(u.usgsId)?.name ?? u.usgsId,
       lngLat: u.lngLat,
-      stage: u.stage,
+      stage: markElevation(u.stage),
       flow: u.flow,
       floodCategory: 'not_defined',
       flowRatio: med && u.flow ? u.flow.value / Math.max(med, 0.01) : undefined,

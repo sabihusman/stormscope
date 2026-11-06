@@ -71,6 +71,8 @@ export interface Selection {
   lngLat: { lng: number; lat: number }
   title: string
   lines: string[]
+  /** A river gauge's id: the chip and the sheet redraw its lines from the current gauge list, never from a copy. */
+  gaugeId?: string
   /** Air-monitor readings as structured rows (the sheet renders them with colour badges in place of their text lines). */
   readings?: SelectionReading[]
   source?: string

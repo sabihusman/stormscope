@@ -1,4 +1,4 @@
-// The Now tab's "Observed X° at <station>" line under a fixed clock, mocked only: a 50-minute-old station
+// The Now tab's "Measured X° · N min ago at <station>" line under a fixed clock, mocked only: a 50-minute-old station
 // reading shows; at 61 minutes it is hidden; it returns once a reading under an hour old arrives; nothing else
 // on the conditions card moves or changes while it comes and goes.
 //   node scripts/observed-check.mjs [base-url] [shots-dir] [--mock]
@@ -41,12 +41,12 @@ const rest = () => page.evaluate(() => { const card = document.querySelector('.c
 /** The station poller answers with a reading of this age (as the live NWS feed would), by the same store write it makes. */
 const setReadingAge = (min) => page.evaluate((m) => { const s = window.__store.get(); window.__store.set({ station: { ...s.station, data: { ...s.station.data, observedAt: Date.now() - m * 60000 } } }) }, min)
 // A reading 12 min old at load (the mock's); the page clock then moves on.
-check('A fresh reading shows the observed line', /Observed .*°F? at .*, \d+ min ago/.test(await line()), `${await ageMin()} min old: "${await line()}"`)
+check('A fresh reading shows the observed line', /^Measured [^·]*°[^·]* · \d+ min ago at \S/.test(await line()), `${await ageMin()} min old: "${await line()}"`)
 const before = await rest()
 await setReadingAge(50)
 await page.clock.runFor(16_000)
 await page.waitForTimeout(300)
-check('A 50-minute-old reading still shows', /Observed .*°F? at .*, 50 min ago/.test(await line()), `${await ageMin()} min old: "${await line()}"`)
+check('A 50-minute-old reading still shows', /^Measured [^·]*°[^·]* · 50 min ago at \S/.test(await line()), `${await ageMin()} min old: "${await line()}"`)
 await setReadingAge(61)
 await page.clock.runFor(16_000)
 await page.waitForTimeout(300)
@@ -58,7 +58,7 @@ await page.screenshot({ path: `${OUT}/hidden.png` })
 await setReadingAge(8)
 await page.clock.runFor(16_000)
 await page.waitForTimeout(300)
-check('The line returns once a reading under an hour old arrives', /Observed .*°F? at .*, 8 min ago/.test(await line()), `"${await line()}"`)
+check('The line returns once a reading under an hour old arrives', /^Measured [^·]*°[^·]* · 8 min ago at \S/.test(await line()), `"${await line()}"`)
 // The wording matches the sources: the station is checked every 10 min but reports about hourly; monitors report hourly averages.
 await page.getByRole('button', { name: 'More', exact: true }).click()
 await page.waitForTimeout(300)

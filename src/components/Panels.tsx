@@ -7,7 +7,7 @@ import { clock, timeAgo } from '../lib/time'
 import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
-import { describeGauge, RISK_COLORS } from '../map/RiversLayer'
+import { describeGauge, gaugeSelection, RISK_COLORS } from '../map/RiversLayer'
 import { aggregate, forgetPlaces, go, removeRecent, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { splitGauges } from '../lib/rivers'
@@ -153,7 +153,7 @@ export function StationPanel() {
           <strong>{o.humidityPct == null ? '—' : `${o.humidityPct.toFixed(0)} %`}</strong>
         </div>
         <div className="stat">
-          <small>Wind</small>
+          <small>Wind{o.provider === 'weather.gov' ? ' · measured' : ' · model'}</small>
           <strong>{windLabel(o, units)}</strong>
           {o.windDirDeg != null && o.windSpeedMs != null && o.windSpeedMs >= 0.3 && (
             <small className="muted">
@@ -162,8 +162,8 @@ export function StationPanel() {
           )}
         </div>
         <div className="stat">
-          <small>Temperature</small>
-          <strong>{U.temp(o.tempC, units, 1)}</strong>
+          <small>Temperature{o.provider === 'weather.gov' ? ' · measured' : ' · model'}</small>
+          <strong>{U.temp(o.tempC, units)}</strong>
         </div>
         <div className="stat wide">
           <small>Precipitation totals</small>
@@ -211,17 +211,7 @@ export function RiversPanel() {
               <button
                 className="gauge-row"
                 onClick={() =>
-                  store.set({
-                    selection: {
-                      kind: 'gauge',
-                      lngLat: g.lngLat,
-                      title: g.name,
-                      lines: [`${FLOOD_CATEGORY_LABELS[g.floodCategory] ?? g.floodCategory} · risk: ${g.riskLevel}`, ...describeGauge(g, units)],
-                      source: g.sources.join(' + '),
-                      updated: r.freshness?.fetchedAt,
-                    },
-                    sheet: 'peek',
-                  })
+                  store.set({ selection: gaugeSelection(g, units, r.freshness?.fetchedAt), sheet: 'peek' })
                 }
               >
                 <i className="dot" style={{ background: RISK_COLORS[g.riskLevel] }} />
@@ -266,6 +256,14 @@ export function RiversPanel() {
       )}
     </div>
   )
+}
+
+/** The note after "computed …": still refining, drainage missing here, or the drainage request failed (said as such). */
+function floodNote(d: { preliminary?: boolean; drainageAvailable: boolean }, flowlinesError: string | null | undefined): string {
+  if (d.preliminary) return ' · refining… (rain only while the terrain and drainage data load)'
+  if (d.drainageAvailable) return ''
+  if (flowlinesError && !flowlinesError.includes('only available in the US')) return ` · stream data unavailable right now (${flowlinesError}) — this score is terrain + rain only`
+  return ' · drainage not available here — terrain + rain only'
 }
 
 export function FloodPanel() {
@@ -349,7 +347,7 @@ export function FloodPanel() {
             </p>
             <small className="muted cond-foot">
               Indicative screening, not an official flood warning · computed {timeAgo(d!.computedAt, now)}
-              {d!.preliminary ? ' · refining… (rain only while the terrain and drainage data load)' : d!.drainageAvailable ? '' : ' · drainage not available here — terrain + rain only'}
+              {floodNote(d!, block?.flowlines.error)}
             </small>
           </div>
           <div className="segmented small" role="radiogroup" aria-label="Rain horizon">
