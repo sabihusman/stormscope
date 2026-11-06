@@ -405,6 +405,11 @@ function HourlyCard() {
   const cards = inSpan.filter((x) => x.tempC != null || x.code != null)
   const stripRef = useRef<HTMLOListElement>(null)
   useHorizontalScroll(stripRef, cards.length > 0)
+  // Every span starts at "Now": switching 12 / 24 / 48 h scrolls the strip back to its first card (it kept the old
+  // scroll position, so 24 h could open on 10 AM with "Now" off-screen).
+  useEffect(() => {
+    if (stripRef.current) stripRef.current.scrollLeft = 0
+  }, [span])
   const rain = inSpan.reduce((a, x) => a + (x.precipMm ?? 0), 0)
   // Card clocks and days in the place's time zone (the one the forecast resolved), like the 7-day list.
   const tz = r.data?.timezone || 'UTC'

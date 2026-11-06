@@ -130,7 +130,9 @@ const mmToIn = (mm) => mm / 25.4
 // ---- 3. A place in another time zone (the forecast resolves Pacific/Honolulu, UTC−10): the card clocks, the
 // day labels and the midnight crossing follow that zone, not the device's — the same zone as the 7-day list.
 {
-  const FIXED = (() => { const d = new Date(); d.setHours(21, 0, 0, 0); return d.getTime() })() // 21:00 device time
+  // 16:00 in Honolulu (UTC−10 all year, no DST) = 02:00 UTC the next day, whatever the device zone. It was
+  // "21:00 device time", which is 16:00 HST only while Central is on daylight time (UTC−5); from Nov 1 it read 17:00.
+  const FIXED = (() => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 26, 0, 0, 0) })()
   const { ctx, page, done } = await session({ now: FIXED, timezone: 'Pacific/Honolulu' })
   const r = await read(page)
   const exp = await page.evaluate((times) => {
