@@ -3209,3 +3209,20 @@ small {
   font-size: 13px;
   color: #fbbf24;
 }
+
+/* The first map, before the basemap's first render: land-coloured, labelled (Nov 6 audit: ~15 s of white). */
+.map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 24px;
+  text-align: center;
+  background: #e9ecef repeating-linear-gradient(45deg, rgba(148, 163, 184, 0.12) 0 12px, transparent 12px 24px);
+  color: #334155;
+  font-size: 14px;
+  pointer-events: none;
+}

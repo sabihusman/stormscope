@@ -36,8 +36,65 @@ const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').t
 export async function searchPlaces(q: string, signal?: AbortSignal): Promise<GeoResult[]> {
   const query = q.trim()
   if (!query) return []
+  const hit = cachedSearch(query)
+  if (hit) return hit
   const looksLikePostcode = /\d/.test(query) && query.length <= 12
-  if (looksLikePostcode) return searchPostcode(query, signal)
+  const results = looksLikePostcode ? await searchPostcode(query, signal) : await searchPhoton(query, signal)
+  rememberSearch(query, results)
+  return results
+}
+
+/**
+ * Answers kept between visits (40 queries, a week): a search typed before answers at once, without asking the
+ * place service again (Nov 6 audit: 10–12 s on "Searching…" for Des Moines and Ames).
+ */
+const SEARCH_KEY = 'stormscope.search.v1'
+const SEARCH_KEEP = 40
+const SEARCH_MAX_AGE_MS = 7 * 24 * 3_600_000
+type SearchEntry = { q: string; at: number; results: GeoResult[] }
+let searchMemo: SearchEntry[] | null = null
+function searchEntries(): SearchEntry[] {
+  if (searchMemo) return searchMemo
+  try {
+    searchMemo = (JSON.parse(localStorage.getItem(SEARCH_KEY) ?? '[]') as SearchEntry[]).filter((e) => Date.now() - e.at < SEARCH_MAX_AGE_MS)
+  } catch {
+    searchMemo = []
+  }
+  return searchMemo
+}
+function rememberSearch(query: string, results: GeoResult[]) {
+  if (!results.length) return
+  const q = fold(query)
+  searchMemo = [{ q, at: Date.now(), results }, ...searchEntries().filter((e) => e.q !== q)].slice(0, SEARCH_KEEP)
+  try {
+    localStorage.setItem(SEARCH_KEY, JSON.stringify(searchMemo))
+  } catch {
+    /* storage full or blocked: kept for this visit */
+  }
+}
+/** The kept answer for exactly this query (case and accents ignored), or null. */
+export function cachedSearch(query: string): GeoResult[] | null {
+  const q = fold(query)
+  return searchEntries().find((e) => e.q === q)?.results ?? null
+}
+/** While a new query is asked: kept places whose name starts with what is typed (from earlier answers), at once. */
+export function provisionalSearch(query: string): GeoResult[] {
+  const q = fold(query)
+  if (q.length < 2) return []
+  const seen = new Set<string>()
+  const out: GeoResult[] = []
+  for (const e of searchEntries())
+    for (const r of e.results) {
+      const k = `${r.name}|${r.lngLat.lat.toFixed(2)}|${r.lngLat.lng.toFixed(2)}`
+      if (!seen.has(k) && fold(r.name).startsWith(q)) {
+        seen.add(k)
+        out.push(r)
+      }
+    }
+  return out.slice(0, 8)
+}
+
+async function searchPhoton(query: string, signal?: AbortSignal): Promise<GeoResult[]> {
   const url = `${PHOTON_URL}?q=${encodeURIComponent(query)}&limit=10&lang=en&osm_tag=place:city&osm_tag=place:town&osm_tag=place:village`
   const j = await fetchJSON<{ features?: PhotonFeature[] }>(url, { signal, timeoutMs: 8000 })
   // Ranking: places named exactly what was typed first (biggest first among them), then the other matches (biggest

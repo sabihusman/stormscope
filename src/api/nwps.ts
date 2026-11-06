@@ -39,7 +39,38 @@ export async function fetchNwpsGauges(bbox: BBox, signal?: AbortSignal): Promise
   return j.gauges ?? []
 }
 
-const detailCache = new Map<string, NwpsGaugeDetail>()
+/**
+ * Gauge details are metadata — the linked USGS site and the flood stages — not readings (those come from the list
+ * and USGS), so they are kept between visits for a week: a repeat visit skips the 20 detail requests (4 rounds of
+ * 5) that held the full gauge list back (Nov 6 audit: 12–15 s).
+ */
+const DETAIL_KEY = 'stormscope.nwpsDetails.v1'
+const DETAIL_MAX_AGE_MS = 7 * 24 * 3_600_000
+type KeptDetail = Pick<NwpsGaugeDetail, 'lid' | 'usgsId' | 'flood'> & { at: number }
+const detailCache = new Map<string, NwpsGaugeDetail>(
+  (() => {
+    try {
+      const kept = JSON.parse(localStorage.getItem(DETAIL_KEY) ?? '{}') as Record<string, KeptDetail>
+      return Object.values(kept)
+        .filter((d) => d?.lid && Date.now() - d.at < DETAIL_MAX_AGE_MS)
+        .map((d) => [d.lid, { lid: d.lid, usgsId: d.usgsId, flood: d.flood } as NwpsGaugeDetail] as [string, NwpsGaugeDetail])
+    } catch {
+      return []
+    }
+  })(),
+)
+function keepDetails(ds: NwpsGaugeDetail[]) {
+  if (!ds.length) return
+  try {
+    const kept = JSON.parse(localStorage.getItem(DETAIL_KEY) ?? '{}') as Record<string, KeptDetail>
+    for (const d of ds) kept[d.lid] = { lid: d.lid, usgsId: d.usgsId, flood: d.flood, at: Date.now() }
+    // At most 200 gauges kept (a few places' worth), oldest out first.
+    const all = Object.values(kept).sort((a, b) => b.at - a.at).slice(0, 200)
+    localStorage.setItem(DETAIL_KEY, JSON.stringify(Object.fromEntries(all.map((d) => [d.lid, d]))))
+  } catch {
+    /* storage full or blocked: kept in memory for this visit */
+  }
+}
 
 /** Flood categories (and USGS id) require a per-gauge call; cached for the session. */
 export async function fetchNwpsDetails(lids: string[], signal?: AbortSignal): Promise<Map<string, NwpsGaugeDetail>> {
@@ -56,8 +87,11 @@ export async function fetchNwpsDetails(lids: string[], signal?: AbortSignal): Pr
     })
     detailCache.set(lid, d)
     out.set(lid, d)
+    fetched.push(d)
   })
+  const fetched: NwpsGaugeDetail[] = []
   await pLimitAll(tasks, 5)
+  keepDetails(fetched)
   return out
 }
 

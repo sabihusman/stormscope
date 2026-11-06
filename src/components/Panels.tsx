@@ -20,6 +20,7 @@ function Freshness({ r, now }: { r: Resource<unknown>; now: number }) {
     <small className={`fresh ${r.stale ? 'stale' : ''}`}>
       {r.freshness.source} · updated {timeAgo(r.freshness.fetchedAt, now)}
       {r.stale ? ' · stale' : ''}
+      {r.state === 'loading' ? ' · refreshing…' : ''}
       {r.error ? ` · last refresh failed: ${r.error}` : ''}
     </small>
   )
@@ -202,6 +203,8 @@ export function RiversPanel() {
   // Both sources in (the full tier) before any count is published: the summary tier alone would show a number that jumps.
   const list = tier === 'full' ? r.data : null
   const { current, stale } = splitGauges(list, now)
+  // NOAA's gauges while USGS and NOAA's details load (no count yet: it would jump when the full list lands).
+  const provisional = !list && tier === 'summary' && r.data?.length ? splitGauges(r.data, now).current : null
   const high = current.filter((g) => g.riskLevel === 'high' || g.riskLevel === 'flooding').length
   const sources = list ? [...new Set(list.flatMap((g) => g.sources))].map((s) => s.replace('NOAA NWPS', 'NOAA')).join(' + ') : ''
   const gaugeRows = (gs: typeof current) => (
@@ -232,7 +235,14 @@ export function RiversPanel() {
         <strong>River gauges nearby</strong>
         <Freshness r={r} now={now} />
       </div>
-      {!list ? (
+      {!list && provisional ? (
+        <>
+          <p className="gauge-headline muted" aria-busy="true">
+            NOAA gauges below · adding USGS gauges and NOAA flood stages…
+          </p>
+          {gaugeRows(provisional)}
+        </>
+      ) : !list ? (
         <p className="muted" aria-busy="true">{r.state === 'loading' || (r.data && tier !== 'full') ? 'Loading gauges (NOAA and USGS)…' : (r.error ?? 'Pick a location.')}</p>
       ) : list.length === 0 ? (
         <p className="muted">{r.error ?? `No stream gauges within ${U.distance(40_000, units)}.`}</p>

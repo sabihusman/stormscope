@@ -217,7 +217,12 @@ Node-side requests a suite makes itself (the rivers suite's USGS/NWPS queries) g
 PERF_SOURCEMAP=1 npm run build && npx vite preview --port 4173 --strictPort   # or the preview-4173 launch config
 node scripts/perf-measure.mjs http://localhost:4173/ e2e-shots/perf --mock --headed [--low-device] [--viewport=tablet]
 node scripts/walkthrough.mjs  http://localhost:4173/ e2e-shots/walkthrough --mock [--viewport=phone|tablet|desktop]
+node scripts/perf-paths.mjs   http://localhost:4173/ e2e-shots/perf-paths --mock [--label=name] [--only=map,satellite,search,rivers]
 ```
+
+`perf-paths.mjs` times the Nov 6, 2026 audit's four slow paths (first map, satellite, search, river gauges) on a first and a repeat visit: headed Chrome, CPU 4×, 390 px, every API mocked and held for a fixed upstream delay (Photon 2.5 s, NOAA 1.5 s, USGS 3 s, GIBS 6 s, tiles 1.5 s). The service worker is blocked, so its caches don't count. Run it 3 times per build and compare medians: single runs vary by seconds on this machine.
+
+In every Playwright script, call `trackTraffic(page)` **before** `installMocks(ctx)`. The handler registered last runs first, so a guard added after the mocks forwards every request to the live host. `trackTraffic` now throws if the mocks are already installed.
 
 `--mock` answers every API from saved or synthesized bodies (`scripts/lib/mock-server.mjs`): real Open-Meteo series from the replay caches reshaped to the request, the recorded Valhalla route, the RWIS archive, the rivers snapshot; NWS, NWPS, USGS, RainViewer and GIBS bodies synthesized in the shapes the app parses (timing only, never shipped); the real basemap style/sprites/glyphs from `e2e-shots/perf/basemap/` with empty vector tiles. `--headed` uses installed Chrome with the machine's GPU; the report records page visibility, rAF rate and a CPU-throttle calibration and marks the run invalid otherwise. The bundled headless Chromium on an ARM Windows machine runs under emulation, ignores CPU throttling and rasterises in software, so its numbers are not the stated profile. `perf-measure` reports time to first radar frame (the headline), LCP, INP per interaction, every main-thread task over 50 ms with its source (trace + CPU profile through the sourcemaps), frames over 50/100 ms per phase, bundle sizes and first-load requests. The walkthrough records per feature: time to usable, interactions over 200 ms, frame drops, console errors and a screenshot.
 

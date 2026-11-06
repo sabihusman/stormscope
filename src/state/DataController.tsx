@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { fetchRadar, RAINVIEWER_URL } from '../api/rainviewer'
-import { fetchSatFrames, GIBS_WMTS, SAT_LAYERS, satelliteFor } from '../api/gibs'
+import { fetchSatFrames, GIBS_WMTS, SAT_LAYERS, satelliteFor, type SatFrames, type SatLayerDef } from '../api/gibs'
 import { fetchHourlyGrid, fetchOpenMeteoCurrent, fetchPlaceForecast, OPEN_METEO_URL } from '../api/openMeteo'
 import { AIRNOW_CREDIT, fetchMonitorSites } from '../api/airnow'
 import { fetchFlowlines, NHD_URL } from '../api/nhd'
@@ -146,6 +146,68 @@ const nearestNwps = (at: LngLat, nwps: NwpsGaugeSummary[]) =>
     .sort((a, b) => a.d - b.d)
     .slice(0, NWPS_NEAREST)
     .map((x) => x.g)
+type RiversCacheEntry = { tier: RiversTier; at: number; resource: Resource<RiverGauge[]>; nwps: NwpsGaugeSummary[] }
+/**
+ * The last full gauge lists (3 places) kept between visits, so the Rivers page opens on them at once, marked stale
+ * with their age, while the refresh runs (Nov 6 audit: 12–15 s of "Loading gauges" on every visit).
+ */
+const RIVERS_KEY = 'stormscope.rivers.v1'
+const RIVERS_KEEP = 3
+const RIVERS_SAVED_MAX_AGE_MS = 24 * 3_600_000
+function loadSavedRivers(): [string, RiversCacheEntry][] {
+  try {
+    const j = JSON.parse(localStorage.getItem(RIVERS_KEY) ?? '[]') as [string, RiversCacheEntry][]
+    // Kept as stale: `at` 0 makes the first poll refresh it, the list stays on screen meanwhile.
+    return j
+      .filter(([, e]) => e?.resource?.data && Date.now() - (e.resource.freshness?.fetchedAt ?? 0) < RIVERS_SAVED_MAX_AGE_MS)
+      .map(([k, e]) => [k, { ...e, at: 0, resource: { ...e.resource, stale: true } }])
+  } catch {
+    return []
+  }
+}
+function saveRivers(key: string, entry: RiversCacheEntry) {
+  try {
+    const rest = loadSavedRivers().filter(([k]) => k !== key)
+    // The NOAA list for the whole box is not kept (it is refetched with the refresh); the gauges are.
+    localStorage.setItem(RIVERS_KEY, JSON.stringify([[key, { ...entry, nwps: [] }], ...rest].slice(0, RIVERS_KEEP)))
+  } catch {
+    /* storage full or blocked: the in-memory cache still works for this visit */
+  }
+}
+
+/** The last frame list per satellite layer, kept between visits (only its times: the layer definition is code). */
+const SAT_KEY = 'stormscope.satFrames.v1'
+/** GIBS publishes a GOES frame some 20–40 min after its time; estimated frames stop this far back so they exist. */
+const SAT_ESTIMATE_LAG_MS = 50 * 60_000
+const SAT_STEP_MS = 10 * 60_000
+function saveSatFrames(f: SatFrames) {
+  try {
+    const all = JSON.parse(localStorage.getItem(SAT_KEY) ?? '{}') as Record<string, { times: number[]; latest: number; fetchedAt: number }>
+    all[f.layer.id] = { times: f.times, latest: f.latest, fetchedAt: f.fetchedAt }
+    localStorage.setItem(SAT_KEY, JSON.stringify(all))
+  } catch {
+    /* storage blocked: the estimate is used next time */
+  }
+}
+/**
+ * Frame times to play while GIBS's list loads: the last visit's list (if under 6 h old) extended in 10-min steps,
+ * else the last 3 h at 10-min steps ending 50 min ago. fetchedAt 0 = never fetched (an estimate, shown as stale).
+ */
+function estimatedSatFrames(layer: SatLayerDef): SatFrames {
+  const end = Math.floor((Date.now() - SAT_ESTIMATE_LAG_MS) / SAT_STEP_MS) * SAT_STEP_MS
+  let saved: { times: number[]; latest: number; fetchedAt: number } | undefined
+  try {
+    saved = (JSON.parse(localStorage.getItem(SAT_KEY) ?? '{}') as Record<string, typeof saved>)[layer.id]
+  } catch {
+    saved = undefined
+  }
+  const times = saved && Date.now() - saved.fetchedAt < 6 * 3_600_000 ? saved.times.slice() : []
+  let t = times.length ? times[times.length - 1] + SAT_STEP_MS : end - 3 * 3_600_000
+  for (; t <= end; t += SAT_STEP_MS) times.push(t)
+  const latest = Math.max(times[times.length - 1] ?? end, saved?.latest ?? 0)
+  return { layer, times: times.filter((x) => x >= latest - 3 * 3_600_000), latest, fetchedAt: saved?.fetchedAt ?? 0 }
+}
+
 /** Loads one tier for a place; `nwpsList` reuses the summary tier's list when upgrading to full. */
 /** A gauge reading older than this is not shown (USGS keeps the last value of series that ended decades ago). */
 export const RIVER_READING_MAX_AGE_MS = 7 * 24 * 3_600_000
@@ -159,6 +221,8 @@ async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSumm
     gauges.forEach(classifyRisk)
     return { resource: ready(byDistance(gauges), 'NOAA NWPS', NWPS_URL), nwps }
   }
+  // USGS site names need only the box: asked for alongside everything else rather than after NOAA's details.
+  const namesP = fetchUsgsNames(bbox).catch(() => new Map<string, { name: string; type: string }>())
   const [nwpsRes, usgsRes] = await Promise.allSettled([nwpsList ? Promise.resolve(nwpsList) : fetchNwpsGauges(bbox), fetchUsgsLatest(bbox)])
   if (nwpsRes.status === 'rejected' && usgsRes.status === 'rejected') throw nwpsRes.reason
   const nwps = nwpsRes.status === 'fulfilled' ? nwpsRes.value : []
@@ -185,7 +249,7 @@ async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSumm
     if (rg.usgsId) usgsById.delete(rg.usgsId)
   }
   // USGS-only sites (no NOAA forecast point): nearest 25.
-  const names = await fetchUsgsNames(bbox).catch(() => new Map<string, { name: string; type: string }>())
+  const names = await namesP
   const usgsOnly = [...usgsById.values()]
     .filter((u) => u.flow || u.stage)
     .map((u) => ({ u, d: haversine(at, u.lngLat) }))
@@ -268,12 +332,22 @@ export function DataController() {
   const satSide = satelliteFor(focus?.lng ?? place?.lngLat.lng ?? -90)
   usePolling(
     async () => {
-      const prev = store.get().satellite
+      const layer = SAT_LAYERS[satSide][store.get().satProduct]
+      let prev = store.get().satellite
+      // The frame list comes from GIBS's capabilities document, the slowest request in the app (~15 s in the Nov 6
+      // audit, with the play button disabled throughout). Until it lands, playback runs on the frames known from
+      // the last visit, or on times estimated from the clock — the layer loads, the controls stay usable.
+      if (prev.data?.layer.id !== layer.id) {
+        const est = estimatedSatFrames(layer)
+        prev = { ...ready(est, `NASA GIBS · ${layer.label} · frame times estimated until the frame list loads`, GIBS_WMTS, est.latest), stale: true, freshness: { fetchedAt: est.fetchedAt, dataTime: est.latest, source: `NASA GIBS · ${layer.label} · frame times estimated until the frame list loads`, sourceUrl: GIBS_WMTS } }
+        setResource('satellite', prev)
+        store.set({ satFrame: est.times.length - 1 })
+      }
       const prevTimes = prev.data?.times ?? []
       setResource('satellite', loading(prev))
       try {
-        const layer = SAT_LAYERS[satSide][store.get().satProduct]
         const data = await fetchSatFrames(layer, 3)
+        saveSatFrames(data)
         setResource('satellite', ready(data, `NASA GIBS · ${layer.label}`, GIBS_WMTS, data.latest))
         const newest = data.times.length - 1
         // Playhead position at completion time, resolved against the old frame list.
@@ -811,7 +885,7 @@ export function DataController() {
   const wide = useWide()
   const riversNeed: RiversTier | null =
     screen === 'more' && morePage === 'rivers' ? 'full' : (screen === 'now' && riversTileVisible) || ((screen === 'map' || wide) && layers.rivers) ? 'summary' : null
-  const riversCache = useRef(new Map<string, { tier: RiversTier; at: number; resource: Resource<RiverGauge[]>; nwps: NwpsGaugeSummary[] }>())
+  const riversCache = useRef(new Map<string, RiversCacheEntry>(loadSavedRivers()))
   const riversNonce = useRef(nonce)
   // A new place shows what is cached for it (or nothing) until something asks for gauges.
   useEffect(() => {
@@ -842,8 +916,17 @@ export function DataController() {
         return
       }
       try {
-        const { resource, nwps } = await loadRivers(at, need, fresh ? cached.nwps : undefined)
+        // The full list waits on NOAA's per-gauge details and USGS (12–15 s on a slow day, Nov 6 audit): with
+        // nothing to show yet, NOAA's gauges go up as soon as NOAA's list lands, then the full list replaces them.
+        let nwpsList = fresh ? cached.nwps : undefined
+        if (need === 'full' && !store.get().rivers.data?.length) {
+          const first = await loadRivers(at, 'summary', nwpsList)
+          nwpsList = first.nwps
+          if (store.get().place?.lngLat === at && !store.get().rivers.data?.length) store.set({ rivers: { ...first.resource, state: 'loading' }, riversTier: 'summary' })
+        }
+        const { resource, nwps } = await loadRivers(at, need, nwpsList)
         riversCache.current.set(placeKey, { tier: need, at: Date.now(), resource, nwps })
+        if (need === 'full') saveRivers(placeKey, riversCache.current.get(placeKey)!)
         if (store.get().place?.lngLat === at) store.set({ rivers: resource, riversTier: need })
       } catch (e) {
         setResource('rivers', failed(prev, e))
