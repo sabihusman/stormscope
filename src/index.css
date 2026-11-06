@@ -3231,3 +3231,8 @@ small {
   font-size: 14px;
   pointer-events: none;
 }
+
+/* Legend notes are lines of their own: two inline notes ran together ("…HazardousA 25 km disc", Nov 6 audit). */
+.legend-line {
+  display: block;
+}
