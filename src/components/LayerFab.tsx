@@ -47,6 +47,14 @@ export function LayerFab() {
     }
   })
   const wide = useWide()
+  // The one-panel rule (store.installOnePanelRule) sees the menu through layersMenuOpen, and closes it through it.
+  const menuFlag = useApp((s) => s.layersMenuOpen)
+  useEffect(() => {
+    if (store.get().layersMenuOpen !== open) store.set({ layersMenuOpen: open })
+  }, [open])
+  useEffect(() => {
+    if (!menuFlag && open) setOpen(false)
+  }, [menuFlag]) // eslint-disable-line react-hooks/exhaustive-deps
   // "Map layers" on the Now screen opens the panel as the Map appears — once per tap, not on every remount.
   const openNonce = useApp((s) => s.openLayersNonce)
   const closeNonce = useApp((s) => s.closePanelsNonce)

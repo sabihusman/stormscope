@@ -16,7 +16,7 @@ import { CreditsPanel } from './components/Credits'
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
 import { DataController } from './state/DataController'
-import { closeAllPanels, endPickOnMap, go, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
+import { closeAllPanels, endPickOnMap, go, installOnePanelRule, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
 import { useGeolocation } from './hooks/useGeolocation'
 import { useDesktop, useWide } from './hooks/useMisc'
 import { haversine } from './lib/geo'
@@ -47,6 +47,8 @@ function LayerGuard({ name, layer, children }: { name: string; layer: LayerId; c
 export default function App() {
   const geo = useGeolocation()
   const t = useApp((s) => s.toast)
+  // Phones (the narrow layout): one panel at a time; the bottom sheet is exempt.
+  useEffect(() => installOnePanelRule(() => window.innerWidth < 768), [])
   // While a toast shows on a phone's content screen, the screen's scroll area starts below it (its height in
   // --toast-h), so the toast never sits on top of the 7-day list or anything else (Nov 6 audit).
   const toastRef = useRef<HTMLDivElement>(null)
