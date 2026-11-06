@@ -20,6 +20,7 @@ function Freshness({ r, now }: { r: Resource<unknown>; now: number }) {
     <small className={`fresh ${r.stale ? 'stale' : ''}`}>
       {r.freshness.source} · updated {timeAgo(r.freshness.fetchedAt, now)}
       {r.stale ? ' · stale' : ''}
+      {r.state === 'loading' ? ' · refreshing…' : ''}
       {r.error ? ` · last refresh failed: ${r.error}` : ''}
     </small>
   )

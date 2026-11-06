@@ -146,6 +146,35 @@ const nearestNwps = (at: LngLat, nwps: NwpsGaugeSummary[]) =>
     .sort((a, b) => a.d - b.d)
     .slice(0, NWPS_NEAREST)
     .map((x) => x.g)
+type RiversCacheEntry = { tier: RiversTier; at: number; resource: Resource<RiverGauge[]>; nwps: NwpsGaugeSummary[] }
+/**
+ * The last full gauge lists (3 places) kept between visits, so the Rivers page opens on them at once, marked stale
+ * with their age, while the refresh runs (Nov 6 audit: 12–15 s of "Loading gauges" on every visit).
+ */
+const RIVERS_KEY = 'stormscope.rivers.v1'
+const RIVERS_KEEP = 3
+const RIVERS_SAVED_MAX_AGE_MS = 24 * 3_600_000
+function loadSavedRivers(): [string, RiversCacheEntry][] {
+  try {
+    const j = JSON.parse(localStorage.getItem(RIVERS_KEY) ?? '[]') as [string, RiversCacheEntry][]
+    // Kept as stale: `at` 0 makes the first poll refresh it, the list stays on screen meanwhile.
+    return j
+      .filter(([, e]) => e?.resource?.data && Date.now() - (e.resource.freshness?.fetchedAt ?? 0) < RIVERS_SAVED_MAX_AGE_MS)
+      .map(([k, e]) => [k, { ...e, at: 0, resource: { ...e.resource, stale: true } }])
+  } catch {
+    return []
+  }
+}
+function saveRivers(key: string, entry: RiversCacheEntry) {
+  try {
+    const rest = loadSavedRivers().filter(([k]) => k !== key)
+    // The NOAA list for the whole box is not kept (it is refetched with the refresh); the gauges are.
+    localStorage.setItem(RIVERS_KEY, JSON.stringify([[key, { ...entry, nwps: [] }], ...rest].slice(0, RIVERS_KEEP)))
+  } catch {
+    /* storage full or blocked: the in-memory cache still works for this visit */
+  }
+}
+
 /** Loads one tier for a place; `nwpsList` reuses the summary tier's list when upgrading to full. */
 /** A gauge reading older than this is not shown (USGS keeps the last value of series that ended decades ago). */
 export const RIVER_READING_MAX_AGE_MS = 7 * 24 * 3_600_000
@@ -813,7 +842,7 @@ export function DataController() {
   const wide = useWide()
   const riversNeed: RiversTier | null =
     screen === 'more' && morePage === 'rivers' ? 'full' : (screen === 'now' && riversTileVisible) || ((screen === 'map' || wide) && layers.rivers) ? 'summary' : null
-  const riversCache = useRef(new Map<string, { tier: RiversTier; at: number; resource: Resource<RiverGauge[]>; nwps: NwpsGaugeSummary[] }>())
+  const riversCache = useRef(new Map<string, RiversCacheEntry>(loadSavedRivers()))
   const riversNonce = useRef(nonce)
   // A new place shows what is cached for it (or nothing) until something asks for gauges.
   useEffect(() => {
@@ -854,6 +883,7 @@ export function DataController() {
         }
         const { resource, nwps } = await loadRivers(at, need, nwpsList)
         riversCache.current.set(placeKey, { tier: need, at: Date.now(), resource, nwps })
+        if (need === 'full') saveRivers(placeKey, riversCache.current.get(placeKey)!)
         if (store.get().place?.lngLat === at) store.set({ rivers: resource, riversTier: need })
       } catch (e) {
         setResource('rivers', failed(prev, e))
