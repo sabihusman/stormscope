@@ -1712,8 +1712,9 @@ small {
   min-height: 60px;
   box-sizing: border-box;
 }
+/* 230 since Nov 6: the 44 px span pills and rain row (was 208 with 30 / 36 px ones). */
 .app.narrow .now-card.hourly[aria-busy='true'] {
-  min-height: 208px;
+  min-height: 230px;
 }
 .app.narrow .now-card.daily[aria-busy='true'] {
   min-height: 293px;
