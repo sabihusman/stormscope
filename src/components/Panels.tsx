@@ -7,7 +7,7 @@ import { clock, timeAgo } from '../lib/time'
 import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
-import { describeGauge, RISK_COLORS } from '../map/RiversLayer'
+import { describeGauge, gaugeSelection, RISK_COLORS } from '../map/RiversLayer'
 import { aggregate, forgetPlaces, go, removeRecent, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { splitGauges } from '../lib/rivers'
@@ -211,17 +211,7 @@ export function RiversPanel() {
               <button
                 className="gauge-row"
                 onClick={() =>
-                  store.set({
-                    selection: {
-                      kind: 'gauge',
-                      lngLat: g.lngLat,
-                      title: g.name,
-                      lines: [`${FLOOD_CATEGORY_LABELS[g.floodCategory] ?? g.floodCategory} · risk: ${g.riskLevel}`, ...describeGauge(g, units)],
-                      source: g.sources.join(' + '),
-                      updated: r.freshness?.fetchedAt,
-                    },
-                    sheet: 'peek',
-                  })
+                  store.set({ selection: gaugeSelection(g, units, r.freshness?.fetchedAt), sheet: 'peek' })
                 }
               >
                 <i className="dot" style={{ background: RISK_COLORS[g.riskLevel] }} />

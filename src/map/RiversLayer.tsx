@@ -94,16 +94,7 @@ export function RiversLayer() {
       const g = gauges.find((x) => x.id === f.properties?.id)
       if (!g) return
       const s = store.get()
-      store.set({
-        selection: {
-          kind: 'gauge',
-          lngLat: g.lngLat,
-          title: g.name,
-          lines: [`${FLOOD_CATEGORY_LABELS[g.floodCategory] ?? g.floodCategory} · risk: ${g.riskLevel}`, ...describeGauge(g, s.units)],
-          source: g.sources.join(' + '),
-          updated: s.rivers.freshness?.fetchedAt,
-        },
-      })
+      store.set({ selection: gaugeSelection(g, s.units, s.rivers.freshness?.fetchedAt) })
     }
     const enter = () => (map.getCanvas().style.cursor = 'pointer')
     const leave = () => (map.getCanvas().style.cursor = '')

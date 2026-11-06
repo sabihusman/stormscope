@@ -11,6 +11,18 @@ import { compass } from '../map/StationLayer'
 import { openMonitor, siteStyle } from '../map/MonitorSitesLayer'
 import { aqiCategory } from '../lib/aqi'
 import { go, setJourneyTo, setPlace, store, useApp, useVisibleBlocks, type Selection } from '../state/store'
+import { gaugeLines } from '../map/RiversLayer'
+
+/** A gauge selection redrawn from the current gauge list (one source for the list, the map and the sheet). */
+function useLiveSelection(sel: Selection | null): Selection | null {
+  const rivers = useApp((s) => s.rivers.data)
+  const units = useApp((s) => s.units)
+  return useMemo(() => {
+    if (!sel || sel.kind !== 'gauge' || !sel.gaugeId) return sel
+    const g = rivers?.find((x) => x.id === sel.gaugeId)
+    return g ? { ...sel, title: g.name, lngLat: g.lngLat, lines: gaugeLines(g, units) } : sel
+  }, [sel, rivers, units])
+}
 
 /** Headline for the chip, by selection kind. */
 function headline(sel: Selection): { icon: string; main: string; sub: string } {
@@ -35,7 +47,7 @@ function headline(sel: Selection): { icon: string; main: string; sub: string } {
  * tapped, and a Details control that expands the sheet. Nothing opens by itself.
  */
 export function PointChip() {
-  const liveSel = useApp((s) => s.selection)
+  const liveSel = useLiveSelection(useApp((s) => s.selection))
   const sheet = useApp((s) => s.sheet)
   const place = useApp((s) => s.place)
   const units = useApp((s) => s.units)
@@ -174,7 +186,7 @@ function MonitorRows({ sel, now }: { sel: Selection; now: number }) {
 
 /** The sheet body for a selection: point conditions + 24 h strip, or the tapped object's facts, plus actions. */
 export function PointDetails() {
-  const sel = useApp((s) => s.selection)
+  const sel = useLiveSelection(useApp((s) => s.selection))
   const place = useApp((s) => s.place)
   const units = useApp((s) => s.units)
   const blocks = useVisibleBlocks()
