@@ -194,7 +194,7 @@ function relativeToPlace(place: { name: string; lngLat: { lng: number; lat: numb
 }
 
 /** The sheet's actions, under the title (at half height they were below the fold, behind the nav: Nov 6 audit). */
-function PointActions({ sel, isPoint }: { sel: Selection; isPoint: boolean }) {
+function PointActions({ sel, isPoint }: Readonly<{ sel: Selection; isPoint: boolean }>) {
   return (
     <div className="popup-actions">
       <button className="btn small" onClick={() => setPlace({ name: 'Map point', lngLat: sel.lngLat, source: 'map' })}>
