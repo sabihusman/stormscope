@@ -55,7 +55,10 @@ export function LegendRows() {
       {layers.flood && <Ramp stops={FLOOD_STOPS.slice(1)} title="Flood risk" />}
       {layers.aqcircles && (
         <div className="legend-row aqi-legend">
-          <div className="legend-title">{aqPollutant === 'OZONE' ? 'Ozone' : 'Smoke (PM2.5)'} · measured, US AQI (EPA categories)</div>
+          <div className="legend-title">
+            <span>{aqPollutant === 'OZONE' ? 'Ozone' : 'Smoke (PM2.5)'} · measured, US AQI (EPA categories)</span>
+            <HelpLink topic="aqi" />
+          </div>
           <div className="legend-ramp" aria-label="AQI categories">
             {AQI_CATEGORIES.map((c) => (
               <div key={c.key} className="legend-swatch" data-aqi={c.key} title={`${c.name}: ${c.min}–${c.max === Infinity ? '' : c.max}`}>
@@ -66,12 +69,14 @@ export function LegendRows() {
           </div>
           <small className="muted legend-line">Good · Moderate · Unhealthy for Sensitive Groups · Unhealthy · Very Unhealthy · Hazardous</small>
           <small className="muted aqi-attrib legend-line">A 25 km disc around each monitor with a reading under 2 h; overlaps show the worse reading; no shading = no monitor, no estimate · {AQI_ATTRIBUTION}</small>
-          <HelpLink topic="aqi" />
         </div>
       )}
       {layers.rivers && (
         <div className="legend-row">
-          <div className="legend-title">River gauges</div>
+          <div className="legend-title">
+            <span>River gauges</span>
+            <HelpLink topic="gauges" />
+          </div>
           <div className="legend-ramp dots">
             {(Object.keys(RISK_COLORS) as (keyof typeof RISK_COLORS)[]).map((k) => (
               <div key={k} className="legend-swatch">
@@ -80,12 +85,13 @@ export function LegendRows() {
               </div>
             ))}
           </div>
-          <HelpLink topic="gauges" />
         </div>
       )}
       {layers.monitors && (
         <div className="legend-row monitors-legend">
-          <div className="legend-title">Air monitors (EPA AirNow)</div>
+          <div className="legend-title">
+            <span>Air monitors (EPA AirNow)</span>
+            </div>
           <div className="legend-ramp dots">
             <div className="legend-swatch" data-monitor="fresh">
               <i className="dot" style={{ background: AQI_CATEGORIES[1].color }} />
@@ -104,9 +110,11 @@ export function LegendRows() {
         <>
           <Ramp stops={CLOUD_STOPS.slice(1)} title="Nowcast cloud" />
           <div className="legend-row">
-            <div className="legend-title">Wind</div>
+            <div className="legend-title">
+              <span>Wind</span>
+              <HelpLink topic="wind" />
+            </div>
             <small className="muted">Streaks drift with the wind; longer &amp; darker = stronger. Rain cells use the rain colours.</small>
-            <HelpLink topic="wind" />
           </div>
         </>
       )}

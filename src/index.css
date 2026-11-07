@@ -3395,12 +3395,28 @@ small {
   margin: 12px 6px 0;
   font-size: 12px;
 }
+/* "What's this?" sits at the end of the legend row's title line, so the legend is no taller than before. */
+.legend-title:has(.help-link) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .help-link {
-  margin-top: 6px;
-  font-size: 13px;
+  flex: none;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
 }
 .app.narrow .help-link {
   min-height: 44px;
+  min-width: 44px;
 }
 
 /* The status row at the top of Now: NWS alerts and when everything on Now was checked, one tap to Sources &

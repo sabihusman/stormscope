@@ -20,7 +20,7 @@ const GAUGE_ROWS: { level: keyof typeof RISK_COLORS; name: string; text: string 
 /**
  * "What am I looking at?": what the river-gauge colours, the wind streaks and the air-quality discs mean
  * (Nov 6 audit: nothing explained them except a legend that was cut off). The More tab shows it as a page; the
- * Layers menu's "What do these mean?" links open it as a panel at that layer's section.
+ * Layers menu's "What's this?" links (in the gauge, wind and air-quality legend titles) open it as a panel at that section.
  */
 export function HelpContent({ focus }: { focus?: HelpTopic | null }) {
   const units = useApp((s) => s.units)
@@ -98,11 +98,13 @@ export function HelpPanel() {
   )
 }
 
-/** "What do these mean? ›" under a legend row: opens the help at that layer's section. */
+const LINK_LABEL: Record<Exclude<HelpTopic, 'all'>, string> = { gauges: 'What the gauge colours mean', wind: 'What the wind streaks mean', aqi: 'What the air-quality colours mean' }
+
+/** "What's this?" at the end of a legend row's title (no extra line, so the legend stays as short as before): opens the help at that layer's section. */
 export function HelpLink({ topic }: { topic: Exclude<HelpTopic, 'all'> }) {
   return (
-    <button type="button" className="link-row help-link" onClick={() => store.set({ helpTopic: topic })}>
-      What do these mean? ›
+    <button type="button" className="help-link" data-topic={topic} aria-label={LINK_LABEL[topic]} onClick={() => store.set({ helpTopic: topic })}>
+      What&apos;s this?
     </button>
   )
 }
