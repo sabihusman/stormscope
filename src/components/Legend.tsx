@@ -3,6 +3,7 @@ import { CLOUD_STOPS, FLOOD_STOPS, RAIN_STOPS } from '../lib/colors'
 import { U } from '../lib/units'
 import { useApp, type AnimLayer } from '../state/store'
 import { RISK_COLORS } from '../map/RiversLayer'
+import { HelpLink } from './Help'
 
 function Ramp({ stops, title }: { stops: { color: string; label: string }[]; title: string }) {
   return (
@@ -65,6 +66,7 @@ export function LegendRows() {
           </div>
           <small className="muted legend-line">Good · Moderate · Unhealthy for Sensitive Groups · Unhealthy · Very Unhealthy · Hazardous</small>
           <small className="muted aqi-attrib legend-line">A 25 km disc around each monitor with a reading under 2 h; overlaps show the worse reading; no shading = no monitor, no estimate · {AQI_ATTRIBUTION}</small>
+          <HelpLink topic="aqi" />
         </div>
       )}
       {layers.rivers && (
@@ -78,6 +80,7 @@ export function LegendRows() {
               </div>
             ))}
           </div>
+          <HelpLink topic="gauges" />
         </div>
       )}
       {layers.monitors && (
@@ -94,6 +97,7 @@ export function LegendRows() {
             </div>
           </div>
           <small className="muted">Measured · preliminary data courtesy of EPA AirNow and the reporting agencies</small>
+          {!layers.aqcircles && <HelpLink topic="aqi" />}
         </div>
       )}
       {layers.nowcast && (
@@ -102,6 +106,7 @@ export function LegendRows() {
           <div className="legend-row">
             <div className="legend-title">Wind</div>
             <small className="muted">Streaks drift with the wind; longer &amp; darker = stronger. Rain cells use the rain colours.</small>
+            <HelpLink topic="wind" />
           </div>
         </>
       )}

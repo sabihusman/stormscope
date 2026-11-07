@@ -3310,3 +3310,95 @@ small {
 .app.narrow .hour-strip li {
   scroll-snap-align: start;
 }
+
+/* "What am I looking at?" (Nov 6 audit: nothing explained gauge colours, wind streaks or AQI discs). Over every
+   screen, so it opens from the map's Layers menu as well; the More tab shows the same help as a page. */
+.help-panel {
+  position: absolute;
+  left: calc(var(--sal) + 12px);
+  right: calc(var(--sar) + 12px);
+  top: calc(var(--sat) + 12px);
+  bottom: calc(var(--sab) + 12px);
+  z-index: 40;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 8px 8px 12px 14px;
+  border-radius: 14px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.app.narrow .help-panel {
+  bottom: calc(var(--nav-h) + var(--sab) + 12px);
+}
+/* Wide layouts: over the content column, so the Layers panel it was opened from (always in the map area, at any
+   corner) stays in view beside it. */
+.app.wide .help-panel {
+  left: calc(var(--rail-w) + 16px);
+  right: auto;
+  top: calc(var(--sat) + 16px);
+  bottom: auto;
+  width: min(380px, calc(var(--col-w) - 32px));
+  max-height: calc(var(--vvh) - var(--sat) - 32px);
+}
+.help-panel .chooser-title {
+  position: sticky;
+  top: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  background: var(--panel-solid);
+}
+.help-section {
+  scroll-margin-top: 52px;
+  padding: 2px 6px 4px;
+  border-radius: 10px;
+}
+.help-section.focus {
+  background: rgba(56, 189, 248, 0.08);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.help-section h3 {
+  margin: 10px 0 4px;
+  font-size: 15px;
+}
+.help-section p {
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.help-list {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.help-list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.help-list .dot {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  transform: translateY(1px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.help-foot {
+  margin: 12px 6px 0;
+  font-size: 12px;
+}
+.help-link {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.app.narrow .help-link {
+  min-height: 44px;
+}

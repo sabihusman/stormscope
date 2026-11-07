@@ -6,6 +6,7 @@ import { currentUsgsOnly, reportingNoaa } from '../lib/rivers'
 import { forgetPlaces, store, useApp, type MorePage } from '../state/store'
 import { ErrorBoundary } from './ErrorBoundary'
 import { FloodPanel, RiversPanel, SourcesPanel, StationPanel } from './Panels'
+import { HelpContent } from './Help'
 import { PlaceRow } from './PlaceRow'
 
 const PAGES: { id: MorePage; icon: string; title: string }[] = [
@@ -13,6 +14,7 @@ const PAGES: { id: MorePage; icon: string; title: string }[] = [
   { id: 'rivers', icon: '📈', title: 'Rivers & gauges' },
   { id: 'station', icon: '🌡', title: 'Station observations' },
   { id: 'settings', icon: 'ℹ', title: 'Sources, freshness & settings' },
+  { id: 'help', icon: '?', title: 'What am I looking at?' },
   { id: 'about', icon: '©', title: 'About / Credits' },
 ]
 
@@ -29,13 +31,14 @@ export function MoreScreen() {
         </button>
         <h2>{meta.title}</h2>
       </div>
-      {page !== 'settings' && page !== 'about' && <PlaceRow />}
+      {page !== 'settings' && page !== 'help' && page !== 'about' && <PlaceRow />}
       <ErrorBoundary key={page} kind="panel" name={meta.title}>
         <div className="page-body">
           {page === 'flood' && <FloodPanel />}
           {page === 'rivers' && <RiversPanel />}
           {page === 'station' && <StationPanel />}
           {page === 'settings' && <SourcesPanel />}
+          {page === 'help' && <HelpContent />}
           {page === 'about' && <AboutPanel />}
         </div>
       </ErrorBoundary>
@@ -59,6 +62,7 @@ function MoreList() {
     rivers: noaa ? (high ? `${high} of ${noaa.length} reporting NOAA gauges high${usgsNote}` : `${noaa.length} NOAA gauges reporting${usgsNote}`) : rivers.state === 'loading' ? 'Loading gauges…' : 'Gauges and flood stages nearby',
     station: station.data ? `${station.data.name} · ${timeAgo(station.data.observedAt, now)}` : station.state === 'loading' ? 'Loading station…' : 'not loaded',
     settings: `${units === 'imperial' ? 'Imperial' : 'Metric'} · motion · data budget`,
+    help: 'River gauge colours, wind streaks, air-quality discs',
     about: 'Map and data sources, with credits',
   }
   return (

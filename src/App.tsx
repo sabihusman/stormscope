@@ -12,6 +12,7 @@ import { StationLayer } from './map/StationLayer'
 import { NowcastLayer, WindParticles } from './map/NowcastLayer'
 import { MonitorChooser, PointChip } from './components/PointChip'
 import { CreditsPanel } from './components/Credits'
+import { HelpPanel } from './components/Help'
 // Journey overlays: code-split with the journey pipeline and mounted only once a destination exists.
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
@@ -153,7 +154,7 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      const hadPanel = store.get().pickerOpen || store.get().creditsOpen || !!store.get().dotChooser || store.get().legendOpen
+      const hadPanel = store.get().pickerOpen || store.get().creditsOpen || !!store.get().dotChooser || store.get().legendOpen || store.get().helpTopic != null
       closeAllPanels()
       // With no floating panel to close, Escape closes the desktop dock (Trip / More) back to Now.
       if (!hadPanel && dockRef.current) go('now')
@@ -254,6 +255,7 @@ export default function App() {
         </button>
       )}
       <PlacePicker onLocate={geo.request} locating={geo.status === 'locating'} geo={geo} />
+      <ErrorBoundary kind="panel" name="Help"><HelpPanel /></ErrorBoundary>
       {place && !showPrompt && !pickerOpen && <GeoNotice status={geo.status} message={geo.message} attempt={geo.attempt} onRetry={geo.request} />}
 
       {showPrompt && (

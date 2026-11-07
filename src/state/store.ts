@@ -42,7 +42,9 @@ export type FabCorner = 'br' | 'bl' | 'tl' | 'tr'
 export type SheetMode = 'peek' | 'half' | 'full'
 /** Top-level destinations (bottom nav on a phone, rail on wider screens). */
 export type Screen = 'now' | 'map' | 'trip' | 'more'
-export type MorePage = 'flood' | 'rivers' | 'station' | 'settings' | 'about'
+export type MorePage = 'flood' | 'rivers' | 'station' | 'settings' | 'help' | 'about'
+/** A section of the "What am I looking at?" help, or all of it. */
+export type HelpTopic = 'gauges' | 'wind' | 'aqi' | 'all'
 export interface RecentPlace {
   name: string
   lngLat: LngLat
@@ -224,6 +226,8 @@ export interface AppState {
   /** Block key the Flood page wants computed for the place (independent of map zoom / layer). */
   floodFor: string | null
   legendOpen: boolean
+  /** The help panel over the map, open at this section (null = closed). The More tab's help page is a page, not this. */
+  helpTopic: HelpTopic | null
   selection: Selection | null
   toast: { id: number; text: string; kind: 'info' | 'warn' | 'error' } | null
   /** Bumped by "Refresh all" to force every poller to re-run. */
@@ -365,6 +369,7 @@ export const store = createStore<AppState>({
   })(),
   floodFor: null,
   legendOpen: false,
+  helpTopic: null,
   selection: null,
   toast: null,
   layerErrors: {},
@@ -618,7 +623,7 @@ export function forgetPlaces() {
 
 /** Escape: close whatever panel is open (the layers panel listens to the nonce; the rest are store flags). */
 export function closeAllPanels() {
-  store.set((s) => ({ closePanelsNonce: s.closePanelsNonce + 1, creditsOpen: false, pickerOpen: false, pickerMode: 'menu', dotChooser: null, legendOpen: false, sheet: s.selection ? 'peek' : s.sheet }))
+  store.set((s) => ({ closePanelsNonce: s.closePanelsNonce + 1, creditsOpen: false, pickerOpen: false, pickerMode: 'menu', dotChooser: null, legendOpen: false, helpTopic: null, sheet: s.selection ? 'peek' : s.sheet }))
 }
 
 /** The "Save this place on this device" choice; turning it off removes the saved place at once. */
@@ -668,11 +673,11 @@ export function loadPlace(): { place: Place; label: string | null } | null {
 let toastSeq = 0
 /**
  * On a phone, one panel at a time (Nov 6 audit: the layers menu, credits and other panels stacked up): when one of
- * the Layers menu, credits, the legend, the place picker or the monitor chooser opens, the others close. The
+ * the Layers menu, credits, the legend, the place picker, the monitor chooser or the help panel opens, the others close. The
  * bottom sheet is not a panel here and stays as it is. Installed once by the app with its "is this a phone" test.
  */
 export function installOnePanelRule(isPhone: () => boolean) {
-  const flags = (s: AppState) => ({ layers: s.layersMenuOpen, credits: s.creditsOpen, legend: s.legendOpen, picker: s.pickerOpen, chooser: !!s.dotChooser })
+  const flags = (s: AppState) => ({ layers: s.layersMenuOpen, credits: s.creditsOpen, legend: s.legendOpen, picker: s.pickerOpen, chooser: !!s.dotChooser, help: s.helpTopic != null })
   let prev = flags(store.get())
   return store.subscribe(() => {
     const cur = flags(store.get())
@@ -686,6 +691,7 @@ export function installOnePanelRule(isPhone: () => boolean) {
     if (keep !== 'legend' && cur.legend) patch.legendOpen = false
     if (keep !== 'picker' && cur.picker) patch.pickerOpen = false
     if (keep !== 'chooser' && cur.chooser) patch.dotChooser = null
+    if (keep !== 'help' && cur.help) patch.helpTopic = null
     if (Object.keys(patch).length) store.set(patch)
   })
 }
