@@ -43,13 +43,13 @@ const helpBox = (page) =>
     const close = p.querySelector('[aria-label="Close help"]')?.getBoundingClientRect()
     return { top: Math.round(r.top), bottom: Math.round(r.bottom), nav: Math.round(nav), w: innerWidth, h: innerHeight, focus: focus?.dataset.topic ?? null, focusInView: !!fr && fr.top >= r.top - 1 && fr.top < r.bottom - 40, past, close: close && [Math.round(close.width), Math.round(close.height)], menu: !!document.querySelector('.fab-menu'), flag: window.__store.get().layersMenuOpen }
   })
-/** Opens the Layers menu and taps the "What do these mean?" link inside the legend row matching `rowSel`. */
+/** Opens the Layers menu and taps the legend's "What's this?" link for `rowSel` (gauges, wind or aqi). */
 async function openFromLegend(page, rowSel) {
   if (!(await page.evaluate(() => !!document.querySelector('.fab-menu')))) {
     await page.getByRole('button', { name: 'Open layer menu' }).tap()
     await settle(page, 400)
   }
-  const link = page.locator(`.legend-rows ${rowSel} .help-link`)
+  const link = page.locator(`.legend-rows .help-link[data-topic="${rowSel}"]`)
   const n = await link.count()
   if (n) {
     await link.first().scrollIntoViewIfNeeded()
@@ -72,9 +72,9 @@ const closeHelp = async (page) => {
   await until(page, () => (window.__map?.getSource('river-gauges') ? window.__map.querySourceFeatures('river-gauges').length : 0) > 0, 30000)
 
   // 1. River gauges
-  const gLinks = await openFromLegend(page, '.legend-row:has(.legend-title:text-is("River gauges"))')
+  const gLinks = await openFromLegend(page, 'gauges')
   const g = await helpBox(page)
-  check('Layers menu → River gauges → "What do these mean?" opens the help at the gauge section, in view', gLinks === 1 && g?.focus === 'gauges' && g.focusInView, { links: gLinks, ...g })
+  check('Layers menu → River gauges → "What\'s this?" opens the help at the gauge section, in view', gLinks === 1 && g?.focus === 'gauges' && g.focusInView, { links: gLinks, ...g })
   check('The help replaces the Layers menu (one panel at a time) and fits between the top of the screen and the nav', !!g && !g.menu && !g.flag && g.top >= 0 && g.bottom <= g.nav && g.past === 0, g)
   check('The help\'s × is a 44 × 44 px target', !!g?.close && g.close[0] >= 44 && g.close[1] >= 44, g?.close)
   await page.screenshot({ path: `${OUT}/phone-gauges.png` })
@@ -99,17 +99,17 @@ const closeHelp = async (page) => {
 
   // 3. Wind
   await setLayers(page, { nowcast: true })
-  const wLinks = await openFromLegend(page, '.legend-row:has(.legend-title:text-is("Wind"))')
+  const wLinks = await openFromLegend(page, 'wind')
   const w = await helpBox(page)
   const windText = oneLine(await page.locator('.help-panel [data-topic="wind"]').innerText().catch(() => ''))
-  check('Layers menu → Wind → "What do these mean?" opens the help at the wind section, in view', wLinks === 1 && w?.focus === 'wind' && w.focusInView, { links: wLinks, ...w })
+  check('Layers menu → Wind → "What\'s this?" opens the help at the wind section, in view', wLinks === 1 && w?.focus === 'wind' && w.focusInView, { links: wLinks, ...w })
   check('The wind section says what the streaks are (forecast wind at 10 m, the playback clock) and the darkest speed in mph', /10 m/.test(windText) && /playback clock/.test(windText) && /\b17 mph\b/.test(windText), windText.slice(0, 300))
   await page.screenshot({ path: `${OUT}/phone-wind.png` })
   await closeHelp(page)
 
   // 4. Air-quality discs
   await setLayers(page, { aqcircles: true })
-  const aLinks = await openFromLegend(page, '.aqi-legend')
+  const aLinks = await openFromLegend(page, 'aqi')
   const a = await helpBox(page)
   const aqi = await page.evaluate(() => {
     const hex = (rgb) => '#' + rgb.match(/\d+/g).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')
@@ -119,7 +119,7 @@ const closeHelp = async (page) => {
     }
   })
   // The legend lives in the (now closed) Layers menu; its swatch colours are the same constants, read back from the panel when reopened.
-  check('Layers menu → air-quality legend → "What do these mean?" opens the help at the AQI section, in view', aLinks === 1 && a?.focus === 'aqi' && a.focusInView, { links: aLinks, ...a })
+  check('Layers menu → air-quality legend → "What\'s this?" opens the help at the AQI section, in view', aLinks === 1 && a?.focus === 'aqi' && a.focusInView, { links: aLinks, ...a })
   check('The AQI section lists the six EPA categories and says what a disc is (25 km, under 2 h, no estimate between monitors)', aqi.help.length === 6 && /25 km/.test(aqi.text) && /2 hours/.test(aqi.text) && /never estimates/.test(aqi.text), { help: aqi.help, text: aqi.text.slice(0, 200) })
   await page.screenshot({ path: `${OUT}/phone-aqi.png` })
   await closeHelp(page)
@@ -129,7 +129,7 @@ const closeHelp = async (page) => {
   check('The help\'s AQI colours are the legend\'s, in order', legendHex.length === 6 && legendHex.every((c, i) => aqi.help[i]?.[1] === c), { legend: legendHex, help: aqi.help.map((x) => x[1]) })
 
   // 5. One panel at a time: credits closes the help.
-  await openFromLegend(page, '.aqi-legend')
+  await openFromLegend(page, 'aqi')
   await page.evaluate(() => window.__store.set({ creditsOpen: true }))
   await settle(page, 300)
   const afterCredits = await page.evaluate(() => ({ help: window.__store.get().helpTopic, state: document.querySelector('.help-panel')?.dataset.state ?? 'gone' }))
@@ -154,7 +154,7 @@ const closeHelp = async (page) => {
   const { ctx, page, done } = await openApp({ width: 1280, height: 800 }, false)
   await setLayers(page, { rivers: true })
   await settle(page, 600)
-  const link = page.locator('.legend-rows .legend-row:has(.legend-title:text-is("River gauges")) .help-link')
+  const link = page.locator('.legend-rows .help-link[data-topic="gauges"]')
   await link.scrollIntoViewIfNeeded().catch(() => {})
   await link.click().catch(() => {})
   await until(page, () => !!document.querySelector('.help-panel[data-state="open"]'), 3000, 50)
