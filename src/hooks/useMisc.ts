@@ -83,12 +83,20 @@ function subscribeClock(ms: number, cb: () => void) {
     if (!c.subs.size) window.clearInterval(c.timer)
   }
 }
+/** One subscribe function per interval: a new one each render would make React resubscribe every render, and a
+ * clock whose only listener resubscribes restarts and moves its "now" — an endless re-render (React error #185). */
+const subscribers = new Map<number, (cb: () => void) => () => void>()
+const getters = new Map<number, () => number>()
 export function useNow(ms = 15_000): number {
-  return useSyncExternalStore(
-    (cb) => subscribeClock(ms, cb),
-    () => clock(ms).now,
-    () => clock(ms).now,
-  )
+  let sub = subscribers.get(ms)
+  let get = getters.get(ms)
+  if (!sub || !get) {
+    sub = (cb) => subscribeClock(ms, cb)
+    get = () => clock(ms).now
+    subscribers.set(ms, sub)
+    getters.set(ms, get)
+  }
+  return useSyncExternalStore(sub, get, get)
 }
 
 export function useDebouncedValue<T>(value: T, ms: number): T {
