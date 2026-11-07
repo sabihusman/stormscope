@@ -27,7 +27,7 @@ await allowLocation(page)
 await page.waitForFunction(() => window.__store?.get().conditions.state === 'ready', null, { timeout: 30000 })
 await settle(page, 1500)
 // Elements whose text is cut: scrollWidth > clientWidth, or past the viewport's right edge.
-const clipped = (sel) => page.evaluate((sel) => [...document.querySelectorAll(sel)].flatMap((root) => [root, ...root.querySelectorAll('*')]).filter((e) => { const r = e.getBoundingClientRect(); if (!r.width || getComputedStyle(e).visibility === 'hidden') return false; return (e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflow !== 'visible' && e.children.length === 0) || r.right > innerWidth + 1 || r.left < -1 }).map((e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')} "${e.textContent.trim().slice(0, 24)}" [${Math.round(e.getBoundingClientRect().left)}–${Math.round(e.getBoundingClientRect().right)}]`).slice(0, 8), sel)
+const clipped = (sel) => page.evaluate((sel) => [...document.querySelectorAll(sel)].flatMap((root) => [root, ...root.querySelectorAll('*')]).filter((e) => { const r = e.getBoundingClientRect(); if (!r.width || getComputedStyle(e).visibility === 'hidden') { return false } return (e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflow !== 'visible' && e.children.length === 0) || r.right > innerWidth + 1 || r.left < -1 }).map((e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')} "${e.textContent.trim().slice(0, 24)}" [${Math.round(e.getBoundingClientRect().left)}–${Math.round(e.getBoundingClientRect().right)}]`).slice(0, 8), sel)
 const small = (sel) => page.evaluate((sel) => [...document.querySelectorAll(sel)].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44) }).map((e) => `"${(e.getAttribute('aria-label') || e.textContent).trim().slice(0, 18)}" ${Math.round(e.getBoundingClientRect().width)}×${Math.round(e.getBoundingClientRect().height)}`), sel)
 
 // 1. Trip header with a route
@@ -60,7 +60,7 @@ check('Map: zoom / rotate / credits, ☰, the place bar and every playback contr
 await page.evaluate(() => window.__store.set((s) => ({ layers: { ...s.layers, aqcircles: true, monitors: true, rivers: true, station: true, flood: true }, aqPollutant: 'PM2.5' })))
 await page.getByRole('button', { name: 'Open layer menu' }).tap().catch(() => {})
 await settle(page, 600)
-const menu = await page.evaluate(() => { const m = document.querySelector('.fab-menu, .fab-panel, [role="menu"]'); if (!m) return null; const r = m.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: innerHeight, scroll: m.scrollHeight > m.clientHeight, cls: m.className } })
+const menu = await page.evaluate(() => { const m = document.querySelector('.fab-menu, .fab-panel, [role="menu"]'); if (!m) { return null } const r = m.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: innerHeight, scroll: m.scrollHeight > m.clientHeight, cls: m.className } })
 check('Layers menu: it fits between the place bar and the screen bottom (it scrolls inside when long)', !!menu && menu.top >= 0 && menu.bottom <= menu.h, menu)
 const legendText = await page.locator('.legend-rows').innerText().catch(() => '')
 check('Legend: the AQI category names and the disc note are separate lines (no "HazardousA")', /Hazardous\s*\n/.test(legendText) && !/HazardousA/.test(legendText), legendText.match(/Very Unhealthy[^\n]*\n?[^\n]{0,20}/)?.[0])
@@ -117,7 +117,7 @@ await page.evaluate(() => window.__store.set({ toast: null }))
 // 9 Now targets: Change, hourly cards, span pills
 const nowSmall = await small('.screen.now button')
 check('Now: Change, °F / °C, 12 / 24 / 48 h and the rain row are at least 44 × 44 px', nowSmall.length === 0, nowSmall)
-const mask = await page.locator('.hour-strip').evaluate((e) => getComputedStyle(e).maskImage || getComputedStyle(e).webkitMaskImage)
+const mask = await page.locator('.hour-strip').evaluate((e) => getComputedStyle(e).maskImage)
 check('Hourly strip: the right edge fades (a deliberate peek of the next card), not a hard cut', /gradient/.test(mask ?? ''), mask)
 await openMore(page, 'Flood risk')
 await settle(page, 800)
