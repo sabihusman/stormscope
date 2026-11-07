@@ -134,6 +134,8 @@ export interface AppState {
   selectionFlyNonce: number
   /** The planned trip's route and its hazards on the map (Trip header and the map's Layers menu switch it). */
   routeOnMap: boolean
+  /** The ☰ Layers menu is open (LayerFab keeps its own state and mirrors it here for the one-panel rule). */
+  layersMenuOpen: boolean
   /** The selected place is inside the map's current view (false once the map has been moved away from it). */
   placeInView: boolean
   /** "Save this place on this device": off by default on a first visit; nothing about the place is stored until it is on. */
@@ -253,6 +255,7 @@ export const store = createStore<AppState>({
   recenterNonce: 0,
   selectionFlyNonce: 0,
   routeOnMap: true,
+  layersMenuOpen: false,
   placeInView: true,
   // Returning users who saved a place before the toggle existed keep saving (the saved place is the opt-in).
   savePlacePref: ((): boolean => {
@@ -663,6 +666,30 @@ export function loadPlace(): { place: Place; label: string | null } | null {
 }
 
 let toastSeq = 0
+/**
+ * On a phone, one panel at a time (Nov 6 audit: the layers menu, credits and other panels stacked up): when one of
+ * the Layers menu, credits, the legend, the place picker or the monitor chooser opens, the others close. The
+ * bottom sheet is not a panel here and stays as it is. Installed once by the app with its "is this a phone" test.
+ */
+export function installOnePanelRule(isPhone: () => boolean) {
+  const flags = (s: AppState) => ({ layers: s.layersMenuOpen, credits: s.creditsOpen, legend: s.legendOpen, picker: s.pickerOpen, chooser: !!s.dotChooser })
+  let prev = flags(store.get())
+  return store.subscribe(() => {
+    const cur = flags(store.get())
+    const opened = (Object.keys(cur) as (keyof typeof cur)[]).filter((k) => cur[k] && !prev[k])
+    prev = cur
+    if (!opened.length || !isPhone()) return
+    const keep = opened[opened.length - 1]
+    const patch: Partial<AppState> = {}
+    if (keep !== 'layers' && cur.layers) patch.layersMenuOpen = false
+    if (keep !== 'credits' && cur.credits) patch.creditsOpen = false
+    if (keep !== 'legend' && cur.legend) patch.legendOpen = false
+    if (keep !== 'picker' && cur.picker) patch.pickerOpen = false
+    if (keep !== 'chooser' && cur.chooser) patch.dotChooser = null
+    if (Object.keys(patch).length) store.set(patch)
+  })
+}
+
 export function toast(text: string, kind: 'info' | 'warn' | 'error' = 'info') {
   const id = ++toastSeq
   store.set({ toast: { id, text, kind } })

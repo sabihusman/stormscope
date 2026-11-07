@@ -4,7 +4,7 @@ import { SEVERITY_COLORS, type Severity } from '../lib/journey'
 import { effectiveCondition } from '../lib/roadIce'
 import { sampleSelection } from '../components/JourneyPanel'
 import { selectRoute, store, useApp } from '../state/store'
-import { useMap } from './MapView'
+import { labelLayer, useMap } from './MapView'
 
 const LINE = 'journey-line'
 const ALT = 'journey-alt'
@@ -53,14 +53,14 @@ export function RouteLayer() {
   useEffect(() => {
     if (!map) return
     map.addSource(ALT, { type: 'geojson', data: alts })
-    map.addLayer({ id: ALT, type: 'line', source: ALT, paint: { 'line-color': '#64748b', 'line-width': 3, 'line-dasharray': [2, 2], 'line-opacity': 0.8 } })
+    map.addLayer({ id: ALT, type: 'line', source: ALT, paint: { 'line-color': '#64748b', 'line-width': 3, 'line-dasharray': [2, 2], 'line-opacity': 0.8 } }, labelLayer(map))
     map.addSource(LINE, { type: 'geojson', data: line })
-    map.addLayer({ id: `${LINE}-casing`, type: 'line', source: LINE, paint: { 'line-color': '#0b1220', 'line-width': 8, 'line-opacity': 0.6 }, layout: { 'line-cap': 'round', 'line-join': 'round' } })
-    map.addLayer({ id: LINE, type: 'line', source: LINE, paint: { 'line-color': ['get', 'color'], 'line-width': 5 }, layout: { 'line-cap': 'round', 'line-join': 'round' } })
+    map.addLayer({ id: `${LINE}-casing`, type: 'line', source: LINE, paint: { 'line-color': '#0b1220', 'line-width': 8, 'line-opacity': 0.6 }, layout: { 'line-cap': 'round', 'line-join': 'round' } }, labelLayer(map))
+    map.addLayer({ id: LINE, type: 'line', source: LINE, paint: { 'line-color': ['get', 'color'], 'line-width': 5 }, layout: { 'line-cap': 'round', 'line-join': 'round' } }, labelLayer(map))
     map.addSource(PTS, { type: 'geojson', data: pts })
-    map.addLayer({ id: PTS, type: 'circle', source: PTS, filter: ['>=', ['get', 'sev'], 1], paint: { 'circle-radius': 6, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#0b1220', 'circle-stroke-width': 1.5 } })
+    map.addLayer({ id: PTS, type: 'circle', source: PTS, filter: ['>=', ['get', 'sev'], 1], paint: { 'circle-radius': 6, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#0b1220', 'circle-stroke-width': 1.5 } }, labelLayer(map))
     map.addSource(DEST, { type: 'geojson', data: dest })
-    map.addLayer({ id: DEST, type: 'circle', source: DEST, paint: { 'circle-radius': 8, 'circle-color': '#e2e8f0', 'circle-stroke-color': '#a855f7', 'circle-stroke-width': 3 } })
+    map.addLayer({ id: DEST, type: 'circle', source: DEST, paint: { 'circle-radius': 8, 'circle-color': '#e2e8f0', 'circle-stroke-color': '#a855f7', 'circle-stroke-width': 3 } }, labelLayer(map))
     const onPt = (e: MapLayerMouseEvent) => {
       const f = e.features?.[0]
       const s = store.get()

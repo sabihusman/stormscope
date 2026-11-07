@@ -1712,8 +1712,9 @@ small {
   min-height: 60px;
   box-sizing: border-box;
 }
+/* 230 since Nov 6: the 44 px span pills and rain row (was 208 with 30 / 36 px ones). */
 .app.narrow .now-card.hourly[aria-busy='true'] {
-  min-height: 208px;
+  min-height: 230px;
 }
 .app.narrow .now-card.daily[aria-busy='true'] {
   min-height: 293px;
@@ -2245,10 +2246,15 @@ small {
   left: calc(var(--rail-w) + 12px);
 }
 
-/* Toasts never cover the primary actions at the bottom of a content screen: they drop in from the top there. */
+/* Toasts never cover the primary actions at the bottom of a content screen: they drop in from the top there,
+   into a strip of their own — the screen's scroll area starts below the toast while it shows (Nov 6 audit: the
+   toast sat on the 7-day list). It still goes by itself after 5 s, or with its ×. */
 .app.narrow:not(.screen-map) .toast {
-  top: calc(var(--sat) + 10px);
+  top: calc(var(--sat) + 8px);
   bottom: auto;
+}
+.app.narrow.has-toast:not(.screen-map) .screen {
+  top: calc(var(--toast-h, 0px) + 16px);
 }
 /* Desktop: the ☰ button lives in the map's top-right control column, directly under zoom / compass (same
    size and spacing as those buttons), whatever corner a phone drag saved — the stack is positioned in the
@@ -3225,4 +3231,82 @@ small {
   color: #334155;
   font-size: 14px;
   pointer-events: none;
+}
+
+/* Legend notes are lines of their own: two inline notes ran together ("…HazardousA 25 km disc", Nov 6 audit). */
+.legend-line {
+  display: block;
+}
+
+/* Phones: every control is a 44 × 44 px tap target (Nov 6 audit: Change 34 px, recents × 32 px, the 6 / 12 / 24 / 48
+   and 12 / 24 / 48 h pills 26–30 px, the zoom / rotate / credits column 36 px). Real size, not an invisible hit
+   area, so neighbouring targets never overlap. */
+.app.narrow {
+  --map-ctrl-btn: 44px;
+}
+.app.narrow .btn.small {
+  height: 44px;
+}
+.app.narrow .icon-btn,
+.app.narrow .recent-x {
+  width: 44px;
+  height: 44px;
+}
+.app.narrow .segmented.small button,
+.app.narrow .segmented.small.horizon button {
+  height: 44px;
+  min-width: 44px;
+}
+/* The playback bar on a phone is two rows, so nothing clips with 44 px targets: ▶ · time · scrubber · ✕, then the
+   6 / 12 / 24 / 48 h pills on a row of their own (one row needed ~400 px at 44 px, more than a 390 px phone has). */
+@media (max-width: 420px) {
+  .app.narrow .playbar-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .app.narrow .playbar .horizon {
+    order: 10;
+    flex: 1 0 100%;
+    display: flex;
+    padding: 2px;
+  }
+  .app.narrow .playbar .horizon button {
+    flex: 1;
+    height: 44px;
+    min-width: 44px;
+    font-size: 13px;
+  }
+  .app.narrow .playbar .play.big,
+  .app.narrow .playbar .playbar-close {
+    width: 44px;
+    height: 44px;
+  }
+}
+.app.narrow .chips button,
+.app.narrow .chip-x {
+  min-height: 44px;
+}
+.app.narrow .chip-x {
+  min-width: 44px;
+}
+.app.narrow .place-chip,
+.app.narrow .link-row {
+  min-height: 44px;
+}
+.app.narrow .chips button {
+  min-width: 44px;
+}
+.app.narrow .pill.follow {
+  min-height: 44px;
+}
+/* The hourly strip peeks its next card on purpose: cards snap to the left edge and the right edge fades out,
+   instead of a card cut mid-letter ("3 P" with the M cut). The end padding lets the last card clear the fade. */
+.app.narrow .hour-strip {
+  scroll-snap-type: x proximity;
+  padding-right: 28px;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+.app.narrow .hour-strip li {
+  scroll-snap-align: start;
 }

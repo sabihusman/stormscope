@@ -70,12 +70,14 @@ await page.waitForTimeout(700)
 await page.getByRole('dialog').getByRole('option').first().click()
 for (let i = 0; i < 80; i++) {
   const t = await page.locator('.page-body').innerText().catch(() => '')
-  seenDuringLoad.push(t.match(/Loading gauges[^\n]*|^\d+ current gauges[^\n]*/m)?.[0] ?? '')
-  if (/current gauges/.test(t) && !/Loading gauges/.test(t)) break
+  // The loading state is "Loading gauges (NOAA and USGS)…" or, since Nov 6, NOAA's gauges shown first with "NOAA gauges
+  // below · adding USGS gauges and NOAA flood stages…" — neither carries a count, so the count still never jumps.
+  seenDuringLoad.push(t.match(/Loading gauges[^\n]*|NOAA gauges below · adding[^\n]*|^\d+ current gauges[^\n]*/m)?.[0] ?? '')
+  if (/current gauges/.test(t) && !/Loading gauges|NOAA gauges below · adding/.test(t)) break
   await page.waitForTimeout(100)
 }
 const headlines = seenDuringLoad.filter((t) => /current gauges/.test(t))
-check('After a place change the page says "Loading gauges (NOAA and USGS)…", then one headline that does not change', seenDuringLoad.some((t) => /Loading gauges \(NOAA and USGS\)/.test(t)) && new Set(headlines).size === 1, `${[...new Set(seenDuringLoad)].join(' → ')}`)
+check('After a place change the page says it is loading ("Loading gauges (NOAA and USGS)…" or NOAA\'s gauges first, "adding USGS gauges…"), then one headline that does not change', seenDuringLoad.some((t) => /Loading gauges \(NOAA and USGS\)|NOAA gauges below · adding USGS gauges/.test(t)) && new Set(headlines).size === 1, `${[...new Set(seenDuringLoad)].join(' → ')}`)
 // Back to the original place for the tile checks below.
 await page.getByRole('button', { name: 'Change place' }).first().click()
 await page.waitForTimeout(300)
@@ -100,6 +102,9 @@ const moreRow = async () => {
 }
 const seen = [{ when: 'load 1, after the Rivers page', tile: await tileText(), more: await moreRow() }]
 for (let i = 2; i <= 3; i++) {
+  // Load 3 is a fresh load: the gauge lists the app keeps between visits (Nov 6) are cleared first, or the kept
+  // USGS sites would rightly bring the note back.
+  if (i === 3) await page.evaluate(() => localStorage.removeItem('stormscope.rivers.v1'))
   await page.goto(BASE, { waitUntil: 'load' })
   await allowLocation(page)
   await until(() => window.__store?.get().conditions.state === 'ready')

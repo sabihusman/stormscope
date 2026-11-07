@@ -23,8 +23,19 @@ const MapCtx = createContext<MlMap | null>(null)
 /** The MapLibre instance, or null until the style has loaded. */
 export const useMap = () => useContext(MapCtx)
 
-/** Order overlays consistently: everything goes below labels. */
+/**
+ * Layer order, bottom to top: basemap → weather overlays (radar, satellite, rain, flood, smoke, wind) → OVERLAY_TOP
+ * (an invisible anchor) → point markers (gauges, station, monitors, the trip route) → basemap labels. Overlays are
+ * added below the anchor and markers below the labels, so a re-added radar frame never covers a marker, and no
+ * marker or line covers a town name (Nov 6 audit: "Co●ax", the route through the city label).
+ */
+export const OVERLAY_TOP = 'overlay-top'
+/** Where a weather overlay goes: below the anchor (below every marker and label). */
 export function firstSymbolLayer(map: MlMap): string | undefined {
+  return map.getLayer(OVERLAY_TOP) ? OVERLAY_TOP : labelLayer(map)
+}
+/** Where a point marker or line goes: just below the basemap's labels (above every overlay). */
+export function labelLayer(map: MlMap): string | undefined {
   return map.getStyle().layers.find((l) => l.type === 'symbol')?.id
 }
 
@@ -135,6 +146,7 @@ export function MapView({ children }: { children: ReactNode }) {
         { id: 'hillshade', type: 'hillshade', source: 'terrain-dem', paint: { 'hillshade-exaggeration': 0.35 }, layout: { visibility: 'none' } },
         firstSymbolLayer(m),
       )
+      m.addLayer({ id: OVERLAY_TOP, type: 'background', paint: { 'background-opacity': 0 } }, labelLayer(m))
       setMap(m)
     })
     // Is the selected place still in view? (The playback bar's "Zoom to <place>" chip shows only once it is not.)
