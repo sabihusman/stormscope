@@ -101,9 +101,9 @@ const moreRow = async () => {
   return (await page.getByRole('button', { name: /^Rivers & gauges/ }).innerText()).replace(/\n/g, ' | ')
 }
 const seen = [{ when: 'load 1, after the Rivers page', tile: await tileText(), more: await moreRow() }]
-for (let i = 2; i <= 3; i++) {
-  // Load 3 is a fresh load: the gauge lists the app keeps between visits (Nov 6) are cleared first, or the kept
-  // USGS sites would rightly bring the note back.
+// Loads 2 and 3, one after the other. Load 3 is a fresh load: the gauge lists the app keeps between visits (Nov 6)
+// are cleared first, or the kept USGS sites would rightly bring the note back.
+const reload = async (i) => {
   if (i === 3) await page.evaluate(() => localStorage.removeItem('stormscope.rivers.v1'))
   await page.goto(BASE, { waitUntil: 'load' })
   await allowLocation(page)
@@ -115,6 +115,8 @@ for (let i = 2; i <= 3; i++) {
     seen.push({ when: 'load 2, after the Rivers page', tile: await tileText(), more: await moreRow() })
   }
 }
+await reload(2)
+await reload(3)
 const tiles = new Set(seen.map((x) => x.tile.replace(/ \(\+\d+ USGS on the Rivers page\)/, '')))
 const num = (t) => t.match(/(\d+) (?:reporting )?(?:NOAA )?gauges/)?.[1]
 const counts = seen.map((x) => ({ tile: num(x.tile), more: num(x.more) }))

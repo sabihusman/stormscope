@@ -44,16 +44,14 @@ function LayerGuard({ name, layer, children }: { name: string; layer: LayerId; c
   )
 }
 
-export default function App() {
-  const geo = useGeolocation()
-  const t = useApp((s) => s.toast)
-  // Phones (the narrow layout): one panel at a time; the bottom sheet is exempt.
-  useEffect(() => installOnePanelRule(() => window.innerWidth < 768), [])
-  // While a toast shows on a phone's content screen, the screen's scroll area starts below it (its height in
-  // --toast-h), so the toast never sits on top of the 7-day list or anything else (Nov 6 audit).
-  const toastRef = useRef<HTMLDivElement>(null)
+/**
+ * While a toast shows on a phone's content screen, the screen's scroll area starts below it (its height in
+ * --toast-h), so the toast never sits on top of the 7-day list or anything else (Nov 6 audit). Returns the toast's ref.
+ */
+function useToastStrip(toast: unknown) {
+  const ref = useRef<HTMLOutputElement>(null)
   useLayoutEffect(() => {
-    const el = toastRef.current
+    const el = ref.current
     const app = document.querySelector<HTMLElement>('.app')
     if (!el || !app) {
       app?.style.setProperty('--toast-h', '0px')
@@ -67,7 +65,34 @@ export default function App() {
       ro.disconnect()
       app.style.setProperty('--toast-h', '0px')
     }
-  }, [t])
+  }, [toast])
+  return ref
+}
+
+/** The app root's classes: the screen, the sheet height, the layout and the open chrome, for the CSS to follow. */
+function appClassName(o: { toast: boolean; screen: string; sheet: string; fabCorner: string; fabCornerWide: string; wide: boolean; desk: boolean; dockOpen: boolean; pickMode: boolean; playbarExpanded: boolean; collapsed: boolean }) {
+  const on: [boolean, string][] = [
+    [o.toast, 'has-toast'],
+    [true, `screen-${o.screen}`],
+    [true, `sheet-${o.sheet}`],
+    [true, `fab-${o.fabCorner}`],
+    [true, `fabw-${o.fabCornerWide}`],
+    [true, o.wide ? 'wide' : 'narrow'],
+    [o.desk, 'desk'],
+    [o.dockOpen, 'dock-open'],
+    [o.pickMode, 'picking'],
+    [o.playbarExpanded, 'playbar-open'],
+    [o.collapsed, 'col-collapsed'],
+  ]
+  return ['app', ...on.filter(([x]) => x).map(([, c]) => c)].join(' ')
+}
+
+export default function App() {
+  const geo = useGeolocation()
+  const t = useApp((s) => s.toast)
+  // Phones (the narrow layout): one panel at a time; the bottom sheet is exempt.
+  useEffect(() => installOnePanelRule(() => window.innerWidth < 768), [])
+  const toastRef = useToastStrip(t)
   const place = useApp((s) => s.place)
   const sheet = useApp((s) => s.sheet)
   const hasSelection = useApp((s) => !!s.selection)
@@ -151,7 +176,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app ${t ? 'has-toast ' : ''}screen-${screen} sheet-${hasSelection && screen === 'map' ? sheet : 'none'} fab-${fabCorner} fabw-${fabCornerWide} ${wide ? 'wide' : 'narrow'} ${desk ? 'desk' : ''} ${dockOpen ? 'dock-open' : ''} ${pickMode ? 'picking' : ''} ${playbarExpanded ? 'playbar-open' : ''} ${wide && columnCollapsed && (desk || screen !== 'map') ? 'col-collapsed' : ''}`}>
+    <div className={appClassName({ toast: !!t, screen, sheet: hasSelection && screen === 'map' ? sheet : 'none', fabCorner, fabCornerWide, wide, desk, dockOpen, pickMode, playbarExpanded, collapsed: wide && columnCollapsed && (desk || screen !== 'map') })}>
       <MapView>
         {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
         <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
@@ -265,12 +290,12 @@ export default function App() {
         </div>
       )}
       {t && (
-        <div className={`toast ${t.kind}`} role="status" ref={toastRef}>
+        <output className={`toast ${t.kind}`} ref={toastRef}>
           <span>{t.text}</span>
           <button className="icon-btn" onClick={() => store.set({ toast: null })} aria-label="Dismiss">
             ×
           </button>
-        </div>
+        </output>
       )}
     </div>
   )

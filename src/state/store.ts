@@ -679,7 +679,7 @@ export function installOnePanelRule(isPhone: () => boolean) {
     const opened = (Object.keys(cur) as (keyof typeof cur)[]).filter((k) => cur[k] && !prev[k])
     prev = cur
     if (!opened.length || !isPhone()) return
-    const keep = opened[opened.length - 1]
+    const keep = opened.at(-1)!
     const patch: Partial<AppState> = {}
     if (keep !== 'layers' && cur.layers) patch.layersMenuOpen = false
     if (keep !== 'credits' && cur.credits) patch.creditsOpen = false
