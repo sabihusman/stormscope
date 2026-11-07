@@ -10,25 +10,13 @@
 //  • one panel at a time: opening credits closes the Layers menu.
 //   node scripts/layout-check.mjs [base-url] [shots-dir] [--mock]
 import { chromium } from 'playwright'
-import { mkdirSync } from 'node:fs'
-import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
+import { trackTraffic } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 import { allowLocation, openMap, openMore, openNow, openTrip, settle } from './lib/ui.mjs'
-const argv = process.argv.slice(2)
-if (!argv.includes('--mock')) {
-  console.log('SKIP  layout-check.mjs: mocked only')
-  process.exit(3)
-}
-assertBudget('layout-check.mjs (mock)')
-const positional = argv.filter((a) => !a.startsWith('--'))
-const BASE = positional[0] || 'http://localhost:4173/'
-const OUT = positional[1] || 'e2e-shots/layout'
-mkdirSync(OUT, { recursive: true })
-const results = []
-const check = (name, ok, ev = '') => {
-  results.push(ok)
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ev ? '  — ' + (typeof ev === 'string' ? ev : JSON.stringify(ev)) : ''}`)
-}
+import { checker, mockedOnly } from './lib/check-kit.mjs'
+
+const { base: BASE, out: OUT } = mockedOnly('layout-check.mjs', 'e2e-shots/layout')
+const { check, finish } = checker()
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'], locale: 'en-US' })
 const page = await ctx.newPage()
@@ -147,5 +135,4 @@ check('One panel at a time: opening credits closes the Layers menu', both.credit
 await page.screenshot({ path: `${OUT}/panels.png` })
 done()
 await browser.close()
-console.log(`${results.filter(Boolean).length}/${results.length} passed`)
-process.exit(results.every(Boolean) ? 0 : 1)
+finish()
