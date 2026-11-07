@@ -6,7 +6,7 @@ import { wmo } from '../lib/wmo'
 import { haversine } from '../lib/geo'
 import { bearingLabel, sampleBlocks } from '../lib/gridSample'
 import { clock, readingAge, timeAgo } from '../lib/time'
-import { U } from '../lib/units'
+import { U, type Units } from '../lib/units'
 import { compass } from '../map/StationLayer'
 import { openMonitor, siteStyle } from '../map/MonitorSitesLayer'
 import { aqiCategory } from '../lib/aqi'
@@ -184,6 +184,43 @@ function MonitorRows({ sel, now }: { sel: Selection; now: number }) {
   )
 }
 
+/** "at Johnston" (within 100 m) or "3.2 mi SE of Johnston" for a tapped point; empty with no place. */
+function relativeToPlace(place: { name: string; lngLat: { lng: number; lat: number } } | null, at: { lng: number; lat: number }, units: Units): string {
+  if (!place) return ''
+  const name = (store.get().placeLabel ?? place.name).split(',')[0]
+  const dist = haversine(place.lngLat, at)
+  return dist < 100 ? `at ${name}` : `${U.distance(dist, units)} ${bearingLabel(place.lngLat, at)} of ${name}`
+}
+
+/** The sheet's actions, under the title (at half height they were below the fold, behind the nav: Nov 6 audit). */
+function PointActions({ sel, isPoint }: { sel: Selection; isPoint: boolean }) {
+  return (
+    <div className="popup-actions">
+      <button className="btn small" onClick={() => setPlace({ name: 'Map point', lngLat: sel.lngLat, source: 'map' })}>
+        Use as my place
+      </button>
+      <button className="btn small" onClick={() => setJourneyTo({ name: `Map point ${sel.lngLat.lat.toFixed(3)}, ${sel.lngLat.lng.toFixed(3)}`, lngLat: sel.lngLat, source: 'map' })}>
+        Trip here
+      </button>
+      {sel.kind === 'gauge' && (
+        <button className="btn small" onClick={() => go('more', 'rivers')}>
+          All gauges
+        </button>
+      )}
+      {sel.kind === 'station' && (
+        <button className="btn small" onClick={() => go('more', 'station')}>
+          Full observation
+        </button>
+      )}
+      {(sel.kind === 'flood' || isPoint) && (
+        <button className="btn small" onClick={() => go('more', 'flood')}>
+          Flood risk
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** The sheet body for a selection: point conditions + 24 h strip, or the tapped object's facts, plus actions. */
 export function PointDetails() {
   const sel = useLiveSelection(useApp((s) => s.selection))
@@ -199,8 +236,7 @@ export function PointDetails() {
   const w = c ? wmo(c.code, c.isDay) : null
   const hours = pf.data?.hourly.slice(0, 24) ?? null
   const rain24 = hours ? hours.reduce((a, x) => a + (x.precipMm ?? 0), 0) : sample?.rain24Mm
-  const dist = place ? haversine(place.lngLat, sel.lngLat) : null
-  const rel = place ? (dist! < 100 ? `at ${(store.get().placeLabel ?? place.name).split(',')[0]}` : `${U.distance(dist, units)} ${bearingLabel(place.lngLat, sel.lngLat)} of ${(store.get().placeLabel ?? place.name).split(',')[0]}`) : ''
+  const rel = relativeToPlace(place, sel.lngLat, units)
   return (
     <div className="panel point-details">
       <div className="panel-title">
@@ -211,29 +247,7 @@ export function PointDetails() {
         </small>
       </div>
       {/* The actions first, under the title: at half height they were below the fold, behind the nav (Nov 6 audit). */}
-      <div className="popup-actions">
-        <button className="btn small" onClick={() => setPlace({ name: 'Map point', lngLat: sel.lngLat, source: 'map' })}>
-          Use as my place
-        </button>
-        <button className="btn small" onClick={() => setJourneyTo({ name: `Map point ${sel.lngLat.lat.toFixed(3)}, ${sel.lngLat.lng.toFixed(3)}`, lngLat: sel.lngLat, source: 'map' })}>
-          Trip here
-        </button>
-        {sel.kind === 'gauge' && (
-          <button className="btn small" onClick={() => go('more', 'rivers')}>
-            All gauges
-          </button>
-        )}
-        {sel.kind === 'station' && (
-          <button className="btn small" onClick={() => go('more', 'station')}>
-            Full observation
-          </button>
-        )}
-        {(sel.kind === 'flood' || isPoint) && (
-          <button className="btn small" onClick={() => go('more', 'flood')}>
-            Flood risk
-          </button>
-        )}
-      </div>
+      <PointActions sel={sel} isPoint={isPoint} />
       {!isPoint && !sel.readings?.length && (
         <ul className="popup-lines">
           {sel.lines.map((l, i) => (
