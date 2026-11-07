@@ -13,7 +13,7 @@ import { chromium } from 'playwright'
 import { trackTraffic } from './lib/qa-budget.mjs'
 import { installMocks } from './lib/mock-server.mjs'
 import { allowLocation, openMap, openMore, openNow, openTrip, settle } from './lib/ui.mjs'
-import { checker, mockedOnly } from './lib/check-kit.mjs'
+import { checker, mockedOnly, until } from './lib/check-kit.mjs'
 
 const { base: BASE, out: OUT } = mockedOnly('layout-check.mjs', 'e2e-shots/layout')
 const { check, finish } = checker()
@@ -129,9 +129,13 @@ await openMap(page)
 await page.getByRole('button', { name: 'Open layer menu' }).tap().catch(() => {})
 await settle(page, 300)
 await page.evaluate(() => window.__store.set({ creditsOpen: true }))
+// The menu closes at once — its flag drops and it starts its 150 ms exit — and leaves the page when the exit ends.
+// Under SwiftShader the unmount itself lands 180–1000 ms later (timers wait on the busy main thread), so the check
+// reads the menu's state at 300 ms, then waits for it to leave, instead of sampling the DOM once (4 of 25 runs raced).
 await settle(page, 300)
-const both = await page.evaluate(() => ({ menu: !!document.querySelector('.fab-menu'), credits: window.__store.get().creditsOpen }))
-check('One panel at a time: opening credits closes the Layers menu', both.credits && !both.menu, both)
+const both = await page.evaluate(() => ({ menu: document.querySelector('.fab-menu')?.dataset.state ?? 'gone', flag: window.__store.get().layersMenuOpen, credits: window.__store.get().creditsOpen }))
+const gone = await until(page, () => !document.querySelector('.fab-menu'), 3000, 50)
+check('One panel at a time: opening credits closes the Layers menu (closing or gone at 300 ms, then off the page)', both.credits && !both.flag && ['closing', 'gone'].includes(both.menu) && gone, { ...both, leftThePage: gone })
 await page.screenshot({ path: `${OUT}/panels.png` })
 done()
 await browser.close()
