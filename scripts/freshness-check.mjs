@@ -34,7 +34,7 @@ async function openApp(mockOpts) {
 
 /** Every check age ("checked / updated / fetched … N min ago", "just now" = 0) in a text, in minutes. */
 const checkAges = (text) => [...text.matchAll(/(?:checked|updated|fetched) (just now|(\d+)s ago|(\d+) min ago|(\d+) h ago)/g)].map((m) => (m[1] === 'just now' ? 0 : m[2] ? Number(m[2]) / 60 : m[3] ? Number(m[3]) : Number(m[4]) * 60))
-const rowWithin = (text) => { const m = text.match(/Everything on Now checked (just now|within the last (\d+)s|within the last (\d+) min|within the last (\d+) h)/); return !m ? null : m[1] === 'just now' ? 0 : m[2] ? Number(m[2]) / 60 : m[3] ? Number(m[3]) : Number(m[4]) * 60 }
+const rowWithin = (text) => { const m = text.match(/Everything on Now checked (just now|within the last minute|within the last (\d+) min|within the last (\d+) h)/); return !m ? null : m[1] === 'just now' ? 0 : m[1] === 'within the last minute' ? 1 : m[2] ? Number(m[2]) : Number(m[3]) * 60 }
 
 {
   const { ctx, page, done } = await openApp({})
@@ -50,22 +50,33 @@ const rowWithin = (text) => { const m = text.match(/Everything on Now checked (j
   check('It reads "No active NWS alerts · checked …" and "Everything on Now checked …"', /No active NWS alerts · checked (just now|\d+)/.test(first.text) && rowWithin(first.text) != null, oneLine(first.text))
   await page.screenshot({ path: `${OUT}/row.png` })
 
-  // 2. Known ages: the oldest (station, 7 min 40 s) sets the row; nothing on Now may read older.
-  const AGES = { alerts: 60, conditions: 4 * 60 + 20, station: 7 * 60 + 40, monitorsNear: 2 * 60, rivers: 3 * 60 }
-  await page.evaluate((ages) => {
+  // 2. Known ages: the oldest (station, 7 min 20 s) sets the row, rounded up; nothing on Now may read older.
+  const setAges = (ages) => page.evaluate((ages) => {
     const s = window.__store.get()
     const patch = {}
     for (const [k, sec] of Object.entries(ages)) if (s[k]?.freshness) patch[k] = { ...s[k], freshness: { ...s[k].freshness, fetchedAt: Date.now() - sec * 1000 } }
     window.__store.set(patch)
-  }, AGES)
+  }, ages)
+  const AGES = { alerts: 60, conditions: 4 * 60 + 20, station: 7 * 60 + 20, monitorsNear: 2 * 60, rivers: 3 * 60 }
+  await setAges(AGES)
   // The shared clock moves on its next tick (≤ 15 s); read once it has.
   await page.waitForTimeout(16000)
   const present = await page.evaluate((keys) => keys.filter((k) => window.__store.get()[k]?.data != null && window.__store.get()[k]?.freshness), Object.keys(AGES))
   const nowText = await page.locator('.screen.now').innerText()
   const within = rowWithin(nowText)
   const ages = checkAges(nowText)
-  check('With the sources checked 1–7.7 min ago, the row says "within the last 8 min" (the oldest: the station)', within === 8 && present.includes('station'), { within, present })
+  check('With the sources checked 1–7.3 min ago, the row says "within the last 8 min" (the oldest, the station, rounded up)', within === 8 && present.includes('station'), { within, present })
   check('No check time on Now reads older than the row (alerts, the forecast\'s "updated", the air monitors\' "fetched")', ages.length >= 3 && ages.every((a) => a <= within), { ages, within })
+
+  // 2b. The bound is true: an oldest check 4 min 20 s ago is "within the last 5 min" (rounded up), while its own card
+  // says "updated 4 min ago" (rounded to the nearest) — never "within the last 4 min".
+  await setAges({ alerts: 30, conditions: 4 * 60 + 20, station: 60, monitorsNear: 90, rivers: 120 })
+  await page.waitForTimeout(16000)
+  const t2 = await page.locator('.screen.now').innerText()
+  const w2 = rowWithin(t2)
+  const upd = t2.match(/updated (\d+) min ago/)?.[1]
+  check('Oldest check 4 min 20 s ago: the row says "within the last 5 min" (a true bound, rounded up) and the forecast card "updated 4 (or 5) min ago"', w2 === 5 && (upd === '4' || upd === '5') && checkAges(t2).every((a) => a <= w2), { within: w2, updated: upd })
+  await setAges(AGES)
 
   // 3. Across clock ticks the row and the cards move together.
   let worst = null
