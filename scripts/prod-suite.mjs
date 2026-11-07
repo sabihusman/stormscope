@@ -91,6 +91,7 @@ const SUITES = [
   { name: 'paths', script: 'paths-check.mjs' },
   { name: 'layout', script: 'layout-check.mjs' },
   { name: 'help', script: 'help-check.mjs' },
+  { name: 'freshness', script: 'freshness-check.mjs' },
   { name: 'monitor-service', script: 'monitor-service-check.mjs' },
   { name: 'nowmap', script: 'nowmap-check.mjs' },
   { name: 'polish', script: 'polish-check.mjs' },
