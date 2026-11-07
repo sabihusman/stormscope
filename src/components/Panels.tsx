@@ -414,6 +414,9 @@ export function SourcesPanel() {
   const blocks = useVisibleBlocks()
   const rivers = useApp((s) => s.rivers)
   const station = useApp((s) => s.station)
+  const alerts = useApp((s) => s.alerts)
+  const conditions = useApp((s) => s.conditions)
+  const monitorsNear = useApp((s) => s.monitorsNear)
   const reduced = useReducedMotion()
   const now = useNow()
   // Block products are rolled up into one synthetic resource each.
@@ -437,6 +440,11 @@ export function SourcesPanel() {
     { name: 'Flood risk', r: roll((b) => b.flood, 'Derived: rain + terrain + NHD', 'https://registry.opendata.aws/terrain-tiles/') },
     { name: 'River gauges', r: rivers, cadence: REFRESH.rivers },
     { name: 'Station', r: station, cadence: REFRESH.station },
+    // What Now shows besides the station and gauges, so the status row's "everything on Now checked within …" can
+    // be checked here, row by row.
+    { name: 'NWS alerts', r: alerts, cadence: REFRESH.alerts },
+    { name: 'Forecast for the place (Now)', r: conditions, cadence: REFRESH.conditions },
+    { name: 'Air monitors near the place', r: monitorsNear, cadence: REFRESH.monitorsNear },
   ]
   return (
     <div className="panel">

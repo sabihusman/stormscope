@@ -3402,3 +3402,49 @@ small {
 .app.narrow .help-link {
   min-height: 44px;
 }
+
+/* The status row at the top of Now: NWS alerts and when everything on Now was checked, one tap to Sources &
+   freshness (Nov 6 audit: it was a line of small text). With active alerts it follows the alert cards. */
+.now-card.status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.status-row .status-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 15px;
+  background: rgba(148, 163, 184, 0.15);
+}
+.status-row.ok .status-icon {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+/* "warn", not "alert": .now-card.alert is the alert cards' own (padding 0). */
+.status-row.warn .status-icon {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+}
+.status-row .status-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.status-row .status-main strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.status-row .status-checked {
+  font-size: 12px;
+}
