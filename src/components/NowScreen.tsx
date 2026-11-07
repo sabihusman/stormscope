@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNow, useOnline, useWide } from '../hooks/useMisc'
+import { useNowSources } from '../hooks/useFreshness'
+import { nowCheckedLine } from '../lib/freshness'
 import { useHorizontalScroll } from '../hooks/useHorizontalScroll'
 import { haversine } from '../lib/geo'
 import { AIRNOW_CREDIT, isServiceNotConfigured, type MonitorParameter } from '../api/airnow'
@@ -112,21 +114,40 @@ const SLOW_LOAD_MS = 10_000
 
 const SEV_CLASS: Record<NwsAlert['severity'], string> = { Extreme: 'sev-extreme', Severe: 'sev-severe', Moderate: 'sev-moderate', Minor: 'sev-minor', Unknown: 'sev-minor' }
 
+/**
+ * The status row at the top of Now (Nov 6 audit: "No active NWS alerts · checked 2 min ago" was a line of small
+ * text): what NWS says, when it was checked, and when everything else on Now was — the oldest of their checks, so
+ * no card below shows an older one. A tap opens Sources & freshness, which lists each of them with its own time.
+ */
+function StatusRow({ icon, title, tone, busy = false }: { icon: string; title: string; tone: 'ok' | 'quiet' | 'warn'; busy?: boolean }) {
+  const now = useNow()
+  const line = nowCheckedLine(useNowSources(), now)
+  return (
+    <button type="button" className={`card now-card alerts status-row ${tone}`} onClick={() => go('more', 'settings')} aria-busy={busy || undefined} aria-label={`${title}${line ? `. ${line}` : ''}. Open sources and freshness`}>
+      <span className="status-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="status-main">
+        <strong>{title}</strong>
+        {line && <small className="muted status-checked">{line}</small>}
+      </span>
+      <span className="muted" aria-hidden="true">
+        ›
+      </span>
+    </button>
+  )
+}
+
 function AlertsCard() {
   const r = useApp((s) => s.alerts)
   const now = useNow()
   const retry = () => store.set((x) => ({ refreshNonce: x.refreshNonce + 1 }))
-  if (r.state === 'loading' && !r.data) return <div className="card now-card alerts quiet" aria-busy="true">Checking NWS alerts…</div>
+  if (r.state === 'loading' && !r.data) return <StatusRow icon="…" title="Checking NWS alerts…" tone="quiet" busy />
   if (!r.data) return <div className="card now-card alerts err">Alerts unavailable — {r.error ?? 'not loaded'} <button className="btn small" onClick={retry}>Retry</button></div>
-  if (r.data.coverage === 'outside-us') return <div className="card now-card alerts quiet">Alerts unavailable outside the US (NWS covers US territory only)</div>
+  if (r.data.coverage === 'outside-us') return <StatusRow icon="ℹ" title="Alerts unavailable outside the US (NWS covers US territory only)" tone="quiet" />
   const list = r.data.alerts
-  if (!list.length)
-    return (
-      <div className="card now-card alerts quiet">
-        No active NWS alerts for this place · checked {timeAgo(r.freshness?.fetchedAt, now)}
-        {r.error ? ` · last refresh failed: ${r.error}` : ''}
-      </div>
-    )
+  const checked = `checked ${timeAgo(r.freshness?.fetchedAt, now)}${r.error ? ` · last refresh failed: ${r.error}` : ''}`
+  if (!list.length) return <StatusRow icon="✓" title={`No active NWS alerts · ${checked}`} tone="ok" />
   return (
     <div className="now-alerts" role="region" aria-label="Active alerts">
       {list.slice(0, 3).map((a) => (
@@ -149,7 +170,7 @@ function AlertsCard() {
         </details>
       ))}
       {list.length > 3 && <small className="muted">+{list.length - 3} more active products</small>}
-      <small className="muted">NWS · checked {timeAgo(r.freshness?.fetchedAt, now)}</small>
+      <StatusRow icon="⚠" title={`${list.length} active NWS alert${list.length === 1 ? '' : 's'} · ${checked}`} tone="warn" />
     </div>
   )
 }
