@@ -24,13 +24,19 @@ export function checkedSummary(sources: CheckedSource[]): CheckedSummary {
 }
 
 /**
- * "within the last 4 min" (or "just now") for the oldest check — `timeAgo`'s own rounding, which only grows with age,
- * so a newer card's "N min ago" (read from the same shared clock) is never more than this. Null when nothing has data.
+ * "within the last 5 min" (or "just now") for the oldest check, rounded UP: 4 min 20 s is "within the last 5 min",
+ * a true bound. A card's own `timeAgo` rounds to the nearest, and nearest(a) ≤ up(a) ≤ up(oldest) for any age a up
+ * to the oldest, so no card on the same shared clock reads more than this. Null when nothing has data.
  */
 export function withinText(oldest: number | null, now: number): string | null {
   if (!oldest) return null
-  const ago = timeAgo(oldest, now)
-  return ago === 'just now' ? 'just now' : `within the last ${ago.replace(/ ago$/, '')}`
+  const s = Math.max(0, Math.round((now - oldest) / 1000))
+  if (s < 10) return timeAgo(oldest, now) // "just now", the same cut-off as the cards
+  const m = Math.ceil(s / 60)
+  if (m <= 1) return 'within the last minute'
+  if (m < 60) return `within the last ${m} min`
+  const h = Math.ceil(m / 60)
+  return h < 48 ? `within the last ${h} h` : `within the last ${Math.ceil(h / 24)} d`
 }
 
 /** "Everything on Now checked within the last 4 min" (+ "· gauges: last refresh failed"), or null before any data. */
