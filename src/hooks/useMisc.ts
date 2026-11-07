@@ -53,13 +53,42 @@ export function useDesktop(): boolean {
 }
 
 /** Ticks every `ms` so "updated X ago" labels stay honest. */
+/**
+ * One clock per interval, shared by every component that shows an age ("checked 4 min ago"): they all read the same
+ * "now", so the status row's "everything on Now checked within the last 4 min" and a card's own "5 min ago" can never
+ * come from clocks up to an interval apart. The timer runs only while something listens.
+ */
+const clocks = new Map<number, { now: number; subs: Set<() => void>; timer: number }>()
+function clock(ms: number) {
+  let c = clocks.get(ms)
+  if (!c) {
+    c = { now: Date.now(), subs: new Set(), timer: 0 }
+    clocks.set(ms, c)
+  }
+  return c
+}
+function subscribeClock(ms: number, cb: () => void) {
+  const c = clock(ms)
+  if (!c.subs.size) {
+    // Restarting after a pause: catch up first (React re-reads the snapshot after subscribing).
+    c.now = Date.now()
+    c.timer = window.setInterval(() => {
+      c.now = Date.now()
+      c.subs.forEach((f) => f())
+    }, ms)
+  }
+  c.subs.add(cb)
+  return () => {
+    c.subs.delete(cb)
+    if (!c.subs.size) window.clearInterval(c.timer)
+  }
+}
 export function useNow(ms = 15_000): number {
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), ms)
-    return () => clearInterval(t)
-  }, [ms])
-  return now
+  return useSyncExternalStore(
+    (cb) => subscribeClock(ms, cb),
+    () => clock(ms).now,
+    () => clock(ms).now,
+  )
 }
 
 export function useDebouncedValue<T>(value: T, ms: number): T {
