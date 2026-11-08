@@ -11,6 +11,7 @@ import { compass } from '../map/StationLayer'
 import { openMonitor, siteStyle } from '../map/MonitorSitesLayer'
 import { aqiCategory } from '../lib/aqi'
 import { go, setJourneyTo, setPlace, store, useApp, useVisibleBlocks, type Selection } from '../state/store'
+import type { PlaceForecast } from '../types'
 import { gaugeLines } from '../map/RiversLayer'
 
 /** A gauge selection redrawn from the current gauge list (one source for the list, the map and the sheet). */
@@ -193,7 +194,7 @@ function relativeToPlace(place: { name: string; lngLat: { lng: number; lat: numb
 }
 
 /** The sheet's actions, under the title (at half height they were below the fold, behind the nav: Nov 6 audit). */
-function PointActions({ sel, isPoint }: { sel: Selection; isPoint: boolean }) {
+function PointActions({ sel, isPoint }: Readonly<{ sel: Selection; isPoint: boolean }>) {
   return (
     <div className="popup-actions">
       <button className="btn small" onClick={() => setPlace({ name: 'Map point', lngLat: sel.lngLat, source: 'map' })}>
@@ -218,6 +219,48 @@ function PointActions({ sel, isPoint }: { sel: Selection; isPoint: boolean }) {
         </button>
       )}
     </div>
+  )
+}
+
+/** The sheet's 24 h strip: the point's own hourly forecast when it has loaded, else the forecast grid's rain at the point. */
+function PointStrip({ hours, sample, rain24, modelTime, now }: Readonly<{ hours: PlaceForecast['hourly'] | null; sample: ReturnType<typeof sampleBlocks> | null; rain24: number | undefined; modelTime: number | undefined; now: number }>) {
+  const units = useApp((s) => s.units)
+  if (hours)
+    return (
+      <>
+        <h4 className="strip-title">Next 24 h · rain {U.precip(rain24 ?? 0, units)}</h4>
+        <ol className="hour-strip" aria-label="Hourly forecast at this point">
+          {hours.map((x, i) => {
+            const hw = wmo(x.code, x.isDay)
+            return (
+              <li key={x.time} className={(x.precipMm ?? 0) >= 0.1 ? 'wet' : ''}>
+                <span className="hour-t">{i === 0 ? 'Now' : clock(x.time).replace(/:00/, '')}</span>
+                <span className="hour-i" aria-hidden="true">
+                  {hw.icon}
+                </span>
+                <span className="hour-temp">{U.temp(x.tempC, units)}</span>
+                <span className="hour-p muted">{x.precipMm && x.precipMm >= 0.1 ? U.precip(x.precipMm, units, 1) : ''}</span>
+              </li>
+            )
+          })}
+        </ol>
+        <small className="muted">Open-Meteo model for this point · model hour {clock(modelTime!)}</small>
+      </>
+    )
+  if (!sample) return null
+  return (
+    <>
+      <h4 className="strip-title">Rain, next 24 h · {U.precip(sample.rain24Mm, units)}</h4>
+      <ol className="hour-strip rain" aria-label="Hourly rain at this point">
+        {sample.hourly.map((x, i) => (
+          <li key={x.time} className={x.precipMm >= 0.1 ? 'wet' : ''}>
+            <span className="hour-t">{i === 0 ? 'Now' : clock(x.time).replace(/:00/, '')}</span>
+            <span className="hour-temp">{x.precipMm >= 0.05 ? U.precip(x.precipMm, units, 1).replace(/ (in|mm)$/, '') : '·'}</span>
+          </li>
+        ))}
+      </ol>
+      <small className="muted">Open-Meteo forecast grid · updated {timeAgo(sample.fetchedAt, now)}</small>
+    </>
   )
 }
 
@@ -274,40 +317,7 @@ export function PointDetails() {
       )}
       {!c && pf.loading && <div className="skeleton tall w60" />}
       {!c && pf.error && <p className="err-text">Conditions unavailable — {pf.error}</p>}
-      {hours ? (
-        <>
-          <h4 className="strip-title">Next 24 h · rain {U.precip(rain24 ?? 0, units)}</h4>
-          <ol className="hour-strip" aria-label="Hourly forecast at this point">
-            {hours.map((x, i) => {
-              const hw = wmo(x.code, x.isDay)
-              return (
-                <li key={x.time} className={(x.precipMm ?? 0) >= 0.1 ? 'wet' : ''}>
-                  <span className="hour-t">{i === 0 ? 'Now' : clock(x.time).replace(/:00/, '')}</span>
-                  <span className="hour-i" aria-hidden="true">
-                    {hw.icon}
-                  </span>
-                  <span className="hour-temp">{U.temp(x.tempC, units)}</span>
-                  <span className="hour-p muted">{x.precipMm && x.precipMm >= 0.1 ? U.precip(x.precipMm, units, 1) : ''}</span>
-                </li>
-              )
-            })}
-          </ol>
-          <small className="muted">Open-Meteo model for this point · model hour {clock(pf.data!.current.time)}</small>
-        </>
-      ) : sample ? (
-        <>
-          <h4 className="strip-title">Rain, next 24 h · {U.precip(sample.rain24Mm, units)}</h4>
-          <ol className="hour-strip rain" aria-label="Hourly rain at this point">
-            {sample.hourly.map((x, i) => (
-              <li key={x.time} className={x.precipMm >= 0.1 ? 'wet' : ''}>
-                <span className="hour-t">{i === 0 ? 'Now' : clock(x.time).replace(/:00/, '')}</span>
-                <span className="hour-temp">{x.precipMm >= 0.05 ? U.precip(x.precipMm, units, 1).replace(/ (in|mm)$/, '') : '·'}</span>
-              </li>
-            ))}
-          </ol>
-          <small className="muted">Open-Meteo forecast grid · updated {timeAgo(sample.fetchedAt, now)}</small>
-        </>
-      ) : null}
+      <PointStrip hours={hours} sample={sample} rain24={rain24} modelTime={pf.data?.current.time} now={now} />
       {(sel.source || sel.updated) && (
         <small className="muted">
           {sel.source ? `Source: ${sel.source}` : ''}

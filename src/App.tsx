@@ -88,6 +88,31 @@ function appClassName(o: { toast: boolean; screen: string; sheet: string; fabCor
   return ['app', ...on.filter(([x]) => x).map(([, c]) => c)].join(' ')
 }
 
+/** Keyboard: Escape closes every open panel (the arrow keys already scrub the focused playback slider); with no
+ * floating panel to close, it closes the desktop dock (Trip / More) back to Now. */
+function useEscapeCloses(dockOpen: boolean) {
+  const dockRef = useRef(dockOpen)
+  dockRef.current = dockOpen
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const s = store.get()
+      const hadPanel = s.pickerOpen || s.creditsOpen || !!s.dotChooser || s.legendOpen || s.helpTopic != null
+      closeAllPanels()
+      if (!hadPanel && dockRef.current) go('now')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+}
+
+/** The location prompt shows with no place while asking, locating or after a failed attempt — not over the picker or a pick on the map. */
+const PROMPT_STATUSES = new Set(['prompt', 'locating', 'denied', 'timeout', 'unavailable'])
+function needsPlacePrompt(hasPlace: boolean, askPlace: boolean, geoStatus: string, picking: boolean): boolean {
+  if (hasPlace || picking) return false
+  return askPlace || PROMPT_STATUSES.has(geoStatus)
+}
+
 export default function App() {
   const geo = useGeolocation()
   const t = useApp((s) => s.toast)
@@ -148,24 +173,11 @@ export default function App() {
 
   // Phones: the expanded playback bar lifts the layers button above it (CSS .playbar-open).
   const playbarExpanded = useApp((s) => s.playbarExpanded)
-  // Keyboard: Escape closes every open panel (the arrow keys already scrub the focused playback slider).
-  const dockRef = useRef(dockOpen)
-  dockRef.current = dockOpen
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      const hadPanel = store.get().pickerOpen || store.get().creditsOpen || !!store.get().dotChooser || store.get().legendOpen || store.get().helpTopic != null
-      closeAllPanels()
-      // With no floating panel to close, Escape closes the desktop dock (Trip / More) back to Now.
-      if (!hadPanel && dockRef.current) go('now')
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  useEscapeCloses(dockOpen)
   // Wide layouts: the content column folds away for a full-map view.
   const columnCollapsed = useApp((s) => s.columnCollapsed)
   const askPlace = useApp((s) => s.askPlace)
-  const showPrompt = !place && (askPlace || geo.status === 'prompt' || geo.status === 'locating' || geo.status === 'denied' || geo.status === 'timeout' || geo.status === 'unavailable') && !pickerOpen && !pickMode
+  const showPrompt = needsPlacePrompt(!!place, askPlace, geo.status, pickerOpen || pickMode)
 
   const confirmPick = () => {
     const m = (window as unknown as { __map?: { getCenter: () => { lng: number; lat: number } } }).__map
