@@ -611,7 +611,11 @@ export function startPickOnMap() {
   store.set((s) => ({ pickMode: true, pickReturn: s.screen === 'map' ? 'now' : s.screen, screen: 'map', pickerOpen: false, selection: null, fullPeek: isFull(s) ? s.fullPeek : 'pick' }))
 }
 export function endPickOnMap(cancel: boolean) {
-  store.set((s) => ({ pickMode: false, screen: cancel ? s.pickReturn : s.pickReturn === 'map' ? 'now' : s.pickReturn, fullPeek: s.fullPeek === 'pick' ? false : s.fullPeek }))
+  store.set((s) => {
+    // Cancel goes back where the pick started; a confirmed pick never lands on the map it was picked from.
+    const back: Screen = !cancel && s.pickReturn === 'map' ? 'now' : s.pickReturn
+    return { pickMode: false, screen: back, fullPeek: s.fullPeek === 'pick' ? false : s.fullPeek }
+  })
 }
 export function setDeparture(ms: number | null) {
   store.set((s) => ({ journey: { ...s.journey, departure: ms } }))
