@@ -1,5 +1,6 @@
 // Headless walkthrough of the app: grants a mock location, enables every layer,
 // opens each panel, and screenshots along the way. Reports console errors.
+import { startInMode } from './lib/mode.mjs'
 import { chromium } from 'playwright'
 import { assertBudget, trackOpenMeteo } from './lib/qa-budget.mjs'
 assertBudget('e2e.mjs')
@@ -18,6 +19,7 @@ const ctx = await browser.newContext({
   geolocation: { latitude: 39.9526, longitude: -75.1652 }, // Philadelphia (US: NWS + USGS + NHD coverage)
   permissions: ['geolocation'],
 })
+await startInMode(ctx, 'full')
 const page = await ctx.newPage()
 const __recordBudget = trackOpenMeteo(page, 'e2e.mjs')
 const errors = []

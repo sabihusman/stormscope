@@ -7,6 +7,7 @@
 //
 // Run against the dev server (no service worker in the way) with `?live=1`, which makes the
 // app ignore any cache already recorded.
+import { startInMode } from './lib/mode.mjs'
 import { chromium } from 'playwright'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
@@ -23,6 +24,7 @@ for (const sc of index) {
   if (only && !only.includes(sc.id)) continue
   const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } })
   await ctx.addInitScript(() => { try { localStorage.setItem('stormscope.layers', JSON.stringify({ radar: false, satellite: false, rainfall: false, flood: false, rivers: false, station: false, nowcast: false })) } catch {} })
+  await startInMode(ctx, 'full')
   const page = await ctx.newPage()
   const done = trackTraffic(page, `record-replays.mjs ${sc.id}`)
   let weather = null

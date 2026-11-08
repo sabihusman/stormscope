@@ -4,6 +4,7 @@
 // terrain + rain only. Extracted from qa.mjs so the release pass can run just this part live.
 // Cost: one place (1 Open-Meteo location + 1 block for the Flood page), one geocoder query, a few NWS 404s.
 //   node scripts/nonus-check.mjs [base-url] [shots-dir]
+import { startInMode } from './lib/mode.mjs'
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { assertBudget, trackTraffic } from './lib/qa-budget.mjs'
@@ -27,6 +28,7 @@ const check = (name, ok, ev = '') => {
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 // No geolocation grant: the search is the first place, so nothing is fetched for a US place first.
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+await startInMode(ctx, 'full')
 const page = await ctx.newPage()
 const done = trackTraffic(page, 'nonus-check.mjs')
 await page.goto(BASE, { waitUntil: 'load' })

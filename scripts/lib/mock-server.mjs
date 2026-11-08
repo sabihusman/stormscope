@@ -8,6 +8,7 @@
 // tiles, terrain, GIBS) cannot be faked without changing MapLibre's work, so they come from a
 // Playwright HAR: `record: true` captures them live ONCE (through the budget guard), afterwards
 // they replay with `notFound: 'abort'` — nothing leaves the machine.
+import { startInMode } from './mode.mjs'
 import { readFileSync, existsSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
 import { sitesFromRecords } from '../../api/_lib/airnow.js'
@@ -528,8 +529,10 @@ function terrainTile() {
  * Install the mocks on a Playwright context. `focus` is the geolocation the session uses.
  * Returns { live: string[] } — URLs that fell through to the network (should stay empty in replay).
  */
-export async function installMocks(context, { har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], failStatus = 429, alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false, noMonitors = false, now = null, clockTest = false, editForecast = null, trustFixtures = false } = {}) {
+export async function installMocks(context, { mode = 'full', har = null, record = false, focus = { lat: 41.673, lng: -93.698 }, failHosts = [], failStatus = 429, alerts = [], liveTiles = false, delayHosts = {}, timezone = 'GMT', omitDaily = false, noMonitors = false, now = null, clockTest = false, editForecast = null, trustFixtures = false } = {}) {
   TRUST.on = trustFixtures
+  // mode: 'full' (the default here: the suites before Lite drive Full), 'lite', or null for the app's own default.
+  await startInMode(context, mode)
   // Marks the context as mocked: trackTraffic() refuses to start after this (see qa-budget.mjs).
   ;(globalThis.__qaMockedContexts ??= new WeakSet()).add(context)
   const live = []
