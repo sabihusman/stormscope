@@ -58,7 +58,7 @@ async function openApp({ viewport = { width: 390, height: 844 }, mode = null } =
   const t0 = Date.now()
   await page.goto(BASE, { waitUntil: 'load' })
   await allowLocation(page)
-  await page.waitForFunction(() => { const s = window.__store?.get(); return s && s.conditions.state === 'ready' && s.alerts.state === 'ready' && s.station.state === 'ready' }, null, { timeout: 30000 })
+  await page.waitForFunction(() => { const s = window.__store?.get(); return s?.conditions.state === 'ready' && s.alerts.state === 'ready' && s.station.state === 'ready' }, null, { timeout: 30000 })
   await page.locator('.cond-temp').first().waitFor({ timeout: 15000 })
   const toTemp = Date.now() - t0
   return { ctx, page, done, net, t0, toTemp }
@@ -144,6 +144,15 @@ let liteOpen, fullOpen
   const back = await until(page, () => !window.__map && !document.querySelector('.map-root') && !!document.querySelector('.lite-home'), 5000)
   check('"Back to Lite" unmounts the map and returns to the Lite home', back)
 
+  const mapBtn = page.getByRole('button', { name: /^Open full map/ })
+  const tag = await mapBtn.evaluate((b) => b.tagName)
+  await mapBtn.click()
+  const mapLook = await until(page, () => !!window.__map && window.__store.get().screen === 'map' && window.__store.get().fullPeek === 'look', 10000)
+  check('The small map is a real <button>; tapping it opens Full\'s map as a one-time look', tag === 'BUTTON' && mapLook, tag)
+  await page.getByRole('button', { name: /^Now/ }).click()
+  await page.getByRole('button', { name: 'Back to Lite' }).click()
+  await until(page, () => !!document.querySelector('.lite-home'), 5000)
+
   await page.getByRole('button', { name: 'Map', exact: true }).click()
   const navLook = await until(page, () => !!window.__map && window.__store.get().screen === 'map' && window.__store.get().fullPeek === 'look', 10000)
   check("The nav's Map in Lite opens Full's map as a one-time look (mode still Lite)", navLook && (await page.evaluate(() => window.__store.get().mode)) === 'lite')
@@ -154,7 +163,7 @@ let liteOpen, fullOpen
   // ---------- 5. Settings > Mode ----------
   await openMore(page, 'Sources, freshness & settings')
   const radios = await page.locator('.mode-option').evaluateAll((bs) => bs.map((b) => ({ id: b.dataset.mode, checked: b.getAttribute('aria-checked'), text: b.innerText, h: Math.round(b.getBoundingClientRect().height) })))
-  check('Settings > Mode: two options, "Lite (default)" checked, "Full" not, each ≥ 44 px', radios.length === 2 && radios[0].checked === 'true' && /Lite \(default\)/.test(radios[0].text) && radios[1].checked === 'false' && /^Full/.test(radios[1].text) && radios.every((r) => r.h >= 44), radios)
+  check('Settings > Mode: two options, "Lite (default)" checked, "Full" not, each ≥ 44 px', radios.length === 2 && radios[0].checked === 'true' && /Lite \(default\)/.test(radios[0].text) && radios[1].checked === 'false' && radios[1].text.startsWith('Full') && radios.every((r) => r.h >= 44), radios)
   await page.screenshot({ path: `${OUT}/lite-settings.png` })
   const tFull = Date.now()
   await page.getByRole('radio', { name: /^Full/ }).click()
