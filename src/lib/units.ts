@@ -53,7 +53,7 @@ export const U = {
   precipLabel: (mm: number, u: Units) => {
     if (u === 'metric') return `${mm}`
     const inch = mm / 25.4
-    return inch < 0.1 ? inch.toFixed(2) : inch < 1 ? inch.toFixed(1) : inch.toFixed(1)
+    return inch < 0.1 ? inch.toFixed(2) : inch.toFixed(1)
   },
 
   /** Distances from metres. */
