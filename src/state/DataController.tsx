@@ -23,8 +23,8 @@ import { floodKeyFor } from '../lib/floodHere'
 import { usePolling } from '../hooks/usePolling'
 import { useWide } from '../hooks/useMisc'
 import { geoWorker } from '../workers/client'
-import { applyImageryCarry, emptyResource, isFull, nearestFrame, newBlock, patchJourney, setResource, store, toast, updateBlock, useApp, type Block } from './store'
-import type { AlertsData, Resource, RiverGauge } from '../types'
+import { applyImageryCarry, emptyResource, isFull, nearestFrame, newBlock, patchJourney, setResource, store, toast, updateBlock, useApp, type Block, type LiteBlock, type MorePage, type Screen } from './store'
+import type { AlertsData, HourlyGrid, Resource, RiverGauge } from '../types'
 
 // Refresh cadences (ms).
 export const REFRESH = {
@@ -275,6 +275,24 @@ async function loadRivers(at: LngLat, tier: RiversTier, nwpsList?: NwpsGaugeSumm
   return { resource: ready(byDistance(gauges.values()), sourceLabel, `${USGS_OGC} · ${NWPS_URL}`), nwps }
 }
 
+/** A derived product needs computing: it has none yet, or it was computed before `at` (an older grid / drainage). */
+const olderThan = (r: Resource<unknown>, at: number) => !r.data || (r.freshness?.fetchedAt ?? 0) < at
+
+/**
+ * The gauge tier anything on screen needs: the full tier on the Rivers page; in Full, the summary tier while the Now
+ * tile is on screen or the map's rivers layer is visible; in Lite, the full tier once Rivers is loaded from the More
+ * row (the Lite home shows the Rivers page's list); otherwise none — a place change by itself costs no gauge request.
+ */
+export function riversTierFor(o: { screen: Screen; morePage: MorePage | null; full: boolean; wide: boolean; tileVisible: boolean; layerOn: boolean; liteLoaded: boolean }): RiversTier | null {
+  if (o.screen === 'more' && o.morePage === 'rivers') return 'full'
+  if (!o.full) return o.screen === 'now' && o.liteLoaded ? 'full' : null
+  if (o.screen === 'now' && o.tileVisible) return 'summary'
+  return (o.screen === 'map' || o.wide) && o.layerOn ? 'summary' : null
+}
+
+/** The nearby air monitors: always in Full; in Lite only once Air quality is loaded from the More row. */
+const nearMonitorsWanted = (full: boolean, liteLoaded: Record<LiteBlock, boolean>) => full || liteLoaded.air
+
 /** Headless component: owns every fetch, cadence and worker job. */
 export function DataController() {
   const place = useApp((s) => s.place)
@@ -481,6 +499,87 @@ export function DataController() {
     schedulePump()
   }
 
+  /** Start one worker job unless one with the same tag is in flight; it joins `jobs` and frees its tag when done. */
+  const runOnce = (tag: string, jobs: Promise<unknown>[], begin: () => void, job: () => Promise<unknown>) => {
+    if (inflight.current.has(tag)) return
+    inflight.current.add(tag)
+    begin()
+    jobs.push(job().finally(() => inflight.current.delete(tag)))
+  }
+
+  const deriveRain = (key: string, grid: HourlyGrid, jobs: Promise<unknown>[]) =>
+    runOnce(
+      `${key}:rain`,
+      jobs,
+      () => updateBlock(key, (cur) => ({ rainCells: loading(cur.rainCells) })),
+      () =>
+        geoWorker
+          .rainfallCells(grid)
+          .then((r) => queueBlockPatch(key, { rainCells: ready(r, 'Open-Meteo (hourly precipitation)', OPEN_METEO_URL, grid.times[0]) }))
+          .catch((e) => updateBlock(key, (cur) => ({ rainCells: failed(cur.rainCells, e) }))),
+    )
+
+  const deriveNowcast = (key: string, b: Block, grid: HourlyGrid, t0: number, gridAt: number, jobs: Promise<unknown>[]) => {
+    if (!t0 || (b.nowcast.data?.t0 === t0 && !olderThan(b.nowcast, gridAt))) return
+    runOnce(
+      `${key}:nowcast`,
+      jobs,
+      () => updateBlock(key, (cur) => ({ nowcast: loading(cur.nowcast) })),
+      () =>
+        geoWorker
+          .nowcast(grid, NOWCAST_N, t0)
+          .then((r) => queueBlockPatch(key, { nowcast: ready(r, 'Open-Meteo hourly wind/cloud/precip, advected in-app', OPEN_METEO_URL, r.generatedAt) }))
+          .catch((e) => updateBlock(key, (cur) => ({ nowcast: failed(cur.nowcast, e) }))),
+    )
+  }
+
+  // While the drainage data is still loading (a live NHD query took 12–31 s), a quick rain-only pass (model
+  // elevation, no terrain tiles, no drainage) shows the level at once, marked preliminary; the full pass replaces it.
+  const floodQuickPass = async (key: string, b: Block, grid: HourlyGrid, horizon: number, gridAt: number) => {
+    const pre = store.get().blocks[key]
+    if (pre?.flowlines.state !== 'loading') return
+    if (pre.flood.data?.horizonHours === horizon && !olderThan(pre.flood, gridAt)) return
+    const qtag = `${key}:flood-quick`
+    if (inflight.current.has(qtag)) return
+    inflight.current.add(qtag)
+    updateBlock(key, (c) => ({ flood: loading(c.flood) }))
+    await geoWorker
+      .flood(grid, null, horizon, FLOOD_N[b.id.level], TERRAIN_Z[b.id.level], false)
+      .then((r) => {
+        // Only while the full pass has not landed meanwhile.
+        if (store.get().blocks[key]?.flowlines.state === 'loading') updateBlock(key, { flood: ready({ ...r, preliminary: true }, 'Derived: Open-Meteo rain + model elevation (quick pass, refining)', OPEN_METEO_URL, r.computedAt) })
+      })
+      .catch(() => {})
+      .finally(() => inflight.current.delete(qtag))
+  }
+
+  /** The full pass, once the drainage data is in (or failed): rain + terrain + drainage. */
+  const floodFullPass = (key: string, b: Block, grid: HourlyGrid, horizon: number, gridAt: number, jobs: Promise<unknown>[]) => {
+    const cur = store.get().blocks[key]
+    const fl = cur?.flowlines
+    if (!cur || !fl || fl.state === 'loading') return
+    const d = cur.flood.data
+    const needs = !!d?.preliminary || d?.horizonHours !== horizon || olderThan(cur.flood, Math.max(gridAt, fl.freshness?.fetchedAt ?? 0))
+    if (!needs) return
+    runOnce(
+      `${key}:flood`,
+      jobs,
+      () => updateBlock(key, (c) => ({ flood: loading(c.flood) })),
+      () =>
+        geoWorker
+          .flood(grid, fl.data?.lines ?? null, horizon, FLOOD_N[b.id.level], TERRAIN_Z[b.id.level])
+          .then((r) => queueBlockPatch(key, { flood: ready(r, 'Derived: Open-Meteo rain + AWS terrain + USGS NHD', 'https://registry.opendata.aws/terrain-tiles/', r.computedAt) }))
+          .catch((e) => updateBlock(key, (c) => ({ flood: failed(c.flood, e) }))),
+    )
+  }
+
+  const deriveFlood = async (key: string, b: Block, grid: HourlyGrid, horizon: number, gridAt: number, jobs: Promise<unknown>[]) => {
+    const flowlinesDone = ensureFlowlines(b)
+    await floodQuickPass(key, b, grid, horizon, gridAt)
+    await flowlinesDone
+    floodFullPass(key, b, grid, horizon, gridAt, jobs)
+  }
+
   const deriveBlock = async (key: string) => {
     const s = store.get()
     const b = s.blocks[key]
@@ -490,87 +589,9 @@ export function DataController() {
     const lv = isFull(s)
     const gridAt = b.grid.freshness?.fetchedAt ?? 0
     const jobs: Promise<unknown>[] = []
-
-    if (lv && s.layers.rainfall && (!b.rainCells.data || (b.rainCells.freshness?.fetchedAt ?? 0) < gridAt)) {
-      const tag = `${key}:rain`
-      if (!inflight.current.has(tag)) {
-        inflight.current.add(tag)
-        updateBlock(key, (cur) => ({ rainCells: loading(cur.rainCells) }))
-        jobs.push(
-          geoWorker
-            .rainfallCells(grid)
-            .then((r) => queueBlockPatch(key, { rainCells: ready(r, 'Open-Meteo (hourly precipitation)', OPEN_METEO_URL, grid.times[0]) }))
-            .catch((e) => updateBlock(key, (cur) => ({ rainCells: failed(cur.rainCells, e) })))
-            .finally(() => inflight.current.delete(tag)),
-        )
-      }
-    }
-
-    if (lv && s.layers.nowcast) {
-      const t0 = s.nowcastT0
-      if (t0 && (!b.nowcast.data || b.nowcast.data.t0 !== t0 || (b.nowcast.freshness?.fetchedAt ?? 0) < gridAt)) {
-        const tag = `${key}:nowcast`
-        if (!inflight.current.has(tag)) {
-          inflight.current.add(tag)
-          updateBlock(key, (cur) => ({ nowcast: loading(cur.nowcast) }))
-          jobs.push(
-            geoWorker
-              .nowcast(grid, NOWCAST_N, t0)
-              .then((r) => queueBlockPatch(key, { nowcast: ready(r, 'Open-Meteo hourly wind/cloud/precip, advected in-app', OPEN_METEO_URL, r.generatedAt) }))
-              .catch((e) => updateBlock(key, (cur) => ({ nowcast: failed(cur.nowcast, e) })))
-              .finally(() => inflight.current.delete(tag)),
-          )
-        }
-      }
-    }
-
-    if ((lv && s.layers.flood) || key === s.floodFor) {
-      const horizon = Math.min(s.rainHorizon, 48)
-      const flowlinesDone = ensureFlowlines(b)
-      // While the drainage data is still loading (a live NHD query took 12–31 s), a quick rain-only pass (model
-      // elevation, no terrain tiles, no drainage) shows the level at once, marked preliminary; the full pass replaces it.
-      const pre = store.get().blocks[key]
-      if (pre && pre.flowlines.state === 'loading' && (!pre.flood.data || pre.flood.data.horizonHours !== horizon || (pre.flood.freshness?.fetchedAt ?? 0) < gridAt)) {
-        const qtag = `${key}:flood-quick`
-        if (!inflight.current.has(qtag)) {
-          inflight.current.add(qtag)
-          updateBlock(key, (c) => ({ flood: loading(c.flood) }))
-          await geoWorker
-            .flood(grid, null, horizon, FLOOD_N[b.id.level], TERRAIN_Z[b.id.level], false)
-            .then((r) => {
-              // Only while the full pass has not landed meanwhile.
-              const now = store.get().blocks[key]
-              if (now && now.flowlines.state === 'loading') updateBlock(key, { flood: ready({ ...r, preliminary: true }, 'Derived: Open-Meteo rain + model elevation (quick pass, refining)', OPEN_METEO_URL, r.computedAt) })
-            })
-            .catch(() => {})
-            .finally(() => inflight.current.delete(qtag))
-        }
-      }
-      await flowlinesDone
-      const cur = store.get().blocks[key]
-      const fl = cur?.flowlines
-      if (cur && fl && fl.state !== 'loading') {
-        const flAt = fl.freshness?.fetchedAt ?? 0
-        const needs =
-          !cur.flood.data || cur.flood.data.preliminary || cur.flood.data.horizonHours !== horizon || (cur.flood.freshness?.fetchedAt ?? 0) < Math.max(gridAt, flAt)
-        const tag = `${key}:flood`
-        if (needs && !inflight.current.has(tag)) {
-          inflight.current.add(tag)
-          updateBlock(key, (c) => ({ flood: loading(c.flood) }))
-          jobs.push(
-            geoWorker
-              .flood(grid, fl.data?.lines ?? null, horizon, FLOOD_N[b.id.level], TERRAIN_Z[b.id.level])
-              .then((r) =>
-                queueBlockPatch(key, {
-                  flood: ready(r, 'Derived: Open-Meteo rain + AWS terrain + USGS NHD', 'https://registry.opendata.aws/terrain-tiles/', r.computedAt),
-                }),
-              )
-              .catch((e) => updateBlock(key, (c) => ({ flood: failed(c.flood, e) })))
-              .finally(() => inflight.current.delete(tag)),
-          )
-        }
-      }
-    }
+    if (lv && s.layers.rainfall && olderThan(b.rainCells, gridAt)) deriveRain(key, grid, jobs)
+    if (lv && s.layers.nowcast) deriveNowcast(key, b, grid, s.nowcastT0, gridAt, jobs)
+    if ((lv && s.layers.flood) || key === s.floodFor) await deriveFlood(key, b, grid, Math.min(s.rainHorizon, 48), gridAt, jobs)
     await Promise.all(jobs)
   }
 
@@ -882,17 +903,12 @@ export function DataController() {
     return () => clearInterval(t)
   }, [])
 
-  // ---- Rivers: loaded only while something shows gauges, cached per place ----
-  // Full tier on the Rivers page; summary tier while the Now tile is on screen or the map's rivers
-  // layer is visible; nothing otherwise — a place change by itself costs no gauge request. Lite: the full tier once
-  // Rivers is loaded from the More row (the Lite home shows the Rivers page's list), nothing before that tap.
+  // ---- Rivers: loaded only while something shows gauges (riversTierFor), cached per place ----
   const screen = useApp((s) => s.screen)
   const morePage = useApp((s) => s.morePage)
   const riversTileVisible = useApp((s) => s.riversTileVisible)
   const wide = useWide()
-  const fullNeed: RiversTier | null = (screen === 'now' && riversTileVisible) || ((screen === 'map' || wide) && layers.rivers) ? 'summary' : null
-  const liteNeed: RiversTier | null = screen === 'now' && liteLoaded.rivers ? 'full' : null
-  const riversNeed: RiversTier | null = screen === 'more' && morePage === 'rivers' ? 'full' : full ? fullNeed : liteNeed
+  const riversNeed = riversTierFor({ screen, morePage, full, wide, tileVisible: riversTileVisible, layerOn: layers.rivers, liteLoaded: liteLoaded.rivers })
   const riversCache = useRef(new Map<string, RiversCacheEntry>(loadSavedRivers()))
   const riversNonce = useRef(nonce)
   // A new place shows what is cached for it (or nothing) until something asks for gauges.
@@ -1035,8 +1051,7 @@ export function DataController() {
       }
     },
     REFRESH.monitorsNear,
-    // Lite: only once Air quality is loaded from the More row.
-    !!place && !replayActive && (full || liteLoaded.air),
+    !!place && !replayActive && nearMonitorsWanted(full, liteLoaded),
     [placeKey, nonce],
   )
 
