@@ -17,5 +17,5 @@ export const riskWord = (r: number) => {
 export function floodHere(flood: Resource<FloodResult> | undefined, at: LngLat): FloodCell | null {
   const cells = flood?.data?.cells ?? []
   if (!cells.length) return null
-  return cells.reduce((best, c) => (haversine(c.center, at) < haversine(best.center, at) ? c : best))
+  return cells.reduce((best, c) => (haversine(c.center, at) < haversine(best.center, at) ? c : best), cells[0])
 }
