@@ -17,7 +17,7 @@ import { HelpPanel } from './components/Help'
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
 import { DataController } from './state/DataController'
-import { closeAllPanels, endPickOnMap, go, installOnePanelRule, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
+import { closeAllPanels, endPickOnMap, go, installOnePanelRule, isFull, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
 import { useGeolocation } from './hooks/useGeolocation'
 import { useDesktop, useWide } from './hooks/useMisc'
 import { haversine } from './lib/geo'
@@ -31,6 +31,7 @@ import { PlaybackBar } from './components/PlaybackBar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Nav } from './components/Nav'
 import { NowScreen } from './components/NowScreen'
+import { LiteScreen } from './components/LiteScreen'
 import { TripScreen } from './components/TripScreen'
 import { MoreScreen } from './components/MoreScreen'
 import { PlacePicker } from './components/PlacePicker'
@@ -71,8 +72,9 @@ function useToastStrip(toast: unknown) {
 }
 
 /** The app root's classes: the screen, the sheet height, the layout and the open chrome, for the CSS to follow. */
-function appClassName(o: { toast: boolean; screen: string; sheet: string; fabCorner: string; fabCornerWide: string; wide: boolean; desk: boolean; dockOpen: boolean; pickMode: boolean; playbarExpanded: boolean; collapsed: boolean }) {
+function appClassName(o: { lite: boolean; toast: boolean; screen: string; sheet: string; fabCorner: string; fabCornerWide: string; wide: boolean; desk: boolean; dockOpen: boolean; pickMode: boolean; playbarExpanded: boolean; collapsed: boolean }) {
   const on: [boolean, string][] = [
+    [o.lite, 'lite'],
     [o.toast, 'has-toast'],
     [true, `screen-${o.screen}`],
     [true, `sheet-${o.sheet}`],
@@ -91,8 +93,10 @@ function appClassName(o: { toast: boolean; screen: string; sheet: string; fabCor
 export default function App() {
   const geo = useGeolocation()
   const t = useApp((s) => s.toast)
-  // Phones (the narrow layout): one panel at a time; the bottom sheet is exempt.
-  useEffect(() => installOnePanelRule(() => window.innerWidth < 768), [])
+  // Phones (the narrow layout, and Lite at any width): one panel at a time; the bottom sheet is exempt.
+  useEffect(() => installOnePanelRule(() => window.innerWidth < 768 || !isFull(store.get())), [])
+  // Lite: no map and none of its layers are mounted (no tiles, no radar); Full, or a one-time look at it, mounts them.
+  const full = useApp(isFull)
   const toastRef = useToastStrip(t)
   const place = useApp((s) => s.place)
   const sheet = useApp((s) => s.sheet)
@@ -177,8 +181,8 @@ export default function App() {
   }
 
   return (
-    <div className={appClassName({ toast: !!t, screen, sheet: hasSelection && screen === 'map' ? sheet : 'none', fabCorner, fabCornerWide, wide, desk, dockOpen, pickMode, playbarExpanded, collapsed: wide && columnCollapsed && (desk || screen !== 'map') })}>
-      <MapView>
+    <div className={appClassName({ lite: !full, toast: !!t, screen, sheet: hasSelection && screen === 'map' ? sheet : 'none', fabCorner, fabCornerWide, wide, desk, dockOpen, pickMode, playbarExpanded, collapsed: wide && columnCollapsed && (desk || screen !== 'map') })}>
+      {full && <MapView>
         {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
         <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
         <LayerGuard name="Radar" layer="radar"><RadarLayer /></LayerGuard>
@@ -196,11 +200,11 @@ export default function App() {
             <ErrorBoundary kind="layer" name="Route overlay"><RouteLayer /></ErrorBoundary>
           </Suspense>
         )}
-      </MapView>
+      </MapView>}
       <DataController />
 
       {/* Map screen chrome. On wide layouts the map is always visible, so its chrome stays too. */}
-      {(screen === 'map' || wide) && !pickMode && (
+      {full && (screen === 'map' || wide) && !pickMode && (
         <>
           <ErrorBoundary kind="panel" name="Search">
             <SearchBar onLocate={geo.request} locating={geo.status === 'locating'} />
@@ -211,7 +215,7 @@ export default function App() {
           <ErrorBoundary kind="panel" name="Credits"><CreditsPanel /></ErrorBoundary>
         </>
       )}
-      {screen === 'map' && !pickMode && (
+      {full && screen === 'map' && !pickMode && (
         <>
           <ErrorBoundary kind="panel" name="Point"><PointChip /></ErrorBoundary>
           <ErrorBoundary kind="panel" name="Monitor chooser"><MonitorChooser /></ErrorBoundary>
@@ -234,7 +238,7 @@ export default function App() {
 
       {(screen === 'now' || (desk && !pickMode)) && (
         <ErrorBoundary kind="panel" name="Now">
-          <NowScreen onLocate={geo.request} locating={geo.status === 'locating'} promptOpen={showPrompt} />
+          {full ? <NowScreen onLocate={geo.request} locating={geo.status === 'locating'} promptOpen={showPrompt} /> : <LiteScreen onLocate={geo.request} locating={geo.status === 'locating'} promptOpen={showPrompt} />}
         </ErrorBoundary>
       )}
       {dockOpen && (
