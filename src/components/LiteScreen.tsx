@@ -115,7 +115,7 @@ function LiteMap() {
   }, [place])
   const name = (label ?? place?.name ?? '').split(',')[0]
   return (
-    <div className={`now-map-window lite-map ${loaded ? '' : 'loading'}`} role="button" tabIndex={0} aria-label="Open full map (a one-time look at Full)" onClick={() => go('map')} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && go('map')}>
+    <div className={`now-map-window lite-map ${loaded ? '' : 'loading'}`}>
       <div ref={box} className="lite-map-canvas" aria-hidden="true" />
       <span className="lite-map-pin" aria-hidden="true" />
       {!loaded && (
@@ -125,7 +125,10 @@ function LiteMap() {
         </div>
       )}
       <small className="map-asof">{name ? `${name} · ` : ''}map only, no radar</small>
-      <span className="chip map-open">Open full map ›</span>
+      {/* The whole box is the button (a real one); the map's credits stay above it and tappable. */}
+      <button type="button" className="lite-map-open" aria-label="Open full map (a one-time look at Full)" onClick={() => go('map')}>
+        <span className="chip map-open">Open full map ›</span>
+      </button>
     </div>
   )
 }
