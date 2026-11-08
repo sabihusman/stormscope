@@ -80,12 +80,12 @@ function measuredWind(o: { windSpeedMs?: number | null; windDirDeg?: number | nu
 /** A one-time look at Full from Lite: says so, and goes back (the saved mode was never changed). */
 function PeekBanner() {
   return (
-    <div className="banner peek" role="status">
+    <output className="banner peek">
       <span>You're looking at Full once. Your mode is still Lite.</span>
       <button type="button" className="btn small" onClick={endFullLook}>
         Back to Lite
       </button>
-    </div>
+    </output>
   )
 }
 
@@ -103,7 +103,7 @@ export function UnitsChip() {
   )
 }
 
-export function NoPlace({ onLocate, locating }: Props) {
+export function NoPlace({ onLocate, locating }: Readonly<Props>) {
   return (
     <div className="card now-card">
       <h2>Where are you?</h2>
