@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { isFull, useApp } from '../state/store'
 
 const rmQuery = () => window.matchMedia('(prefers-reduced-motion: reduce)')
 export function useReducedMotion(): boolean {
@@ -28,16 +29,20 @@ export function useOnline(): boolean {
   )
 }
 
-/** ≥ 768 px: left rail + content column + always-visible map. */
+/**
+ * ≥ 768 px in Full: left rail + content column + always-visible map. Lite has no wide layout (one centred column at
+ * any width, no map beside it), so this is false there whatever the screen.
+ */
 export function useWide(): boolean {
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 768px)').matches)
+  const full = useApp(isFull)
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
     const on = () => setWide(mq.matches)
     mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
   }, [])
-  return wide
+  return wide && full
 }
 
 /** ≥ 1024 px (desktop): the Now column stays on the left and Trip / More open as a dock beside the map. */
