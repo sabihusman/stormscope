@@ -62,6 +62,12 @@ class CreditsControl {
   }
 }
 
+/** Plain code-unit order (what a bare .sort() did), so block keys keep the same order and fetch sequence. */
+function byCodeUnit(a: string, b: string): number {
+  if (a < b) return -1
+  return a > b ? 1 : 0
+}
+
 export function MapView({ children }: { children: ReactNode }) {
   const container = useRef<HTMLDivElement>(null)
   const scaleRef = useRef<maplibregl.ScaleControl | null>(null)
@@ -174,7 +180,7 @@ export function MapView({ children }: { children: ReactNode }) {
         { lng: c.lng, lat: c.lat },
       )
         .map(blockKey)
-        .sort()
+        .sort(byCodeUnit)
       const cur = store.get()
       if (cur.blockLevel !== level || cur.visibleBlocks.join() !== keys.join()) store.set({ visibleBlocks: keys, blockLevel: level })
     }
