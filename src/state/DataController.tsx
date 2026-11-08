@@ -23,7 +23,7 @@ import { floodKeyFor } from '../lib/floodHere'
 import { usePolling } from '../hooks/usePolling'
 import { useWide } from '../hooks/useMisc'
 import { geoWorker } from '../workers/client'
-import { applyImageryCarry, emptyResource, nearestFrame, newBlock, patchJourney, setResource, store, toast, updateBlock, useApp, type Block } from './store'
+import { applyImageryCarry, emptyResource, isFull, nearestFrame, newBlock, patchJourney, setResource, store, toast, updateBlock, useApp, type Block } from './store'
 import type { AlertsData, Resource, RiverGauge } from '../types'
 
 // Refresh cadences (ms).
@@ -288,6 +288,9 @@ export function DataController() {
   const placeKey = place ? `${place.lngLat.lat.toFixed(3)},${place.lngLat.lng.toFixed(3)}` : ''
   // Replays are known from the URL before the bootstrap lands in the store (the geolocated place would otherwise fire one live call first).
   const replayActive = useApp((s) => !!s.replay) || REPLAY_IN_URL
+  // Lite: no map, so no radar, satellite or map overlays; the gauges and the air monitors wait for a tap.
+  const full = useApp(isFull)
+  const liteLoaded = useApp((s) => s.liteLoaded)
 
   // A new place (geolocation, search, map tap) always re-centres the point data on it.
   useEffect(() => {
@@ -324,7 +327,7 @@ export function DataController() {
       }
     },
     REFRESH.radar,
-    layers.radar,
+    layers.radar && full,
     [nonce],
   )
 
@@ -366,7 +369,7 @@ export function DataController() {
       }
     },
     REFRESH.satellite,
-    layers.satellite,
+    layers.satellite && full,
     [nonce, satProduct, satSide],
   )
 
@@ -483,10 +486,12 @@ export function DataController() {
     const b = s.blocks[key]
     const grid = b?.grid.data
     if (!b || !grid) return
+    // The map's overlays exist only in Full; Lite computes a block only for its Flood block (floodFor).
+    const lv = isFull(s)
     const gridAt = b.grid.freshness?.fetchedAt ?? 0
     const jobs: Promise<unknown>[] = []
 
-    if (s.layers.rainfall && (!b.rainCells.data || (b.rainCells.freshness?.fetchedAt ?? 0) < gridAt)) {
+    if (lv && s.layers.rainfall && (!b.rainCells.data || (b.rainCells.freshness?.fetchedAt ?? 0) < gridAt)) {
       const tag = `${key}:rain`
       if (!inflight.current.has(tag)) {
         inflight.current.add(tag)
@@ -501,7 +506,7 @@ export function DataController() {
       }
     }
 
-    if (s.layers.nowcast) {
+    if (lv && s.layers.nowcast) {
       const t0 = s.nowcastT0
       if (t0 && (!b.nowcast.data || b.nowcast.data.t0 !== t0 || (b.nowcast.freshness?.fetchedAt ?? 0) < gridAt)) {
         const tag = `${key}:nowcast`
@@ -519,7 +524,7 @@ export function DataController() {
       }
     }
 
-    if (s.layers.flood || key === s.floodFor) {
+    if ((lv && s.layers.flood) || key === s.floodFor) {
       const horizon = Math.min(s.rainHorizon, 48)
       const flowlinesDone = ensureFlowlines(b)
       // While the drainage data is still loading (a live NHD query took 12–31 s), a quick rain-only pass (model
@@ -572,14 +577,15 @@ export function DataController() {
   const quotaBackoffUntil = useRef(0)
   const reconcile = async () => {
     const s = store.get()
-    const overlayOn = s.layers.rainfall || s.layers.flood || s.layers.nowcast
+    const lv = isFull(s)
+    const overlayOn = lv && (s.layers.rainfall || s.layers.flood || s.layers.nowcast)
     const need = overlayOn || !!s.floodFor
     // The Flood page's block for the place is computed whatever the map shows. With no overlay on, that
     // block is the ONLY one fetched (the visible blocks would cost 49 locations each for nothing).
     const base = !overlayOn ? (s.floodFor ? [s.floodFor] : []) : s.floodFor && !s.visibleBlocks.includes(s.floodFor) ? [...s.visibleBlocks, s.floodFor] : s.visibleBlocks
     // With the rain overlay on, the place's own block is always loaded (one 49-location request), so the playback
     // forecast reaches its full horizon at any zoom — zoomed out, the map shows no forecast blocks of its own.
-    const placeBlock = s.layers.rainfall && s.place ? floodKeyFor(s.place.lngLat) : null
+    const placeBlock = lv && s.layers.rainfall && s.place ? floodKeyFor(s.place.lngLat) : null
     const want = placeBlock && !base.includes(placeBlock) ? [...base, placeBlock] : base
     // Nothing is fetched while the tab is hidden: the 30-min refresh only counts visible time.
     if (!need || !want.length || document.hidden) return
@@ -600,7 +606,7 @@ export function DataController() {
     })
 
     // One shared nowcast origin; renewed every 30 min so neighbours stay aligned.
-    if (s.layers.nowcast && (!s.nowcastT0 || now - s.nowcastT0 > REFRESH.grid)) {
+    if (lv && s.layers.nowcast && (!s.nowcastT0 || now - s.nowcastT0 > REFRESH.grid)) {
       store.set({ nowcastT0: Math.floor(now / 60_000) * 60_000, nowcastFrame: 0 })
     }
 
@@ -619,7 +625,7 @@ export function DataController() {
   reconcileRef.current = reconcile
   useEffect(() => {
     void reconcileRef.current()
-  }, [visibleBlocks, layers.rainfall, layers.flood, layers.nowcast, rainHorizon, nonce, floodFor, placeKey])
+  }, [visibleBlocks, layers.rainfall, layers.flood, layers.nowcast, rainHorizon, nonce, floodFor, placeKey, full])
   // Periodic freshness pass (also fires when the tab returns to the foreground).
   useEffect(() => {
     const t = setInterval(() => void reconcileRef.current(), 60_000)
@@ -878,13 +884,15 @@ export function DataController() {
 
   // ---- Rivers: loaded only while something shows gauges, cached per place ----
   // Full tier on the Rivers page; summary tier while the Now tile is on screen or the map's rivers
-  // layer is visible; nothing otherwise — a place change by itself costs no gauge request.
+  // layer is visible; nothing otherwise — a place change by itself costs no gauge request. Lite: the full tier once
+  // Rivers is loaded from the More row (the Lite home shows the Rivers page's list), nothing before that tap.
   const screen = useApp((s) => s.screen)
   const morePage = useApp((s) => s.morePage)
   const riversTileVisible = useApp((s) => s.riversTileVisible)
   const wide = useWide()
-  const riversNeed: RiversTier | null =
-    screen === 'more' && morePage === 'rivers' ? 'full' : (screen === 'now' && riversTileVisible) || ((screen === 'map' || wide) && layers.rivers) ? 'summary' : null
+  const fullNeed: RiversTier | null = (screen === 'now' && riversTileVisible) || ((screen === 'map' || wide) && layers.rivers) ? 'summary' : null
+  const liteNeed: RiversTier | null = screen === 'now' && liteLoaded.rivers ? 'full' : null
+  const riversNeed: RiversTier | null = screen === 'more' && morePage === 'rivers' ? 'full' : full ? fullNeed : liteNeed
   const riversCache = useRef(new Map<string, RiversCacheEntry>(loadSavedRivers()))
   const riversNonce = useRef(nonce)
   // A new place shows what is cached for it (or nothing) until something asks for gauges.
@@ -1027,7 +1035,8 @@ export function DataController() {
       }
     },
     REFRESH.monitorsNear,
-    !!place && !replayActive,
+    // Lite: only once Air quality is loaded from the More row.
+    !!place && !replayActive && (full || liteLoaded.air),
     [placeKey, nonce],
   )
 
