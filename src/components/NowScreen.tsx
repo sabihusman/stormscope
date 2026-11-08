@@ -13,7 +13,7 @@ import { U, type Units } from '../lib/units'
 import { currentUsgsOnly, reportingNoaa } from '../lib/rivers'
 import { wmo } from '../lib/wmo'
 import { compass } from '../map/StationLayer'
-import { go, setHourlySpan, setLayer, setUnits, startPickOnMap, store, useApp, wantFlood, type HourlySpan } from '../state/store'
+import { endFullLook, go, setHourlySpan, setLayer, setUnits, startPickOnMap, store, useApp, wantFlood, type HourlySpan } from '../state/store'
 import { REPLAY_IN_URL } from '../state/DataController'
 import type { DayPoint, NwsAlert } from '../types'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -33,9 +33,11 @@ interface Props {
 export function NowScreen({ onLocate, locating, promptOpen = false }: Props) {
   const place = useApp((s) => s.place)
   const online = useOnline()
+  const peek = useApp((s) => s.fullPeek === 'look')
   return (
     <section className="screen now" aria-label="Now">
       {!online && <div className="banner offline">Offline — showing the last saved data</div>}
+      {peek && <PeekBanner />}
       {!place ? (
         !promptOpen && <NoPlace onLocate={onLocate} locating={locating} />
       ) : (
@@ -75,7 +77,19 @@ function measuredWind(o: { windSpeedMs?: number | null; windDirDeg?: number | nu
   return `, wind ${dir}${U.speed(o.windSpeedMs, units)}`
 }
 
-function UnitsChip() {
+/** A one-time look at Full from Lite: says so, and goes back (the saved mode was never changed). */
+function PeekBanner() {
+  return (
+    <output className="banner peek">
+      <span>You're looking at Full once. Your mode is still Lite.</span>
+      <button type="button" className="btn small" onClick={endFullLook}>
+        Back to Lite
+      </button>
+    </output>
+  )
+}
+
+export function UnitsChip() {
   const units = useApp((s) => s.units)
   return (
     <div className="segmented small units-chip" role="radiogroup" aria-label="Temperature units">
@@ -89,7 +103,7 @@ function UnitsChip() {
   )
 }
 
-function NoPlace({ onLocate, locating }: Props) {
+export function NoPlace({ onLocate, locating }: Readonly<Props>) {
   return (
     <div className="card now-card">
       <h2>Where are you?</h2>
@@ -138,7 +152,7 @@ function StatusRow({ icon, title, tone, busy = false }: { icon: string; title: s
   )
 }
 
-function AlertsCard() {
+export function AlertsCard() {
   const r = useApp((s) => s.alerts)
   const now = useNow()
   const retry = () => store.set((x) => ({ refreshNonce: x.refreshNonce + 1 }))
@@ -175,7 +189,7 @@ function AlertsCard() {
   )
 }
 
-function ConditionsCard() {
+export function ConditionsCard() {
   const r = useApp((s) => s.conditions)
   const station = useApp((s) => s.station)
   const place = useApp((s) => s.place)
@@ -272,7 +286,7 @@ function ConditionsCard() {
  * One line that answers "anything to worry about?": active alerts first, else rain expected in the next 24 h, else
  * all clear — with the place's flood screening appended once it has been computed. Reads only what is already loaded.
  */
-function NowSummary() {
+export function NowSummary() {
   const r = useApp((s) => s.conditions)
   const alerts = useApp((s) => s.alerts.data?.alerts.length ?? 0)
   const place = useApp((s) => s.place)
@@ -349,7 +363,7 @@ function dayLabel(day: DayPoint, today: string): string {
 }
 
 /** Seven days from today in the place's zone, from the same Open-Meteo call as the current conditions. */
-function DailyCard() {
+export function DailyCard() {
   const r = useApp((s) => s.conditions)
   const units = useApp((s) => s.units)
   const now = useNow()
@@ -415,10 +429,12 @@ const SPANS: HourlySpan[] = [12, 24, 48]
  * hour for 48 h, from the same forecast request (it already carries 48 hours — `forecast_hours=48` — so the
  * switch never fetches). A card past midnight shows its day ("Tue 3 AM"). The rain line sums the same span.
  */
-function HourlyCard() {
+export function HourlyCard({ fixedSpan }: Readonly<{ fixedSpan?: HourlySpan }> = {}) {
   const r = useApp((s) => s.conditions)
   const units = useApp((s) => s.units)
-  const span = useApp((s) => s.hourlySpan)
+  // Lite shows 12 hours, no span switch and no "play on map" (there is no map in Lite).
+  const savedSpan = useApp((s) => s.hourlySpan)
+  const span = fixedSpan ?? savedSpan
   const h = r.data?.hourly ?? []
   const inSpan = h.slice(0, span)
   // Every hour the forecast carries, for every span (Open-Meteo's hourly block runs the full 48 h; were an hour
@@ -456,13 +472,15 @@ function HourlyCard() {
     <div className="card now-card hourly" aria-busy={!cards.length} data-span={span}>
       <div className="card-head">
         <h4>Next {span} hours</h4>
-        <div className="segmented small span-switch" role="radiogroup" aria-label="Hours ahead">
-          {SPANS.map((n) => (
-            <button key={n} type="button" role="radio" aria-checked={n === span} data-span={n} className={n === span ? 'on' : ''} onClick={() => setHourlySpan(n)}>
-              {n} h
-            </button>
-          ))}
-        </div>
+        {!fixedSpan && (
+          <div className="segmented small span-switch" role="radiogroup" aria-label="Hours ahead">
+            {SPANS.map((n) => (
+              <button key={n} type="button" role="radio" aria-checked={n === span} data-span={n} className={n === span ? 'on' : ''} onClick={() => setHourlySpan(n)}>
+                {n} h
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {!cards.length ? (
         <>
@@ -487,7 +505,7 @@ function HourlyCard() {
           })}
         </ol>
       )}
-      {h.length > 0 && (
+      {h.length > 0 && !fixedSpan && (
         <button className="link-row" onClick={openTimeline} data-rain-span={span}>
           Rain next {span} h: <strong>{U.precip(rain, units)}</strong> · play on map ›
         </button>
@@ -696,7 +714,7 @@ function Tiles() {
  * measuring it within 25 km with a reading under 2 h (the AQI, category and colour, "at <station>, N km away,
  * N min ago"); otherwise "No monitor within 25 km" and no number — never an estimate.
  */
-function AirNowCard() {
+export function AirNowCard() {
   const r = useApp((s) => s.monitorsNear)
   const place = useApp((s) => s.place)
   const units = useApp((s) => s.units)

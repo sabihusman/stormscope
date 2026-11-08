@@ -3464,3 +3464,173 @@ small {
 .status-row .status-checked {
   font-size: 12px;
 }
+
+/* ---- Lite (the default mode): one centred column at any width, no map behind it ---- */
+.app.lite {
+  max-width: 600px;
+  margin: 0 auto;
+}
+@media (min-width: 620px) {
+  .app.lite {
+    border-inline: 1px solid var(--line);
+  }
+}
+.banner.peek {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  flex: none;
+}
+.lite-rain {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lite-rain h4 {
+  margin: 0;
+}
+.lite-map-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.lite-map-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 14px;
+}
+.lite-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+/* The place: the map is centred on it and does not move, so the pin is the box's centre. */
+.lite-map-pin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.25);
+  pointer-events: none;
+}
+.lite-map .maplibregl-ctrl-attrib {
+  font-size: 10px;
+}
+.lite-more {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+}
+.lite-more-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lite-more-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+.lite-full-link {
+  min-height: 44px;
+}
+.lite-blocks {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lite-blocks li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.lite-block-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lite-blocks .btn {
+  min-height: 40px;
+  min-width: 64px;
+}
+.lite-block {
+  flex: none;
+}
+.lite-block > h4 {
+  margin: 0 0 6px;
+}
+.lite-foot {
+  text-align: center;
+  padding: 4px 8px 8px;
+}
+/* Settings > Mode: two options with what each one loads. */
+.mode-toggle {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mode-toggle legend {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mode-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.mode-option.on {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+}

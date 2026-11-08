@@ -3,7 +3,7 @@
 // locations, terrain tiles, NHD queries), time to conditions on Now, time until the app is settled
 // (no network request for 2 s and no resource loading), and the longest main-thread task.
 // Run it against two builds (eager tile vs on-demand) and compare.
-//   node scripts/flood-tile-measure.mjs <base-url> [--viewport=phone|desktop] [--label=x] [--headless]
+//   node scripts/flood-tile-measure.mjs <base-url> [--viewport=phone|desktop] [--label=x] [--headless] [--mode=lite|full]
 import { chromium } from 'playwright'
 import { installMocks } from './lib/mock-server.mjs'
 import { allowLocation, openNow, searchPlace } from './lib/ui.mjs'
@@ -25,7 +25,9 @@ await ctx.addInitScript(() => {
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__longTasks.push({ t: e.startTime, d: e.duration }) }).observe({ type: 'longtask', buffered: true }) } catch {}
 })
 const page = await ctx.newPage()
-const mocks = await installMocks(ctx, {})
+// --mode=lite|full (default full): which mode the app opens in (Lite is the app's default since Nov 7, 2026).
+const MODE = args.find((a) => a.startsWith('--mode='))?.slice(7) ?? 'full'
+const mocks = await installMocks(ctx, { mode: MODE })
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
 await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 20, downloadThroughput: (4 * 1024 * 1024) / 8, uploadThroughput: (3 * 1024 * 1024) / 8 })
@@ -89,7 +91,7 @@ phase.longestTaskMs = Math.round(await longest(pageT0))
 
 await browser.close()
 const fmt = (p) => `${p.name.padEnd(13)} OM locations ${String(p.omLocations).padStart(4)} · terrain tiles ${String(p.terrainTiles).padStart(3)} · NHD ${p.nhd} · requests ${String(p.requests).padStart(3)} · conditions ${p.toConditionsMs} ms · settled ${p.settledMs ?? '>90 000'} ms · longest task ${p.longestTaskMs} ms`
-console.log(`flood-tile-measure ${LABEL} ${VIEW} ${HEADLESS ? 'headless' : 'headed'} CPU 4× Fast 4G mocked ${BASE}`)
+console.log(`flood-tile-measure ${LABEL} ${MODE} ${VIEW} ${HEADLESS ? 'headless' : 'headed'} CPU 4× Fast 4G mocked ${BASE}`)
 for (const p of phases) console.log('  ' + fmt(p))
 for (const p of phases) console.log(`  ${p.name}: ${Object.entries(p.hosts).sort((a, b) => b[1] - a[1]).map(([h, n]) => `${h} ${n}`).join(', ')}`)
 if (mocks.live.length) console.log(`  live fall-through: ${mocks.live.length} requests`)

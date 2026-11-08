@@ -49,6 +49,14 @@ export interface RecentPlace {
   name: string
   lngLat: LngLat
 }
+/**
+ * Lite (the default): a forecast-only home that loads the place's forecast, NWS alerts and the nearest station on
+ * open, with a small basemap-only map; everything heavy loads on a tap. Full: the map, its layers and every tile.
+ * Saved on this device only (`stormscope.mode`); a new device or a fresh install starts in Lite.
+ */
+export type Mode = 'lite' | 'full'
+/** The blocks Lite's More row loads one at a time, on a tap, and shows on the Lite home. */
+export type LiteBlock = 'rivers' | 'flood' | 'trip' | 'air'
 export type HourlySpan = 12 | 24 | 48
 export type AnimLayer = 'radar' | 'satellite' | 'rainfall' | 'nowcast'
 
@@ -126,6 +134,15 @@ export interface Journey {
 }
 
 export interface AppState {
+  /** The saved mode (Settings > Mode). */
+  mode: Mode
+  /**
+   * A look at Full from Lite that does not change the saved mode: 'look' from the More row's "Full" link, the map or
+   * any door to the map; 'pick' while picking a point on the map (it ends with the pick). Never saved: a reload is Lite.
+   */
+  fullPeek: false | 'look' | 'pick'
+  /** Lite's More row: the blocks the user has loaded on this visit (never saved). */
+  liteLoaded: Record<LiteBlock, boolean>
   place: Place | null
   placeLabel: string | null
   /** Centre of the point-based data (rivers, station). Follows the map as the user pans; snaps back to `place` on recenter. */
@@ -253,6 +270,15 @@ const savedLayers = (() => {
 })()
 
 export const store = createStore<AppState>({
+  mode: ((): Mode => {
+    try {
+      return localStorage.getItem('stormscope.mode') === 'full' ? 'full' : 'lite'
+    } catch {
+      return 'lite'
+    }
+  })(),
+  fullPeek: false,
+  liteLoaded: { rivers: false, flood: false, trip: false, air: false },
   place: null,
   placeLabel: null,
   focus: null,
@@ -511,9 +537,43 @@ export function setJourneyTo(to: Place) {
   store.set((s) => ({ journey: { ...s.journey, to, routes: emptyResource(), weather: emptyResource(), hazards: emptyResource(), road: emptyResource(), selected: 0, gen: s.journey.gen + 1 }, screen: 'trip', selection: null }))
 }
 
-/** Navigate. `more` pages take the current place as their input. Playback keeps its state (the bar is always on screen on wide layouts). */
+/** Full is showing: the saved mode is Full, or Lite is taking a one-time look at it. */
+export const isFull = (s: AppState) => s.mode === 'full' || s.fullPeek !== false
+
+/**
+ * Settings > Mode: saved at once, on this device only. Lite unloads the map and its layers (they are not mounted)
+ * and returns to the Lite home; Full mounts them. Either way any one-time look ends.
+ */
+export function setMode(mode: Mode) {
+  try {
+    localStorage.setItem('stormscope.mode', mode)
+  } catch {
+    /* private mode: it holds for this visit */
+  }
+  store.set(mode === 'lite' ? { mode, fullPeek: false, screen: 'now', morePage: null, selection: null, pickMode: false, layersMenuOpen: false, creditsOpen: false, legendOpen: false, helpTopic: null, dotChooser: null, playing: false } : { mode, fullPeek: false })
+}
+
+/** Lite → a one-time look at Full (the saved mode stays Lite). */
+export function startFullLook() {
+  store.set((s) => (isFull(s) ? {} : { fullPeek: 'look' }))
+}
+/** Back to Lite from a one-time look: the map and its layers unload, the map screen goes back to the Lite home. */
+export function endFullLook() {
+  store.set((s) => ({ fullPeek: false, screen: s.screen === 'map' ? 'now' : s.screen, selection: null, pickMode: false, layersMenuOpen: false, creditsOpen: false, legendOpen: false, dotChooser: null, playing: false }))
+}
+
+/** Lite's More row: load one block (or hide it again, which stops its requests). */
+export function setLiteLoaded(block: LiteBlock, on: boolean) {
+  store.set((s) => ({ liteLoaded: { ...s.liteLoaded, [block]: on } }))
+}
+
+/**
+ * Navigate. `more` pages take the current place as their input. Playback keeps its state (the bar is always on screen
+ * on wide layouts). In Lite there is no map: every door to it (the nav, "Open full map", a gauge's "Show on map")
+ * starts a one-time look at Full.
+ */
 export function go(screen: Screen, morePage: MorePage | null = null) {
-  store.set((s) => ({ screen, morePage: screen === 'more' ? morePage : s.morePage, pickerOpen: false, selection: screen === 'map' ? s.selection : null }))
+  store.set((s) => ({ screen, morePage: screen === 'more' ? morePage : s.morePage, pickerOpen: false, selection: screen === 'map' ? s.selection : null, fullPeek: screen === 'map' && !isFull(s) ? 'look' : s.fullPeek }))
 }
 
 /**
@@ -547,10 +607,15 @@ export function setPlace(place: Place, label?: string) {
 
 /** Enter "pick a point on the map": the map screen shows a crosshair and a confirm button. */
 export function startPickOnMap() {
-  store.set((s) => ({ pickMode: true, pickReturn: s.screen === 'map' ? 'now' : s.screen, screen: 'map', pickerOpen: false, selection: null }))
+  // Lite has no map: picking mounts Full's for the pick only.
+  store.set((s) => ({ pickMode: true, pickReturn: s.screen === 'map' ? 'now' : s.screen, screen: 'map', pickerOpen: false, selection: null, fullPeek: isFull(s) ? s.fullPeek : 'pick' }))
 }
 export function endPickOnMap(cancel: boolean) {
-  store.set((s) => ({ pickMode: false, screen: cancel ? s.pickReturn : s.pickReturn === 'map' ? 'now' : s.pickReturn }))
+  store.set((s) => {
+    // Cancel goes back where the pick started; a confirmed pick never lands on the map it was picked from.
+    const back: Screen = !cancel && s.pickReturn === 'map' ? 'now' : s.pickReturn
+    return { pickMode: false, screen: back, fullPeek: s.fullPeek === 'pick' ? false : s.fullPeek }
+  })
 }
 export function setDeparture(ms: number | null) {
   store.set((s) => ({ journey: { ...s.journey, departure: ms } }))

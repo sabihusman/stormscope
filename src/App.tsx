@@ -17,7 +17,7 @@ import { HelpPanel } from './components/Help'
 const RouteLayer = lazy(() => import('./map/RouteLayer').then((m) => ({ default: m.RouteLayer })))
 const HazardLayer = lazy(() => import('./map/HazardLayer').then((m) => ({ default: m.HazardLayer })))
 import { DataController } from './state/DataController'
-import { closeAllPanels, endPickOnMap, go, installOnePanelRule, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
+import { closeAllPanels, endPickOnMap, go, installOnePanelRule, isFull, loadPlace, savePlace, setPlace, startPickOnMap, store, toast, useApp, type LayerId } from './state/store'
 import { useGeolocation } from './hooks/useGeolocation'
 import { useDesktop, useWide } from './hooks/useMisc'
 import { haversine } from './lib/geo'
@@ -31,6 +31,7 @@ import { PlaybackBar } from './components/PlaybackBar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Nav } from './components/Nav'
 import { NowScreen } from './components/NowScreen'
+import { LiteScreen } from './components/LiteScreen'
 import { TripScreen } from './components/TripScreen'
 import { MoreScreen } from './components/MoreScreen'
 import { PlacePicker } from './components/PlacePicker'
@@ -71,8 +72,9 @@ function useToastStrip(toast: unknown) {
 }
 
 /** The app root's classes: the screen, the sheet height, the layout and the open chrome, for the CSS to follow. */
-function appClassName(o: { toast: boolean; screen: string; sheet: string; fabCorner: string; fabCornerWide: string; wide: boolean; desk: boolean; dockOpen: boolean; pickMode: boolean; playbarExpanded: boolean; collapsed: boolean }) {
+function appClassName(o: { lite: boolean; toast: boolean; screen: string; sheet: string; fabCorner: string; fabCornerWide: string; wide: boolean; desk: boolean; dockOpen: boolean; pickMode: boolean; playbarExpanded: boolean; collapsed: boolean }) {
   const on: [boolean, string][] = [
+    [o.lite, 'lite'],
     [o.toast, 'has-toast'],
     [true, `screen-${o.screen}`],
     [true, `sheet-${o.sheet}`],
@@ -113,18 +115,89 @@ function needsPlacePrompt(hasPlace: boolean, askPlace: boolean, geoStatus: strin
   return askPlace || PROMPT_STATUSES.has(geoStatus)
 }
 
+/** Full's map with every layer (each contained by its own boundary); not mounted in Lite. */
+function FullMap() {
+  const journeyTo = useApp((s) => !!s.journey.to && s.routeOnMap)
+  return (
+    <MapView>
+      {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
+      <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
+      <LayerGuard name="Radar" layer="radar"><RadarLayer /></LayerGuard>
+      <LayerGuard name="Rainfall" layer="rainfall"><RainfallLayer /></LayerGuard>
+      <LayerGuard name="Flood risk" layer="flood"><FloodLayer /></LayerGuard>
+      <LayerGuard name="Rivers" layer="rivers"><RiversLayer /></LayerGuard>
+      <LayerGuard name="Station" layer="station"><StationLayer /></LayerGuard>
+      <LayerGuard name="Nowcast" layer="nowcast"><NowcastLayer /></LayerGuard>
+      <LayerGuard name="Air quality circles" layer="aqcircles"><AqCirclesLayer /></LayerGuard>
+      <LayerGuard name="Air monitors" layer="monitors"><MonitorSitesLayer /></LayerGuard>
+      <LayerGuard name="Wind particles" layer="nowcast"><WindParticles /></LayerGuard>
+      {journeyTo && (
+        <Suspense fallback={null}>
+          <ErrorBoundary kind="layer" name="Hazard overlay"><HazardLayer /></ErrorBoundary>
+          <ErrorBoundary kind="layer" name="Route overlay"><RouteLayer /></ErrorBoundary>
+        </Suspense>
+      )}
+    </MapView>
+  )
+}
+
+/**
+ * Full's map chrome: search, layers, playback and credits while the map shows (on wide layouts the map is always
+ * visible, so they stay); the point chip, monitor chooser and details sheet on the Map screen. None of it in a pick.
+ */
+function MapChrome({ onLocate, locating, wide }: Readonly<{ onLocate: () => void; locating: boolean; wide: boolean }>) {
+  const screen = useApp((s) => s.screen)
+  const pickMode = useApp((s) => s.pickMode)
+  const sheet = useApp((s) => s.sheet)
+  const hasSelection = useApp((s) => !!s.selection)
+  if (pickMode) return null
+  const onMap = screen === 'map'
+  return (
+    <>
+      {(onMap || wide) && (
+        <>
+          <ErrorBoundary kind="panel" name="Search">
+            <SearchBar onLocate={onLocate} locating={locating} />
+          </ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Layer menu"><LayerFab /></ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Playback"><PlaybackBar /></ErrorBoundary>
+          {/* The (i) control lives on the map, so its panel lives with the map's chrome: on wide layouts the map (and the (i)) is beside every tab. */}
+          <ErrorBoundary kind="panel" name="Credits"><CreditsPanel /></ErrorBoundary>
+        </>
+      )}
+      {onMap && (
+        <>
+          <ErrorBoundary kind="panel" name="Point"><PointChip /></ErrorBoundary>
+          <ErrorBoundary kind="panel" name="Monitor chooser"><MonitorChooser /></ErrorBoundary>
+          {hasSelection && sheet !== 'peek' && <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>}
+        </>
+      )}
+    </>
+  )
+}
+
+/** The Now column: Lite's home in Lite, Full's Now screen in Full (and in a one-time look at it). */
+function Home(props: Readonly<{ onLocate: () => void; locating: boolean; promptOpen: boolean }>) {
+  const full = useApp(isFull)
+  return full ? <NowScreen {...props} /> : <LiteScreen {...props} />
+}
+
+/** Phones (the narrow layout, and Lite at any width): one panel at a time. */
+const onePanelOnly = () => window.innerWidth < 768 || !isFull(store.get())
+
 export default function App() {
   const geo = useGeolocation()
   const t = useApp((s) => s.toast)
-  // Phones (the narrow layout): one panel at a time; the bottom sheet is exempt.
-  useEffect(() => installOnePanelRule(() => window.innerWidth < 768), [])
+  // One panel at a time where onePanelOnly says so; the bottom sheet is exempt.
+  useEffect(() => installOnePanelRule(onePanelOnly), [])
+  // Lite: no map and none of its layers are mounted (no tiles, no radar); Full, or a one-time look at it, mounts them.
+  const full = useApp(isFull)
   const toastRef = useToastStrip(t)
   const place = useApp((s) => s.place)
   const sheet = useApp((s) => s.sheet)
   const hasSelection = useApp((s) => !!s.selection)
   const fabCorner = useApp((s) => s.fabCorner)
   const fabCornerWide = useApp((s) => s.fabCornerWide)
-  const journeyTo = useApp((s) => !!s.journey.to && s.routeOnMap)
   const screen = useApp((s) => s.screen)
   const pickMode = useApp((s) => s.pickMode)
   const pickerOpen = useApp((s) => s.pickerOpen)
@@ -189,47 +262,11 @@ export default function App() {
   }
 
   return (
-    <div className={appClassName({ toast: !!t, screen, sheet: hasSelection && screen === 'map' ? sheet : 'none', fabCorner, fabCornerWide, wide, desk, dockOpen, pickMode, playbarExpanded, collapsed: wide && columnCollapsed && (desk || screen !== 'map') })}>
-      <MapView>
-        {/* Each layer is contained: if it throws, it is switched off with a note and the rest keeps working. */}
-        <LayerGuard name="Satellite" layer="satellite"><SatelliteLayer /></LayerGuard>
-        <LayerGuard name="Radar" layer="radar"><RadarLayer /></LayerGuard>
-        <LayerGuard name="Rainfall" layer="rainfall"><RainfallLayer /></LayerGuard>
-        <LayerGuard name="Flood risk" layer="flood"><FloodLayer /></LayerGuard>
-        <LayerGuard name="Rivers" layer="rivers"><RiversLayer /></LayerGuard>
-        <LayerGuard name="Station" layer="station"><StationLayer /></LayerGuard>
-        <LayerGuard name="Nowcast" layer="nowcast"><NowcastLayer /></LayerGuard>
-        <LayerGuard name="Air quality circles" layer="aqcircles"><AqCirclesLayer /></LayerGuard>
-        <LayerGuard name="Air monitors" layer="monitors"><MonitorSitesLayer /></LayerGuard>
-        <LayerGuard name="Wind particles" layer="nowcast"><WindParticles /></LayerGuard>
-        {journeyTo && (
-          <Suspense fallback={null}>
-            <ErrorBoundary kind="layer" name="Hazard overlay"><HazardLayer /></ErrorBoundary>
-            <ErrorBoundary kind="layer" name="Route overlay"><RouteLayer /></ErrorBoundary>
-          </Suspense>
-        )}
-      </MapView>
+    <div className={appClassName({ lite: !full, toast: !!t, screen, sheet: hasSelection && screen === 'map' ? sheet : 'none', fabCorner, fabCornerWide, wide, desk, dockOpen, pickMode, playbarExpanded, collapsed: wide && columnCollapsed && (desk || screen !== 'map') })}>
+      {full && <FullMap />}
       <DataController />
 
-      {/* Map screen chrome. On wide layouts the map is always visible, so its chrome stays too. */}
-      {(screen === 'map' || wide) && !pickMode && (
-        <>
-          <ErrorBoundary kind="panel" name="Search">
-            <SearchBar onLocate={geo.request} locating={geo.status === 'locating'} />
-          </ErrorBoundary>
-          <ErrorBoundary kind="panel" name="Layer menu"><LayerFab /></ErrorBoundary>
-          <ErrorBoundary kind="panel" name="Playback"><PlaybackBar /></ErrorBoundary>
-          {/* The (i) control lives on the map, so its panel lives with the map's chrome: on wide layouts the map (and the (i)) is beside every tab. */}
-          <ErrorBoundary kind="panel" name="Credits"><CreditsPanel /></ErrorBoundary>
-        </>
-      )}
-      {screen === 'map' && !pickMode && (
-        <>
-          <ErrorBoundary kind="panel" name="Point"><PointChip /></ErrorBoundary>
-          <ErrorBoundary kind="panel" name="Monitor chooser"><MonitorChooser /></ErrorBoundary>
-          {hasSelection && sheet !== 'peek' && <ErrorBoundary kind="panel" name="Panel"><BottomSheet /></ErrorBoundary>}
-        </>
-      )}
+      {full && <MapChrome onLocate={geo.request} locating={geo.status === 'locating'} wide={wide} />}
       {pickMode && (
         <div className="pick-ui" role="group" aria-label="Pick a point on the map">
           <div className="crosshair" aria-hidden="true" />
@@ -246,7 +283,7 @@ export default function App() {
 
       {(screen === 'now' || (desk && !pickMode)) && (
         <ErrorBoundary kind="panel" name="Now">
-          <NowScreen onLocate={geo.request} locating={geo.status === 'locating'} promptOpen={showPrompt} />
+          <Home onLocate={geo.request} locating={geo.status === 'locating'} promptOpen={showPrompt} />
         </ErrorBoundary>
       )}
       {dockOpen && (

@@ -215,6 +215,9 @@ export function MapView({ children }: { children: ReactNode }) {
       ro?.disconnect()
       setMap(null)
       m.remove()
+      // Unmounted (Settings > Mode > Lite, or the end of a one-time look): no handle to a removed map.
+      const w = window as unknown as { __map?: MlMap }
+      if (w.__map === m) delete w.__map
     }
   }, [])
 

@@ -1,6 +1,7 @@
 // Why is "journey open" (tapping a destination search result) slow? CPU 4×, phone viewport, touch;
 // Open-Meteo and routing are aborted at the network layer so this costs no quota — the interaction
 // latency happens before any response arrives anyway.
+import { startInMode } from './lib/mode.mjs'
 import { chromium } from 'playwright'
 import { touchTap, centre } from './lib/touch.mjs'
 const BASE = process.argv[2] || 'http://localhost:5174/'
@@ -8,6 +9,7 @@ const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=sw
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, geolocation: { latitude: 41.673, longitude: -93.698 }, permissions: ['geolocation'] })
 await ctx.addInitScript(() => { try { localStorage.setItem('stormscope.layers', JSON.stringify({ radar: true, satellite: false, rainfall: false, flood: false, rivers: false, station: true, nowcast: false })) } catch {} })
 await ctx.route(/open-meteo\.com\/v1\/(forecast|archive)|valhalla1\.openstreetmap\.de|router\.project-osrm\.org/, (r) => r.abort('blockedbyclient'))
+await startInMode(ctx, 'full')
 const page = await ctx.newPage()
 const cdp = await ctx.newCDPSession(page)
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })

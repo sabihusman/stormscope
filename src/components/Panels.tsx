@@ -8,7 +8,7 @@ import { U, type Units } from '../lib/units'
 import { useNow, useReducedMotion, useWide } from '../hooks/useMisc'
 import { compass, windLabel } from '../map/StationLayer'
 import { describeGauge, openGauge, RISK_COLORS } from '../map/RiversLayer'
-import { aggregate, forgetPlaces, go, removeRecent, setLayer, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block } from '../state/store'
+import { aggregate, forgetPlaces, go, isFull, removeRecent, setLayer, setMode, setSavePlacePref, setUnits, store, useApp, useVisibleBlocks, wantFlood, type Block, type Mode } from '../state/store'
 import { REFRESH } from '../state/DataController'
 import { splitGauges } from '../lib/rivers'
 import { OPEN_METEO_URL, openMeteoBudget, openMeteoCallsToday } from '../api/openMeteo'
@@ -40,6 +40,33 @@ export function UnitsToggle() {
 }
 
 /** Location & privacy in one card: the saved place, the Remember toggle, Forget, and the recent places with × and Clear all. */
+const MODES: { id: Mode; label: string; text: string }[] = [
+  { id: 'lite', label: 'Lite (default)', text: 'Fast. Forecast, alerts, rain, 7-day. Heavy layers load only when you tap them.' },
+  { id: 'full', label: 'Full', text: 'Everything: live radar, satellite, rivers, flood, trip, air monitors.' },
+]
+
+/**
+ * Settings > Mode: two options, saved at once on this device only. Lite unloads the map and its layers and returns
+ * to the Lite home; Full loads them.
+ */
+export function ModeToggle() {
+  const mode = useApp((s) => s.mode)
+  return (
+    <fieldset className="mode-toggle">
+      <legend>Mode</legend>
+      <div role="radiogroup" aria-label="Mode" className="mode-options">
+        {MODES.map((m) => (
+          <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} data-mode={m.id} className={`mode-option ${mode === m.id ? 'on' : ''}`} onClick={() => mode !== m.id && setMode(m.id)}>
+            <strong>{m.label}</strong>
+            <small className="muted">{m.text}</small>
+          </button>
+        ))}
+      </div>
+      <small className="muted">Saved on this device only: no account, no server copy. A new device or a fresh install starts in Lite.</small>
+    </fieldset>
+  )
+}
+
 function PrivacyCard() {
   const place = useApp((s) => s.place)
   const label = useApp((s) => s.placeLabel)
@@ -283,6 +310,8 @@ export function FloodPanel() {
   const units = useApp((s) => s.units)
   const floodOnMap = useApp((s) => s.layers.flood)
   const wide = useWide()
+  // The flood layer is a map layer: Lite has no map, so its switch is Full's.
+  const full = useApp(isFull)
   const now = useNow()
   // Ask the controller for the place's finest block while this page is open.
   const wantKey = place ? floodKeyFor(place.lngLat) : null
@@ -384,7 +413,7 @@ export function FloodPanel() {
               </div>
             ))}
           </div>
-          <div className="map-toggle-row">
+          {full && <div className="map-toggle-row">
             <button className={`btn small map-toggle ${floodOnMap ? 'on' : ''}`} aria-pressed={floodOnMap} data-toggle="flood" onClick={toggleFloodLayer}>
               Flood layer on map: {floodOnMap ? 'On' : 'Off'}
             </button>
@@ -393,7 +422,7 @@ export function FloodPanel() {
                 Open the map ›
               </button>
             )}
-          </div>
+          </div>}
           <details className="method">
             <summary>How this is scored</summary>
             <p className="muted">
@@ -451,6 +480,7 @@ export function SourcesPanel() {
       <div className="panel-title">
         <strong>Settings</strong>
       </div>
+      <ModeToggle />
       <UnitsToggle />
       <small className="muted">Motion: {reduced ? 'reduced (from your system setting) — animations are simplified' : 'full — set “reduce motion” in your OS to simplify animations'}</small>
 
