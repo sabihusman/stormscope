@@ -48,7 +48,7 @@ const report = async (ms = 120000) => {
     if (s.hits || s.err || s.werr || s.rerr) return s
     await page.waitForTimeout(1000)
   }
-  return page.evaluate(() => { const j = window.__store.get().journey; return { state: `${j.hazards.state} (to=${j.to?.name ?? "none"} routes=${j.routes.state}${j.routes.error ? " err=" + j.routes.error : ""} weather=${j.weather.state}${j.weather.error ? " err=" + j.weather.error : ""})`, hits: null } })
+  return page.evaluate(() => { const s = window.__store.get(); const j = s.journey; const msgs = [...document.querySelectorAll('.toast')].map((e) => e.textContent.trim().slice(0, 80)).join(' | '); return { state: `${j.hazards.state} (replay=${s.replay?.id ?? 'none'} to=${j.to?.name ?? "none"} routes=${j.routes.state}${j.routes.error ? " err=" + j.routes.error : ""} weather=${j.weather.state}${j.weather.error ? " err=" + j.weather.error : ""}${msgs ? ' · on screen: ' + msgs : ''})`, hits: null } })
 }
 const panelText = () => tripText(page)
 
@@ -79,7 +79,7 @@ if (r.hits) {
 // ---------------- 2. Negative timing: depart 22:00Z
 await page.goto(`${BASE}/?replay=greenfield-2200z`, { waitUntil: 'load' })
 r = await report()
-check('[22:00Z] replay evaluated', !!r.hits, `${r.state}${r.err ? ' · ' + r.err : ''}`)
+check('[22:00Z] replay evaluated', !!r.hits, `${r.state}${r.err ? ' · ' + r.err : ''}${r.werr ? ' · weather: ' + r.werr : ''}${r.rerr ? ' · route: ' + r.rerr : ''}`)
 if (r.hits) {
   const ids = r.hits.map((h) => h.id)
   check('[22:00Z] TO.W #41 NOT flagged (expired before ETA)', !ids.includes('DMX TO.W #41'))
@@ -98,7 +98,7 @@ if (r.hits) {
 // ---------------- 3. Ice storm: depart 06:00Z 14 Dec 2024
 await page.goto(`${BASE}/?replay=ice-storm-2024-12-14`, { waitUntil: 'load' })
 r = await report()
-check('[ice] replay evaluated', !!r.hits, `${r.state}${r.err ? ' · ' + r.err : ''}`)
+check('[ice] replay evaluated', !!r.hits, `${r.state}${r.err ? ' · ' + r.err : ''}${r.werr ? ' · weather: ' + r.werr : ''}${r.rerr ? ' · route: ' + r.rerr : ''}`)
 if (r.hits) {
   const ids = r.hits.map((h) => h.id)
   check('[ice] Ice Storm Warning flagged at ETA', ids.includes('DMX IS.W #1'), ids.join(', '))
