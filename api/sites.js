@@ -44,7 +44,7 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store')
     return res.end(JSON.stringify({ error: 'Monitor service not configured: AIRNOW_API_KEY is not set' }))
   }
-  const raw = parseBbox(req.query?.bbox ?? new URL(req.url, 'http://x').searchParams.get('bbox'))
+  const raw = parseBbox(req.query?.bbox ?? new URL(req.url, 'https://x').searchParams.get('bbox'))
   if (!raw) {
     res.statusCode = 400
     res.setHeader('Cache-Control', 'no-store')

@@ -400,7 +400,8 @@ export function DataController() {
     }
     const ctrl = new AbortController()
     store.set({ placeLabel: place.name })
-    reverseGeocode(place.lngLat, ctrl.signal).then((n) => {
+    // reverseGeocode never rejects (it answers null on any failure); `void` marks the promise as deliberately not awaited.
+    void reverseGeocode(place.lngLat, ctrl.signal).then((n) => {
       if (n && !ctrl.signal.aborted) store.set({ placeLabel: n })
     })
     return () => ctrl.abort()

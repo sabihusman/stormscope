@@ -200,7 +200,9 @@ export function JourneyPanel() {
               )}
               <ol className="journey-strip">
                 {thin(w.samples, 14).map((s) => (
-                  <li key={s.idx} className={`sev-${cond(s).severity}`} onClick={() => store.set({ selection: sampleSelection({ ...s, eta: etaOf(s) }, units, roadByIdx.get(s.idx)) })}>
+                  <li key={s.idx} className={`sev-${cond(s).severity}`}>
+                    {/* A real button over the whole row, so the row opens from the keyboard too; the row's layout is unchanged. */}
+                    <button type="button" className="row-open" aria-label={`Details at ${clock(etaOf(s))}: ${cond(s).label}`} onClick={() => store.set({ selection: sampleSelection({ ...s, eta: etaOf(s) }, units, roadByIdx.get(s.idx)) })} />
                     <span className="strip-time">{clock(etaOf(s))}</span>
                     <span className="strip-icon" aria-hidden="true">
                       {iconFor(cond(s), s)}
@@ -245,7 +247,8 @@ function SourceLine({ name, s }: { name: string; s: SourceStatus }) {
 
 function HitRow({ h, units }: { h: HazardHit; units: ReturnType<typeof store.get>['units'] }) {
   return (
-    <li className={`hazard-hit tier-${h.hazard.tier}`} onClick={() => store.set({ selection: { kind: 'journey', lngLat: { lng: 0, lat: 0 }, title: h.hazard.event, lines: [] }, sheet: 'peek' })}>
+    <li className={`hazard-hit tier-${h.hazard.tier}`}>
+      <button type="button" className="row-open" aria-label={`Details: ${h.hazard.event}`} onClick={() => store.set({ selection: { kind: 'journey', lngLat: { lng: 0, lat: 0 }, title: h.hazard.event, lines: [] }, sheet: 'peek' })} />
       <span className="hazard-tier">{TIER_LABEL[h.hazard.tier]}</span>
       <div className="hazard-main">
         <strong>{h.hazard.event}</strong>

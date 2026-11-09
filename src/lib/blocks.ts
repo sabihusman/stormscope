@@ -100,5 +100,5 @@ export function unionBBox(boxes: BBox[]): BBox | null {
     east: Math.max(a.east, b.east),
     south: Math.min(a.south, b.south),
     north: Math.max(a.north, b.north),
-  }))
+  }), boxes[0])
 }

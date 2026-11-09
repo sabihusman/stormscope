@@ -25,7 +25,7 @@ const PARAM_NAMES: Record<MonitorParameter, string> = { 'PM2.5': 'PM2.5', OZONE:
 export function siteStyle(site: MonitorSite, now = Date.now()): { style: 'fresh' | 'stale'; color: string; aqi: number | null } {
   const fresh = site.readings.filter((r) => isFresh(r, now) && r.aqi != null)
   if (!fresh.length) return { style: 'stale', color: STALE_STROKE, aqi: null }
-  const worst = fresh.reduce((a, b) => (b.aqi! > a.aqi! ? b : a))
+  const worst = fresh.reduce((a, b) => (b.aqi! > a.aqi! ? b : a), fresh[0])
   const cat = aqiCategory(worst.aqi)
   return { style: 'fresh', color: cat?.color ?? STALE_STROKE, aqi: worst.aqi }
 }

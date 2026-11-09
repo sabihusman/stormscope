@@ -1153,6 +1153,7 @@ small {
   gap: 2px;
 }
 .journey-strip li {
+  position: relative;
   display: grid;
   grid-template-columns: 58px 26px 1fr auto;
   align-items: center;
@@ -1166,6 +1167,22 @@ small {
 }
 .journey-strip li:hover {
   background: rgba(56, 189, 248, 0.1);
+}
+/* A trip row's own button, laid over the whole row (absolutely positioned, so it takes no grid or flex slot). */
+.row-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  cursor: pointer;
+}
+.row-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .strip-time {
   font-variant-numeric: tabular-nums;
@@ -1222,6 +1239,7 @@ small {
   gap: 4px;
 }
 .hazard-hit {
+  position: relative;
   display: flex;
   gap: 8px;
   padding: 6px 8px;
