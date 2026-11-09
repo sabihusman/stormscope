@@ -67,9 +67,12 @@ if (r.hits) {
   const t = await panelText()
   check('[20:20Z] summary says warnings in effect (severe tone)', /warning.* in effect where you/.test(t))
   check('[20:20Z] replay banner states archived products + reanalysis', /Replay/.test(t) && /ERA5/.test(t))
-  await page.waitForTimeout(1500)
-  const cam = await page.evaluate(() => ({ z: +window.__map.getZoom().toFixed(1), c: window.__map.getCenter().lng.toFixed(2) }))
-  check('[20:20Z] map fitted to the route (zoomed out to the corridor)', cam.z < 9, JSON.stringify(cam))
+  // The app fits the route once it is ready (RouteLayer, retried up to 4 times 1.5 s apart); under load the
+  // 600 ms flight can take ~2 s to land. Wait for the camera to settle instead of reading it at a fixed 1.5 s.
+  const camAt = () => page.evaluate(() => ({ z: +window.__map.getZoom().toFixed(1), c: window.__map.getCenter().lng.toFixed(2), moving: window.__map.isMoving() }))
+  let cam = await camAt()
+  for (const t0 = Date.now(); (cam.z >= 9 || cam.moving) && Date.now() - t0 < 8000; cam = await camAt()) await page.waitForTimeout(250)
+  check('[20:20Z] map fitted to the route (zoomed out to the corridor)', cam.z < 9 && !cam.moving, JSON.stringify(cam))
   await page.screenshot({ path: `${OUT}/greenfield-2020z.png` })
 }
 
