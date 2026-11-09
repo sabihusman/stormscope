@@ -48,7 +48,7 @@ const report = async (ms = 120000) => {
     if (s.hits || s.err || s.werr || s.rerr) return s
     await page.waitForTimeout(1000)
   }
-  return page.evaluate(() => { const j = window.__store.get().journey; return { state: `${j.hazards.state} (to=${j.to?.name ?? "none"} routes=${j.routes.state}${j.routes.error ? " err=" + j.routes.error : ""} weather=${j.weather.state}${j.weather.error ? " err=" + j.weather.error : ""})`, hits: null } })
+  return page.evaluate(() => { const s = window.__store.get(); const j = s.journey; const msgs = [...document.querySelectorAll('.toast')].map((e) => e.textContent.trim().slice(0, 80)).join(' | '); return { state: `${j.hazards.state} (replay=${s.replay?.id ?? 'none'} to=${j.to?.name ?? "none"} routes=${j.routes.state}${j.routes.error ? " err=" + j.routes.error : ""} weather=${j.weather.state}${j.weather.error ? " err=" + j.weather.error : ""}${msgs ? ' · on screen: ' + msgs : ''})`, hits: null } })
 }
 const panelText = () => tripText(page)
 
@@ -67,16 +67,19 @@ if (r.hits) {
   const t = await panelText()
   check('[20:20Z] summary says warnings in effect (severe tone)', /warning.* in effect where you/.test(t))
   check('[20:20Z] replay banner states archived products + reanalysis', /Replay/.test(t) && /ERA5/.test(t))
-  await page.waitForTimeout(1500)
-  const cam = await page.evaluate(() => ({ z: +window.__map.getZoom().toFixed(1), c: window.__map.getCenter().lng.toFixed(2) }))
-  check('[20:20Z] map fitted to the route (zoomed out to the corridor)', cam.z < 9, JSON.stringify(cam))
+  // The app fits the route once it is ready (RouteLayer, retried up to 4 times 1.5 s apart); under load the
+  // 600 ms flight can take ~2 s to land. Wait for the camera to settle instead of reading it at a fixed 1.5 s.
+  const camAt = () => page.evaluate(() => ({ z: +window.__map.getZoom().toFixed(1), c: window.__map.getCenter().lng.toFixed(2), moving: window.__map.isMoving() }))
+  let cam = await camAt()
+  for (const t0 = Date.now(); (cam.z >= 9 || cam.moving) && Date.now() - t0 < 8000; cam = await camAt()) await page.waitForTimeout(250)
+  check('[20:20Z] map fitted to the route (zoomed out to the corridor)', cam.z < 9 && !cam.moving, JSON.stringify(cam))
   await page.screenshot({ path: `${OUT}/greenfield-2020z.png` })
 }
 
 // ---------------- 2. Negative timing: depart 22:00Z
 await page.goto(`${BASE}/?replay=greenfield-2200z`, { waitUntil: 'load' })
 r = await report()
-check('[22:00Z] replay evaluated', !!r.hits, `${r.state}${r.err ? ' · ' + r.err : ''}`)
+check('[22:00Z] replay evaluated', !!r.hits, `${r.state}${r.err ? ' · ' + r.err : ''}${r.werr ? ' · weather: ' + r.werr : ''}${r.rerr ? ' · route: ' + r.rerr : ''}`)
 if (r.hits) {
   const ids = r.hits.map((h) => h.id)
   check('[22:00Z] TO.W #41 NOT flagged (expired before ETA)', !ids.includes('DMX TO.W #41'))
@@ -95,7 +98,7 @@ if (r.hits) {
 // ---------------- 3. Ice storm: depart 06:00Z 14 Dec 2024
 await page.goto(`${BASE}/?replay=ice-storm-2024-12-14`, { waitUntil: 'load' })
 r = await report()
-check('[ice] replay evaluated', !!r.hits, `${r.state}${r.err ? ' · ' + r.err : ''}`)
+check('[ice] replay evaluated', !!r.hits, `${r.state}${r.err ? ' · ' + r.err : ''}${r.werr ? ' · weather: ' + r.werr : ''}${r.rerr ? ' · route: ' + r.rerr : ''}`)
 if (r.hits) {
   const ids = r.hits.map((h) => h.id)
   check('[ice] Ice Storm Warning flagged at ETA', ids.includes('DMX IS.W #1'), ids.join(', '))
